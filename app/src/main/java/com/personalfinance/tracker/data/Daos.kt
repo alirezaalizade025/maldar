@@ -20,6 +20,9 @@ interface BankAccountDao {
     @Delete
     suspend fun delete(account: BankAccountEntity)
 
+    @Query("SELECT * FROM bank_accounts ORDER BY id DESC")
+    suspend fun getAllOnce(): List<BankAccountEntity>
+
     @Query("UPDATE bank_accounts SET balance = balance + :delta WHERE id = :id")
     suspend fun adjustBalance(id: Long, delta: Double)
 }
@@ -95,6 +98,9 @@ interface LoanDao {
 
     @Delete
     suspend fun delete(loan: LoanEntity)
+
+    @Query("SELECT * FROM loans ORDER BY dueDateMillis ASC")
+    suspend fun getAllOnce(): List<LoanEntity>
 }
 
 @Dao
@@ -116,6 +122,15 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun count(): Int
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE category = :name")
+    suspend fun countTransactionsWithCategory(name: String): Int
+
+    @Query("UPDATE transactions SET category = :target WHERE category = :name")
+    suspend fun reassignTransactionsCategory(name: String, target: String)
+
+    @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
+    suspend fun getAllOnce(): List<TransactionEntity>
 
     @Insert
     suspend fun insertAll(categories: List<CategoryEntity>)

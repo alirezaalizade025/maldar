@@ -115,7 +115,12 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     fun renameCategory(category: CategoryEntity, newName: String) {
         viewModelScope.launch { repo.renameCategory(category, newName.trim()) }
     }
-    fun deleteCategory(category: CategoryEntity) = viewModelScope.launch { repo.deleteCategory(category) }
+    suspend fun deleteCategorySafe(category: CategoryEntity): FinanceRepository.DeleteCategoryResult {
+        return repo.deleteCategorySafe(category)
+    }
+
+    // ---- Export / backup ----
+    suspend fun exportAll(): FinanceRepository.ExportBundle = repo.exportAll()
 
     // ---- Reports ----
     suspend fun monthlyIncomeExpense(monthOffset: Int = 0): Pair<Double, Double> {

@@ -19,6 +19,8 @@ object AppStrings {
 
     // Dashboard
     val overview = "نمای کلی"
+    val onboardingTitle = "به مال‌دار خوش آمدید"
+    val onboardingBody = "برای شروع: یک حساب بانکی اضافه کنید (تب حساب‌ها)، تراکنش‌هایتان را ثبت کنید (تب ثبت)، یا وام‌ها را مدیریت کنید."
     val monthlyTrend = "نمودار ماهانه"
     val noTrendData = "داده‌ای برای نمودار وجود ندارد."
     val totalBalance = "موجودی کل"
@@ -33,6 +35,9 @@ object AppStrings {
     val expense = "هزینه"
     val income = "درآمد"
     val amountLabel = "مبلغ (تومان)"
+    val unit = "واحد:"
+    val toman = "تومان"
+    val rial = "ریال"
     val bankAccount = "حساب بانکی"
     val noneCash = "بدون حساب (نقدی)"
     val noteOptional = "یادداشت (اختیاری)"
@@ -49,6 +54,8 @@ object AppStrings {
     val add = "افزودن"
     val done = "انجام شد"
     val save2 = "ذخیره"
+    val categoryDeleted = "دسته حذف شد."
+    val categoryDeletedReassigned = "%d تراکنش به «سایر» منتقل شد."
 
     // Bank accounts
     val bankAccounts = "حساب‌های بانکی"
@@ -66,6 +73,7 @@ object AppStrings {
     val smsSendersHint = "شماره‌ها/شناسه‌هایی که برای پیامک تراکنش بررسی می‌شوند"
     val addSender = "افزودن فرستنده پیامک"
     val addAccountFirst = "اول یک حساب بانکی اضافه کنید."
+    val detectedSenders = "فرستندگان شناسایی‌شده از پیامک‌ها"
     val senderId = "شناسه فرستنده"
     val linkToAccount = "اتصال به حساب"
     val senderHint = "شناسه فرستنده را دقیقاً همان‌طور که در پیام‌رسان نمایش داده می‌شود وارد کنید (مثل BPIR، ۳۰۰۰۷۳۲۷۳)."
@@ -124,6 +132,13 @@ object AppStrings {
     val clearLog = "پاک کردن گزارش"
     val close = "بستن"
 
+    // Export / backup
+    val exportData = "خروجی و پشتیبان‌گیری"
+    val exportHint = "داده‌های خود را به صورت فایل ذخیره یا ارسال کنید."
+    val exportCsv = "خروجی CSV"
+    val exportJson = "خروجی JSON"
+    val sendExport = "اشتراک‌گذاری فایل پشتیبان"
+
     // Updates
     val menuUpdates = "بررسی به‌روزرسانی"
     val updateAvailable = "نسخه جدید موجود است"
@@ -133,6 +148,7 @@ object AppStrings {
     val upToDateBody = "شما آخرین نسخه (%s) را دارید."
     val checkFailed = "بررسی به‌روزرسانی ممکن نشد"
     val later = "بعداً"
+    val skipVersion = "رد کردن این نسخه"
 }
 
 /**

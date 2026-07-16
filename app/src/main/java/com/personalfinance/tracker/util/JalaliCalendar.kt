@@ -124,6 +124,9 @@ object JalaliCalendar {
                 jy % 33 == 17 || jy % 33 == 22 || jy % 33 == 26 || jy % 33 == 30)
     }
 
+    // Public wrapper around the private converter so it can be unit-tested.
+    fun toGregorianPublic(jy: Int, jm: Int, jd: Int): Calendar = toGregorian(jy, jm, jd)
+
     // Convert Jalali (y, m, d) to a Gregorian Calendar.
     // Robust approach: count days from the Jalali epoch (1/1/1 = Gregorian 622-03-22)
     // and add them to an anchor Calendar. Avoids fragile month-arithmetic bugs.

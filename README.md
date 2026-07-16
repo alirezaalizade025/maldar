@@ -33,7 +33,19 @@ consistently in both Add Transaction and the SMS confirmation screen.
    real device (or an emulator you send test SMS to via `adb emu sms send`),
    since emulators without a SIM don't receive real bank SMS.
 
-## Important: about the SMS permission
+## About the SMS permission (and a Play Store path)
+
+`READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
+of app categories (default SMS app, etc.) — a personal finance app doesn't
+qualify. This project is built for **sideloading** (installing the APK
+directly, e.g. via `adb install` or transferring the file to your phone), which
+has no such restriction. If you ever want to distribute this more broadly,
+switch to a **Notification Listener** (`NotificationListenerService`): it can
+read bank transaction notifications without the restricted SMS permission, and
+Play Store allows that permission. The SMS path can stay as a personal-use
+fallback.
+
+
 
 `READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
 of app categories (default SMS app, etc.) — a personal finance app doesn't
@@ -48,15 +60,15 @@ reading (Play Store does allow that permission), or keep it as a personal-use AP
 1. Go to **Accounts** tab → add a bank account → add an **SMS Sender** (the
    exact sender ID shown in your Messages app, e.g. `HDFCBK`, `VM-SBIINB`, or
    a phone number), linked to that account.
-2. When an SMS arrives from a watched sender, `SmsReceiver` checks it with a
-   generic regex parser (`SmsParser`) that looks for currency markers
-   (`Rs.`, `INR`, `₹`) and debit/credit keywords. It does **not** auto-save —
-   it creates a "pending" entry and fires a notification.
-3. Tapping the notification (or the banner on the Dashboard) opens the
-   **Confirm SMS Transactions** screen, where you review/edit the amount,
-   type, and category before it's saved. This "stay for confirm" step exists
-   because generic parsing across many bank formats will occasionally
-   misread a message — better to catch it here than to silently miscount.
+ 2. When an SMS arrives from a watched sender, `SmsReceiver` checks it with a
+    generic regex parser (`SmsParser`) that looks for currency markers
+    (`تومان`, `ریال`, `Rls`, `IRR`, `toman`) and debit/credit keywords. It does
+    **not** auto-save — it creates a "pending" entry and fires a notification.
+ 3. Tapping the notification (or the banner on the Dashboard) opens the
+    **Confirm SMS Transactions** screen, where you review/edit the amount,
+    type, and category before it's saved. This "stay for confirm" step exists
+    because generic parsing across many bank formats will occasionally
+    misread a message — better to catch it here than to silently miscount.
 4. Once confirmed, the transaction is saved and the linked bank account's
    balance is updated automatically.
 
@@ -68,9 +80,10 @@ notification when you're inside that window.
 
 ## Notes / next steps you may want
 
-- The category list in Add Transaction is a fixed set — easy to make
-  user-editable later (`AddTransactionScreen.kt`, `expenseCategories`/`incomeCategories`).
-- Reports currently show one month at a time with category bars; a
+- Categories are fully user-editable from the **"Manage categories…"** option
+  in any category dropdown. Deleting a category that's still used by transactions
+  automatically reassigns those records to "سایر" so nothing is lost.
+- You can export all your data (CSV or JSON) from the top-right menu →
+  **خروجی و پشتیبان‌گیری** and share it anywhere for backup.
+- Reports show one month at a time with category bars plus a net marker; a
   year-over-year view would be a natural next addition.
-- No cloud sync/backup is implemented — everything lives in a local Room
-  database (`maldar.db`), private to the app.

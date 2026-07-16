@@ -50,6 +50,22 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
             Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium)
         }
 
+        // First-launch onboarding: guide the user when the app is completely empty.
+        if (accounts.isEmpty() && transactions.isEmpty()) {
+            item {
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(AppStrings.onboardingTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(AppStrings.onboardingBody, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+
         item {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -74,6 +90,11 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                                 Box(Modifier.size(10.dp).background(Coral, RoundedCornerShape(3.dp)))
                                 Spacer(Modifier.width(6.dp))
                                 Text(AppStrings.reportExpense, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).background(Color(0xFF5A5F66), RoundedCornerShape(3.dp)))
+                                Spacer(Modifier.width(6.dp))
+                                Text(AppStrings.net, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -135,24 +156,46 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
         }
 
         items(transactions.take(15)) { tx ->
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(tx.category, fontWeight = FontWeight.Medium)
-                        Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                        if (tx.note.isNotBlank()) {
-                            Text(tx.note, style = MaterialTheme.typography.labelSmall)
-                        }
+            val dismissState = rememberDismissState(
+                confirmValueChange = {
+                    if (it == DismissValue.DismissedToEnd || it == DismissValue.DismissedToStart) {
+                        viewModel.deleteTransaction(tx)
+                        true
+                    } else false
+                }
+            )
+            SwipeToDismiss(
+                state = dismissState,
+                directions = setOf(DismissDirection.EndToStart, DismissDirection.StartToEnd),
+                background = {
+                    val color = when (dismissState.dismissDirection) {
+                        DismissDirection.EndToStart, DismissDirection.StartToEnd -> MaterialTheme.colorScheme.error
+                        null -> MaterialTheme.colorScheme.surface
                     }
-                    Text(
-                        (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
-                        color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(Modifier.fillMaxSize().background(color).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) {
+                        Text(AppStrings.delete, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            ) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(tx.category, fontWeight = FontWeight.Medium)
+                            Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            if (tx.note.isNotBlank()) {
+                                Text(tx.note, style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        Text(
+                            (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
+                            color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

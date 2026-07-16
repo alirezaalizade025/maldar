@@ -212,6 +212,13 @@ private fun AddSenderDialog(
     var senderId by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0L) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var senderMenuExpanded by remember { mutableStateOf(false) }
+    val detectedSenders = remember {
+        SmsInboxReader.recentSenders(
+            context,
+            exclude = senders.map { it.senderId }.toSet()
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -222,6 +229,21 @@ private fun AddSenderDialog(
                     AppStrings.senderHint,
                     style = MaterialTheme.typography.labelSmall
                 )
+                if (detectedSenders.isNotEmpty()) {
+                    ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
+                        OutlinedTextField(
+                            value = senderId,
+                            onValueChange = { senderId = it },
+                            label = { Text(AppStrings.detectedSenders) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
+                            detectedSenders.forEach { s ->
+                                DropdownMenuItem(text = { Text(s) }, onClick = { senderId = s; senderMenuExpanded = false })
+                            }
+                        }
+                    }
+                }
                 OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId) })
                 ExposedDropdownMenuBox(expanded = menuExpanded, onExpandedChange = { menuExpanded = it }) {
                     OutlinedTextField(

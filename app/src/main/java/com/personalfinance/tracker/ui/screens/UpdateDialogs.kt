@@ -27,7 +27,12 @@ fun UpdateDialog(
                 onDismiss()
             }) { Text(AppStrings.download) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.later) } }
+        dismissButton = {
+            TextButton(onClick = {
+                UpdateChecker.markSkipped(info.tag)
+                onDismiss()
+            }) { Text(AppStrings.skipVersion) }
+        }
     )
 }
 
@@ -36,7 +41,7 @@ fun UpToDateDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.upToDate) },
-        text = { Text(AppStrings.upToDateBody.format(UpdateChecker.CURRENT_VERSION)) },
+        text = { Text(AppStrings.upToDateBody.format(UpdateChecker.CURRENT_VERSION_NAME)) },
         confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

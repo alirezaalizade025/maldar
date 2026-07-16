@@ -59,5 +59,41 @@ class FinanceRepository(private val db: AppDatabase) {
     fun getCategoriesByType(type: TxType) = db.categoryDao().getByType(type)
     suspend fun addCategory(name: String, type: TxType) = db.categoryDao().insert(CategoryEntity(name = name, type = type))
     suspend fun renameCategory(category: CategoryEntity, newName: String) = db.categoryDao().update(category.copy(name = newName))
-    suspend fun deleteCategory(category: CategoryEntity) = db.categoryDao().delete(category)
+
+    // Deletes a category safely: transactions still using it are reassigned to the
+    // "Other" category (سایر) of the same type so no record is orphaned/miscounted.
+    suspend fun deleteCategorySafe(category: CategoryEntity): DeleteCategoryResult {
+        val dao = db.categoryDao()
+        val count = dao.countTransactionsWithCategory(category.name)
+        if (count > 0) {
+            val target = defaultOtherFor(category.type)
+            if (category.name != target) {
+                dao.reassignTransactionsCategory(category.name, target)
+            }
+        }
+        dao.delete(category)
+        return DeleteCategoryResult(reassignedCount = count)
+    }
+
+    private fun defaultOtherFor(type: TxType): String =
+        if (type == TxType.EXPENSE) "سایر" else "سایر"
+
+    data class DeleteCategoryResult(val reassignedCount: Int)
+
+    // Full-data export (used for backup). Fetches everything once.
+    suspend fun exportAll(): ExportBundle {
+        return ExportBundle(
+            transactions = db.transactionDao().getAllOnce(),
+            accounts = db.bankAccountDao().getAllOnce(),
+            loans = db.loanDao().getAllOnce(),
+            categories = db.categoryDao().getAllOnce()
+        )
+    }
+
+    data class ExportBundle(
+        val transactions: List<TransactionEntity>,
+        val accounts: List<BankAccountEntity>,
+        val loans: List<LoanEntity>,
+        val categories: List<CategoryEntity>
+    )
 }

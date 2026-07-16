@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.personalfinance.tracker.data.CategoryEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
@@ -30,6 +31,7 @@ fun CategoryPicker(
 
     var expanded by remember { mutableStateOf(false) }
     var showManage by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // If nothing is selected yet (or the selection no longer exists), default to the first category.
     LaunchedEffect(categories) {
@@ -76,6 +78,7 @@ private fun ManageCategoriesDialog(
     var newName by remember { mutableStateOf("") }
     var renaming by remember { mutableStateOf<CategoryEntity?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var resultMessage by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -101,7 +104,15 @@ private fun ManageCategoriesDialog(
                             IconButton(onClick = { renaming = cat; renameText = cat.name }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "Rename")
                             }
-                            IconButton(onClick = { viewModel.deleteCategory(cat) }) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    val res = viewModel.deleteCategorySafe(cat)
+                                    resultMessage = if (res.reassignedCount > 0)
+                                        AppStrings.categoryDeletedReassigned.format(res.reassignedCount)
+                                    else
+                                        AppStrings.categoryDeleted
+                                }
+                            }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -120,6 +131,10 @@ private fun ManageCategoriesDialog(
                             newName = ""
                         }
                     }) { Text("Add") }
+                }
+                resultMessage?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         },

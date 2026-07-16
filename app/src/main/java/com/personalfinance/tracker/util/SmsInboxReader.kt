@@ -31,4 +31,26 @@ object SmsInboxReader {
         }
         return Result(null, null)
     }
+
+    /**
+     * Returns the most recent distinct sender addresses from the inbox, newest first,
+     * so the user can pick their bank's sender ID without typing it manually.
+     * Senders already configured are excluded.
+     */
+    fun recentSenders(context: Context, exclude: Set<String> = emptySet(), limit: Int = 30): List<String> {
+        val uri = Telephony.Sms.Inbox.CONTENT_URI
+        val projection = arrayOf(Telephony.Sms.Inbox.ADDRESS)
+        val sort = "${Telephony.Sms.Inbox.DATE} DESC"
+        val out = LinkedHashSet<String>()
+        context.contentResolver.query(uri, projection, null, null, sort)?.use { cursor ->
+            val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.ADDRESS)
+            while (cursor.moveToNext() && out.size < limit) {
+                val address = cursor.getString(addrIdx)?.trim() ?: continue
+                if (address.isBlank()) continue
+                if (exclude.any { address.equals(it, ignoreCase = true) || address.contains(it, ignoreCase = true) }) continue
+                out.add(address)
+            }
+        }
+        return out.toList()
+    }
 }

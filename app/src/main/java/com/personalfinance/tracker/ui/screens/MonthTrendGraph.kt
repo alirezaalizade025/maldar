@@ -53,33 +53,43 @@ fun MonthTrendGraph(
             val barW = (groupW - gap) / 2
             val baseY = size.height - 18.dp.toPx()
 
-            data.forEachIndexed { i, (inc, exp) ->
-                val groupX = sidePad + i * groupW
-                val incH = (inc / maxVal * (baseY - 6.dp.toPx())).toFloat()
-                val expH = (exp / maxVal * (baseY - 6.dp.toPx())).toFloat()
+        data.forEachIndexed { i, (inc, exp) ->
+            val groupX = sidePad + i * groupW
+            val incH = (inc / maxVal * (baseY - 6.dp.toPx())).toFloat()
+            val expH = (exp / maxVal * (baseY - 6.dp.toPx())).toFloat()
 
-                drawRoundRect(
-                    color = Emerald,
-                    topLeft = Offset(groupX, baseY - incH),
-                    size = Size(barW, incH),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-                )
-                drawRoundRect(
-                    color = Coral,
-                    topLeft = Offset(groupX + barW + 4.dp.toPx(), baseY - expH),
-                    size = Size(barW, expH),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
-                )
+            drawRoundRect(
+                color = Emerald,
+                topLeft = Offset(groupX, baseY - incH),
+                size = Size(barW, incH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+            )
+            drawRoundRect(
+                color = Coral,
+                topLeft = Offset(groupX + barW + 4.dp.toPx(), baseY - expH),
+                size = Size(barW, expH),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
+            )
 
-                val layout = labelLayouts[i]
-                drawText(
-                    textLayoutResult = layout,
-                    topLeft = Offset(
-                        groupX + groupW / 2 - layout.size.width / 2,
-                        baseY + 2.dp.toPx()
-                    )
+            // Net (income - expense) marker line above the group.
+            val net = inc - exp
+            val netH = (net / maxVal * (baseY - 6.dp.toPx())).toFloat()
+            drawLine(
+                color = androidx.compose.ui.graphics.Color(0xFF5A5F66),
+                start = Offset(groupX + groupW / 2, baseY - maxOf(incH, expH) - 6.dp.toPx()),
+                end = Offset(groupX + groupW / 2, baseY - maxOf(incH, expH) - 6.dp.toPx() - netH),
+                strokeWidth = 2.dp.toPx()
+            )
+
+            val layout = labelLayouts[i]
+            drawText(
+                textLayoutResult = layout,
+                topLeft = Offset(
+                    groupX + groupW / 2 - layout.size.width / 2,
+                    baseY + 2.dp.toPx()
                 )
-            }
+            )
+        }
         }
     }
 }

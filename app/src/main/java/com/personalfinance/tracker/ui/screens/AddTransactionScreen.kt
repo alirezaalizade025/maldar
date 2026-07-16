@@ -23,6 +23,8 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
     var selectedAccountId by remember { mutableStateOf<Long?>(null) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
     var confirmationMessage by remember { mutableStateOf<String?>(null) }
+    // false = Toman (stored unit), true = Rial (entered value / 10 to convert)
+    var rialMode by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -46,6 +48,22 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             visualTransformation = ThousandsSeparatorTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Text(AppStrings.unit, style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.width(8.dp))
+            FilterChip(
+                selected = !rialMode,
+                onClick = { rialMode = false },
+                label = { Text(AppStrings.toman) }
+            )
+            Spacer(Modifier.width(8.dp))
+            FilterChip(
+                selected = rialMode,
+                onClick = { rialMode = true },
+                label = { Text(AppStrings.rial) }
+            )
+        }
 
         CategoryPicker(
             viewModel = viewModel,
@@ -79,7 +97,8 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             onClick = {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
-                    viewModel.addTransaction(amount, type, category, note, selectedAccountId)
+                    val stored = if (rialMode) amount / 10.0 else amount
+                    viewModel.addTransaction(stored, type, category, note, selectedAccountId)
                     confirmationMessage = AppStrings.saved
                     amountText = ""; note = ""
                 } else {
