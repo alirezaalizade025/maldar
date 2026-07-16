@@ -112,6 +112,13 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     if (selectedLoan != null) {
         LoanDetailDialog(loan = selectedLoan!!, viewModel = viewModel, onDismiss = { selectedLoan = null })
     }
+
+    if (showAdd) {
+        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, reminderDays, notes ->
+            viewModel.addLoan(name, principal, payDay, reminderDays, notes)
+            showAdd = false
+        })
+    }
 }
 
 @Composable
@@ -162,14 +169,6 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.close) } }
     )
-}
-
-    if (showAdd) {
-        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, reminderDays, notes ->
-            viewModel.addLoan(name, principal, payDay, reminderDays, notes)
-            showAdd = false
-        })
-    }
 }
 
 @Composable
