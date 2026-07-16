@@ -45,16 +45,6 @@ read bank transaction notifications without the restricted SMS permission, and
 Play Store allows that permission. The SMS path can stay as a personal-use
 fallback.
 
-
-
-`READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
-of app categories (default SMS app, etc.) — a personal finance app doesn't
-qualify. This project is built for **sideloading** (installing the APK
-directly, e.g. via `adb install` or transferring the file to your phone), which
-has no such restriction. If you ever want to distribute this more broadly,
-you'd need to switch to a Notification Listener approach instead of direct SMS
-reading (Play Store does allow that permission), or keep it as a personal-use APK.
-
 ## How the SMS flow works
 
 1. Go to **Accounts** tab → add a bank account → add an **SMS Sender** (the

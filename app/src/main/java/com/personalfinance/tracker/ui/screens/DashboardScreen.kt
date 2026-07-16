@@ -34,10 +34,12 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
     var monthIncome by remember { mutableStateOf(0.0) }
     var monthExpense by remember { mutableStateOf(0.0) }
     var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+    var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
     LaunchedEffect(transactions) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
         trend = viewModel.monthlyHistory(6)
+        balanceTrend = viewModel.balanceHistory(6)
     }
 
     val totalBalance = accounts.sumOf { it.balance }
@@ -78,7 +80,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                     if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
                         Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     } else {
-                        MonthTrendGraph(data = trend)
+                        MonthTrendGraph(data = trend, balanceLine = balanceTrend)
                         Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -95,6 +97,11 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                                 Box(Modifier.size(10.dp).background(Color(0xFF5A5F66), RoundedCornerShape(3.dp)))
                                 Spacer(Modifier.width(6.dp))
                                 Text(AppStrings.net, style = MaterialTheme.typography.labelSmall)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).background(Color(0xFF2B6CB0), RoundedCornerShape(3.dp)))
+                                Spacer(Modifier.width(6.dp))
+                                Text(AppStrings.balanceTrend, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }

@@ -39,6 +39,15 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun totalByType(type: TxType, start: Long, end: Long): Double =
         db.transactionDao().sumByTypeBetween(type, start, end) ?: 0.0
 
+    suspend fun netBetween(start: Long, end: Long): Double {
+        val income = totalByType(TxType.INCOME, start, end)
+        val expense = totalByType(TxType.EXPENSE, start, end)
+        return income - expense
+    }
+
+    suspend fun totalAccountBalance(): Double =
+        db.bankAccountDao().getAllOnce().sumOf { it.balance }
+
     suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> =
         db.transactionDao().expenseByCategoryBetween(start, end)
 

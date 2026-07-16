@@ -111,6 +111,7 @@ object AppStrings {
     val reportIncome = "درآمد"
     val reportExpense = "هزینه"
     val net = "خالص"
+    val balanceTrend = "روند موجودی"
     val spendingByCategory = "هزینه بر اساس دسته‌بندی"
     val noExpenses = "امسال هزینه‌ای ثبت نشده است."
 

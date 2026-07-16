@@ -26,6 +26,7 @@ import java.util.Calendar
 @Composable
 fun MonthTrendGraph(
     data: List<Pair<Double, Double>>,
+    balanceLine: List<Double> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     if (data.isEmpty()) return
@@ -44,6 +45,12 @@ fun MonthTrendGraph(
     }
 
     val maxVal = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).coerceAtLeast(1.0)
+
+    // Net-worth line: scale to its own range so it's visible regardless of magnitude.
+    val hasBalance = balanceLine.size == data.size && balanceLine.isNotEmpty()
+    val balMin = balanceLine.minOrNull() ?: 0.0
+    val balMax = balanceLine.maxOrNull() ?: 0.0
+    val balRange = (balMax - balMin).coerceAtLeast(1.0)
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
@@ -90,6 +97,35 @@ fun MonthTrendGraph(
                 )
             )
         }
+
+        // Net-worth (balance over time) polyline, scaled to its own range and
+        // drawn in the upper region of the chart.
+        if (hasBalance) {
+            val top = 6.dp.toPx()
+            val bottom = baseY - 6.dp.toPx()
+            val lineH = bottom - top
+            val points = balanceLine.mapIndexed { i, v ->
+                val groupX = sidePad + i * groupW
+                val x = groupX + groupW / 2
+                val y = bottom - ((v - balMin) / balRange * lineH).toFloat()
+                Offset(x, y)
+            }
+            for (i in 1 until points.size) {
+                drawLine(
+                    color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                    start = points[i - 1],
+                    end = points[i],
+                    strokeWidth = 3.dp.toPx()
+                )
+            }
+            points.forEach { p ->
+                drawRoundRect(
+                    color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                    topLeft = Offset(p.x - 3.dp.toPx(), p.y - 3.dp.toPx()),
+                    size = Size(6.dp.toPx(), 6.dp.toPx()),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                )
+            }
         }
     }
 }

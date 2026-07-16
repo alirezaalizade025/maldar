@@ -50,7 +50,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             OutlinedButton(onClick = { monthOffset-- }) { Text(AppStrings.prev) }
             Text(monthLabel, style = MaterialTheme.typography.titleLarge)
-            OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 0) { Text(AppStrings.next) }
+            OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) { Text(AppStrings.next) }
         }
 
         Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
