@@ -156,23 +156,26 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
         }
 
         items(transactions.take(15)) { tx ->
-            val dismissState = rememberDismissState(
+            val dismissState = rememberSwipeToDismissBoxState(
                 confirmValueChange = {
-                    if (it == DismissValue.DismissedToEnd || it == DismissValue.DismissedToStart) {
+                    if (it == SwipeToDismissBoxValue.EndToStart || it == SwipeToDismissBoxValue.StartToEnd) {
                         viewModel.deleteTransaction(tx)
                         true
                     } else false
                 }
             )
-            SwipeToDismiss(
+            SwipeToDismissBox(
                 state = dismissState,
-                directions = setOf(DismissDirection.EndToStart, DismissDirection.StartToEnd),
-                background = {
-                    val color = when (dismissState.dismissDirection) {
-                        DismissDirection.EndToStart, DismissDirection.StartToEnd -> MaterialTheme.colorScheme.error
-                        null -> MaterialTheme.colorScheme.surface
-                    }
-                    Box(Modifier.fillMaxSize().background(color).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterEnd) {
+                enableDismissFromEndToStart = true,
+                enableDismissFromStartToEnd = true,
+                backgroundContent = {
+                    val direction = dismissState.dismissDirection
+                    val color = if (direction != null) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.surface
+                    Box(
+                        Modifier.fillMaxSize().background(color).padding(horizontal = 20.dp),
+                        contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                    ) {
                         Text(AppStrings.delete, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }

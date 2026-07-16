@@ -61,6 +61,9 @@ interface TransactionDao {
 
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND dateMillis BETWEEN :start AND :end GROUP BY category ORDER BY total DESC")
     suspend fun expenseByCategoryBetween(start: Long, end: Long): List<CategoryTotal>
+
+    @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
+    suspend fun getAllOnce(): List<TransactionEntity>
 }
 
 @Dao
@@ -110,6 +113,9 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories ORDER BY name ASC")
     fun getAll(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM categories ORDER BY name ASC")
+    suspend fun getAllOnce(): List<CategoryEntity>
 
     @Insert
     suspend fun insert(category: CategoryEntity): Long

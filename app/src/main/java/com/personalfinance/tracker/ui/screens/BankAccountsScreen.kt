@@ -142,6 +142,8 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
 
     if (showAddSender) {
         AddSenderDialog(
+            context = context,
+            existingSenders = senders,
             accounts = accounts,
             onDismiss = { showAddSender = false },
             onAdd = { senderId, accId, label ->
@@ -205,6 +207,8 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
 
 @Composable
 private fun AddSenderDialog(
+    context: android.content.Context,
+    existingSenders: List<com.personalfinance.tracker.data.SmsSenderEntity>,
     accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
     onDismiss: () -> Unit,
     onAdd: (String, Long, String) -> Unit
@@ -216,7 +220,7 @@ private fun AddSenderDialog(
     val detectedSenders = remember {
         SmsInboxReader.recentSenders(
             context,
-            exclude = senders.map { it.senderId }.toSet()
+            exclude = existingSenders.map { it.senderId }.toSet()
         )
     }
 

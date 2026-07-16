@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import com.personalfinance.tracker.data.CategoryEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
@@ -63,6 +64,7 @@ fun CategoryPicker(
             viewModel = viewModel,
             type = type,
             categories = categories,
+            scope = scope,
             onDismiss = { showManage = false }
         )
     }
@@ -73,6 +75,7 @@ private fun ManageCategoriesDialog(
     viewModel: FinanceViewModel,
     type: TxType,
     categories: List<CategoryEntity>,
+    scope: kotlinx.coroutines.CoroutineScope,
     onDismiss: () -> Unit
 ) {
     var newName by remember { mutableStateOf("") }

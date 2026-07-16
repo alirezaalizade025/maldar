@@ -2,7 +2,6 @@ package com.personalfinance.tracker.util
 
 import android.content.Context
 import android.os.Build
-import com.personalfinance.tracker.BuildConfig
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -68,6 +67,6 @@ object CrashLogger {
             append("Model: ${Build.MANUFACTURER} ${Build.MODEL}\n")
             append("SDK: ${Build.VERSION.SDK_INT}\n")
             append("Android: ${Build.VERSION.RELEASE}\n")
-            append("App: ${BuildConfig.APPLICATION_ID} v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})\n")
+            append("App: com.personalfinance.tracker v1.1 (2)\n")
         }
 }
