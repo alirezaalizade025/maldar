@@ -1,4 +1,4 @@
-# Personal Finance Tracker (Android)
+# Maldar (Android)
 
 A fully offline personal accounting app: manual + SMS-detected expense/income tracking,
 loan due-date reminders, bank account balances, and monthly reports.
@@ -73,4 +73,4 @@ notification when you're inside that window.
 - Reports currently show one month at a time with category bars; a
   year-over-year view would be a natural next addition.
 - No cloud sync/backup is implemented — everything lives in a local Room
-  database (`personal_finance.db`), private to the app.
+  database (`maldar.db`), private to the app.

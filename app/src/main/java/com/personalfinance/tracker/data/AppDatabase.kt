@@ -60,7 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "personal_finance.db"
+                    "maldar.db"
                 )
                     // Personal, sideloaded app - a schema bump just resets local data rather than
                     // requiring a hand-written migration. Fine for this use case; revisit if you
