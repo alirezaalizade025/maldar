@@ -15,6 +15,7 @@ import com.personalfinance.tracker.viewmodel.FinanceViewModel
 @Composable
 fun AddTransactionScreen(viewModel: FinanceViewModel) {
     val accounts by viewModel.bankAccounts.collectAsState()
+    val loans by viewModel.loans.collectAsState()
 
     var type by remember { mutableStateOf(TxType.EXPENSE) }
     var amountText by remember { mutableStateOf("") }
@@ -25,6 +26,8 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
     var confirmationMessage by remember { mutableStateOf<String?>(null) }
     // false = Toman (stored unit), true = Rial (entered value / 10 to convert)
     var rialMode by remember { mutableStateOf(false) }
+    var selectedLoanId by remember { mutableStateOf<Long?>(null) }
+    var loanMenuExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
@@ -87,6 +90,21 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             }
         }
 
+        ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
+            OutlinedTextField(
+                value = loans.firstOrNull { it.id == selectedLoanId }?.name ?: AppStrings.relatedToLoan,
+                onValueChange = {}, readOnly = true,
+                label = { Text(AppStrings.relatedToLoan + " (" + AppStrings.optional + ")") },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(expanded = loanMenuExpanded, onDismissRequest = { loanMenuExpanded = false }) {
+                DropdownMenuItem(text = { Text(AppStrings.none) }, onClick = { selectedLoanId = null; loanMenuExpanded = false })
+                loans.filter { !it.isPaid }.forEach { loan ->
+                    DropdownMenuItem(text = { Text(loan.name) }, onClick = { selectedLoanId = loan.id; loanMenuExpanded = false })
+                }
+            }
+        }
+
         OutlinedTextField(
             value = note, onValueChange = { note = it },
             label = { Text(AppStrings.noteOptional) },
@@ -98,9 +116,9 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
                     val stored = if (rialMode) amount / 10.0 else amount
-                    viewModel.addTransaction(stored, type, category, note, selectedAccountId)
+                    viewModel.addTransaction(stored, type, category, note, selectedAccountId, loanId = selectedLoanId)
                     confirmationMessage = AppStrings.saved
-                    amountText = ""; note = ""
+                    amountText = ""; note = ""; selectedLoanId = null
                 } else {
                     confirmationMessage = AppStrings.invalidAmount
                 }

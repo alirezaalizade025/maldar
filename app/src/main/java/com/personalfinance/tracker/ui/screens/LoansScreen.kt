@@ -1,5 +1,6 @@
 package com.personalfinance.tracker.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,8 @@ import java.util.*
 fun LoansScreen(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
+    var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
+    var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
 
     val total = loans.sumOf { it.remainingAmount }
     // Amount whose pay-day has already passed this Jalali month (due so far).
@@ -72,7 +75,8 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 
         items(loans) { loan ->
             val daysLeft = ((loan.dueDateMillis - System.currentTimeMillis()) / 86_400_000L)
-            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth().clickable { selectedLoan = loan }) {
                 Column(Modifier.padding(14.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(loan.name, fontWeight = FontWeight.Bold)
@@ -88,7 +92,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     Spacer(Modifier.height(10.dp))
                     Row {
                         if (!loan.isPaid) {
-                            Button(onClick = { viewModel.markLoanPaid(loan) }) { Text(AppStrings.markPaid) }
+                            Button(onClick = { showPayLoan = loan }) { Text(AppStrings.payLoan) }
                             Spacer(Modifier.width(8.dp))
                         }
                         OutlinedButton(onClick = { viewModel.deleteLoan(loan) }) { Text(AppStrings.delete) }
@@ -99,6 +103,66 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 
         item { Spacer(Modifier.height(40.dp)) }
     }
+
+    if (showPayLoan != null) {
+        PayLoanDialog(loan = showPayLoan!!, onDismiss = { showPayLoan = null },
+            onPay = { amount -> viewModel.payLoan(showPayLoan!!, amount); showPayLoan = null })
+    }
+
+    if (selectedLoan != null) {
+        LoanDetailDialog(loan = selectedLoan!!, viewModel = viewModel, onDismiss = { selectedLoan = null })
+    }
+}
+
+@Composable
+private fun PayLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onPay: (Double) -> Unit) {
+    var amountText by remember { mutableStateOf(loan.remainingAmount.toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(AppStrings.payLoan + " - " + loan.name) },
+        text = {
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text(AppStrings.loanPaymentAmount) },
+                visualTransformation = ThousandsSeparatorTransformation()
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val amount = amountText.toDoubleOrNull()
+                if (amount != null && amount > 0) onPay(amount)
+            }) { Text(AppStrings.payLoan) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+    )
+}
+
+@Composable
+private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDismiss: () -> Unit) {
+    val payments by produceState(initialValue = emptyList<com.personalfinance.tracker.data.TransactionEntity>(), loan.id) {
+        value = viewModel.getLoanPayments(loan.id)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(loan.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
+                Text(AppStrings.loanLastPayment + ":", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                if (payments.isEmpty()) {
+                    Text(AppStrings.loanNoPayment, style = MaterialTheme.typography.labelSmall)
+                } else {
+                    payments.take(10).forEach { p ->
+                        Text("- " + Money.format2(p.amount) + " " + AppStrings.moneyUnit + "  " + JalaliCalendar.formatDate(p.dateMillis),
+                            style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.close) } }
+    )
+}
 
     if (showAdd) {
         AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, reminderDays, notes ->

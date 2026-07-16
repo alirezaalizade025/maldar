@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Divider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -30,7 +31,6 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
     val scope = rememberCoroutineScope()
 
     var showAddAccount by remember { mutableStateOf(false) }
-    var showAddSender by remember { mutableStateOf(false) }
     var showEditAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
     var refreshingId by remember { mutableStateOf<Long?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -95,39 +95,6 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        item { Spacer(Modifier.height(10.dp)); Divider() }
-
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleLarge)
-                    Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                }
-                IconButton(onClick = { showAddSender = true }, enabled = accounts.isNotEmpty()) {
-                    Icon(Icons.Filled.Add, contentDescription = AppStrings.addSender)
-                }
-            }
-        }
-
-        if (accounts.isEmpty()) {
-            item { Text(AppStrings.addAccountFirst, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
-        }
-
-        items(senders) { s ->
-            val accName = accounts.firstOrNull { it.id == s.bankAccountId }?.accountLabel ?: "---"
-            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text(s.senderId, fontWeight = FontWeight.Medium)
-                        Text("→ $accName", style = MaterialTheme.typography.labelSmall)
-                    }
-                    IconButton(onClick = { viewModel.deleteSmsSender(s) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
-        }
-
         item { Spacer(Modifier.height(40.dp)) }
     }
 
@@ -140,21 +107,8 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
         })
     }
 
-    if (showAddSender) {
-        AddSenderDialog(
-            context = context,
-            existingSenders = senders,
-            accounts = accounts,
-            onDismiss = { showAddSender = false },
-            onAdd = { senderId, accId, label ->
-                viewModel.addSmsSender(senderId, accId, label)
-                showAddSender = false
-            }
-        )
-    }
-
     showEditAccount?.let { acc ->
-        EditAccountDialog(account = acc, onDismiss = { showEditAccount = null }, onSave = { bank, label, last4, bal ->
+        EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, last4, bal ->
             viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, accountLast4 = last4, balance = bal))
             showEditAccount = null
         })
@@ -206,76 +160,11 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
 }
 
 @Composable
-private fun AddSenderDialog(
-    context: android.content.Context,
-    existingSenders: List<com.personalfinance.tracker.data.SmsSenderEntity>,
-    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
-    onDismiss: () -> Unit,
-    onAdd: (String, Long, String) -> Unit
-) {
-    var senderId by remember { mutableStateOf("") }
-    var selectedAccountId by remember { mutableStateOf(accounts.firstOrNull()?.id ?: 0L) }
-    var menuExpanded by remember { mutableStateOf(false) }
-    var senderMenuExpanded by remember { mutableStateOf(false) }
-    val detectedSenders = remember {
-        SmsInboxReader.recentSenders(
-            context,
-            exclude = existingSenders.map { it.senderId }.toSet()
-        )
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(AppStrings.addSender) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    AppStrings.senderHint,
-                    style = MaterialTheme.typography.labelSmall
-                )
-                if (detectedSenders.isNotEmpty()) {
-                    ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
-                        OutlinedTextField(
-                            value = senderId,
-                            onValueChange = { senderId = it },
-                            label = { Text(AppStrings.detectedSenders) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
-                            detectedSenders.forEach { s ->
-                                DropdownMenuItem(text = { Text(s) }, onClick = { senderId = s; senderMenuExpanded = false })
-                            }
-                        }
-                    }
-                }
-                OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId) })
-                ExposedDropdownMenuBox(expanded = menuExpanded, onExpandedChange = { menuExpanded = it }) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: "",
-                        onValueChange = {}, readOnly = true,
-                        label = { Text(AppStrings.linkToAccount) },
-                        modifier = Modifier.menuAnchor()
-                    )
-                    ExposedDropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        accounts.forEach { acc ->
-                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; menuExpanded = false })
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (senderId.isNotBlank()) onAdd(senderId.trim(), selectedAccountId, "")
-            }) { Text(AppStrings.add) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
-    )
-}
-
-@Composable
 private fun EditAccountDialog(
     account: com.personalfinance.tracker.data.BankAccountEntity,
+    allSenders: List<com.personalfinance.tracker.data.SmsSenderEntity>,
+    context: android.content.Context,
+    viewModel: FinanceViewModel,
     onDismiss: () -> Unit,
     onSave: (String, String, String, Double) -> Unit
 ) {
@@ -284,6 +173,14 @@ private fun EditAccountDialog(
     var label by remember { mutableStateOf(account.accountLabel) }
     var last4 by remember { mutableStateOf(account.accountLast4) }
     var balance by remember { mutableStateOf(account.balance.toString()) }
+
+    val accountSenders = allSenders.filter { it.bankAccountId == account.id }
+    var senderId by remember { mutableStateOf("") }
+    var senderMenuExpanded by remember { mutableStateOf(false) }
+    var showSenderInput by remember { mutableStateOf(false) }
+    val detectedSenders = remember {
+        SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -305,6 +202,46 @@ private fun EditAccountDialog(
                     label = { Text(AppStrings.openingBalance) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
+
+                Divider()
+                Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleMedium)
+                Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+
+                accountSenders.forEach { s ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.senderId, style = MaterialTheme.typography.bodyMedium)
+                        IconButton(onClick = { viewModel.deleteSmsSender(s) }) {
+                            Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
+                if (showSenderInput) {
+                    if (detectedSenders.isNotEmpty()) {
+                        ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
+                            OutlinedTextField(
+                                value = senderId,
+                                onValueChange = { senderId = it },
+                                label = { Text(AppStrings.detectedSenders) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
+                                detectedSenders.forEach { s ->
+                                    DropdownMenuItem(text = { Text(s) }, onClick = { senderId = s; senderMenuExpanded = false })
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId) }, modifier = Modifier.fillMaxWidth())
+                    Button(onClick = {
+                        if (senderId.isNotBlank()) {
+                            viewModel.addSmsSender(senderId.trim(), account.id, "")
+                            senderId = ""; showSenderInput = false
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
+                } else {
+                    OutlinedButton(onClick = { showSenderInput = true }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
+                }
             }
         },
         confirmButton = {

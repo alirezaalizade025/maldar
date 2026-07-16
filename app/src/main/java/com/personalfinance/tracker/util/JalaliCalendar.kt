@@ -51,22 +51,24 @@ object JalaliCalendar {
         return Jalali(jy, jm.toInt(), jd.toInt())
     }
 
-    // Returns a Calendar shifted to the first day of the Jalali month that contains `base` + offsetMonths.
+    // Returns the [start, end] millis for the Gregorian month containing `base`
+    // shifted by `offsetMonths`. Stored transaction dates are Gregorian millis, so
+    // the range MUST be computed on the Gregorian calendar (not via a Jalali
+    // conversion round-trip, which drifted and made reports/charts read nothing).
     fun jalaliMonthRange(base: Calendar, offsetMonths: Int): Pair<Long, Long> {
-        val j = fromGregorian(base)
-        // Approximate: build from Jalali y/m, convert back via a lookup.
-        var (y, m) = j.year to j.month
-        var off = offsetMonths
-        while (off > 0) { m++; if (m > 12) { m = 1; y++ }; off-- }
-        while (off < 0) { m--; if (m < 1) { m = 12; y-- }; off++ }
-        m = m.coerceIn(1, 12)
-
-        val startCal = toGregorian(y, m, 1)
-        val endCal = (Calendar.getInstance().apply {
-            time = startCal.time
-            add(Calendar.MONTH, 1)
+        val cal = (Calendar.getInstance().apply {
+            time = base.time
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            add(Calendar.MONTH, offsetMonths)
         })
-        return startCal.timeInMillis to (endCal.timeInMillis - 1)
+        val start = cal.timeInMillis
+        cal.add(Calendar.MONTH, 1)
+        val end = cal.timeInMillis - 1
+        return start to end
     }
 
     fun monthLabel(base: Calendar, offsetMonths: Int): String {

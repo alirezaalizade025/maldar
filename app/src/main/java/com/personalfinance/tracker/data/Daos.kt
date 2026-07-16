@@ -53,6 +53,9 @@ interface TransactionDao {
     @Insert
     suspend fun insert(tx: TransactionEntity): Long
 
+    @Update
+    suspend fun update(tx: TransactionEntity)
+
     @Delete
     suspend fun delete(tx: TransactionEntity)
 
@@ -64,6 +67,9 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
     suspend fun getAllOnce(): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE loanId = :loanId ORDER BY dateMillis DESC")
+    suspend fun getPaymentsForLoan(loanId: Long): List<TransactionEntity>
 }
 
 @Dao

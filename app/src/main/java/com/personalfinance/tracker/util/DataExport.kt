@@ -18,12 +18,12 @@ object DataExport {
         categories: List<CategoryEntity>
     ): String = buildString {
         appendLine("--- Transactions ---")
-        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,source")
+        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source")
         transactions.forEach { t ->
             appendLine(
                 listOf(
                     t.id, t.type, formatNum(t.amount), csvCell(t.category),
-                    csvCell(t.note), t.dateMillis, t.bankAccountId ?: "", t.source
+                    csvCell(t.note), t.dateMillis, t.bankAccountId ?: "", t.loanId ?: "", t.source
                 ).joinToString(",")
             )
         }
@@ -60,7 +60,7 @@ object DataExport {
             JSONObject().apply {
                 put("id", it.id); put("type", it.type.name); put("amount", it.amount)
                 put("category", it.category); put("note", it.note)
-                put("dateMillis", it.dateMillis); put("bankAccountId", it.bankAccountId)
+                put("dateMillis", it.dateMillis); put("bankAccountId", it.bankAccountId); put("loanId", it.loanId)
                 put("source", it.source.name); put("rawSms", it.rawSms)
             }
         }))

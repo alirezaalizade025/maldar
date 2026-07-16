@@ -36,6 +36,13 @@ class FinanceRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun updateTransaction(tx: TransactionEntity) {
+        db.transactionDao().update(tx)
+    }
+
+    suspend fun getLoanPayments(loanId: Long): List<TransactionEntity> =
+        db.transactionDao().getPaymentsForLoan(loanId)
+
     suspend fun totalByType(type: TxType, start: Long, end: Long): Double =
         db.transactionDao().sumByTypeBetween(type, start, end) ?: 0.0
 

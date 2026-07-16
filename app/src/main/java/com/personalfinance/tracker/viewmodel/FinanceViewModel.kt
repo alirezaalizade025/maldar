@@ -54,17 +54,36 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     fun deleteSmsSender(sender: SmsSenderEntity) = viewModelScope.launch { repo.deleteSmsSender(sender) }
 
     // ---- Transactions ----
-    fun addTransaction(amount: Double, type: TxType, category: String, note: String, bankAccountId: Long?, dateMillis: Long = System.currentTimeMillis()) {
+    fun addTransaction(amount: Double, type: TxType, category: String, note: String, bankAccountId: Long?, dateMillis: Long = System.currentTimeMillis(), loanId: Long? = null) {
         viewModelScope.launch {
             repo.addTransaction(
                 TransactionEntity(
                     amount = amount, type = type, category = category, note = note,
-                    dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL
+                    dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loanId
                 )
             )
         }
     }
     fun deleteTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.deleteTransaction(tx) }
+
+    fun updateTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.updateTransaction(tx) }
+
+    // Records a loan repayment as a transaction linked to the loan, and reduces the
+    // loan's remaining balance by the paid amount.
+    fun payLoan(loan: LoanEntity, amount: Double, dateMillis: Long = System.currentTimeMillis()) {
+        viewModelScope.launch {
+            val tx = TransactionEntity(
+                amount = amount, type = TxType.EXPENSE, category = "وام", note = loan.name,
+                dateMillis = dateMillis, bankAccountId = null, source = TxSource.MANUAL, loanId = loan.id
+            )
+            repo.addTransaction(tx)
+            val remaining = (loan.remainingAmount - amount).coerceAtLeast(0.0)
+            val paid = remaining <= 0.0
+            repo.updateLoan(loan.copy(remainingAmount = remaining, isPaid = paid))
+        }
+    }
+
+    suspend fun getLoanPayments(loanId: Long): List<TransactionEntity> = repo.getLoanPayments(loanId)
 
     // ---- Pending SMS confirmation ----
     fun confirmPendingSms(pending: PendingSmsEntity, finalAmount: Double, type: TxType, category: String, note: String) {

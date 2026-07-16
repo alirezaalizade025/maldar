@@ -34,7 +34,10 @@ data class TransactionEntity(
     val dateMillis: Long,
     val bankAccountId: Long? = null,
     val source: TxSource = TxSource.MANUAL,
-    val rawSms: String? = null
+    val rawSms: String? = null,
+    // When this transaction is a loan repayment, links back to the loan so we can
+    // show the last payment on the loan and reduce its remaining balance.
+    val loanId: Long? = null
 )
 
 @Entity(tableName = "pending_sms")
