@@ -47,7 +47,7 @@ object JalaliCalendar {
         val jm = if (days < 186) (1 + days / 31) else (7 + (days - 186) / 30)
         val jd = if (days < 186) (1 + days % 31) else (1 + (days - 186) % 30)
 
-        return Jalali(jy, jm, jd)
+        return Jalali(jy, jm.toInt(), jd.toInt())
     }
 
     // Returns a Calendar shifted to the first day of the Jalali month that contains `base` + offsetMonths.
@@ -74,6 +74,13 @@ object JalaliCalendar {
         while (off > 0) { m++; if (m > 12) { m = 1; y++ }; off-- }
         while (off < 0) { m--; if (m < 1) { m = 12; y-- }; off++ }
         return "${persianMonths[m - 1]} $y"
+    }
+
+    // e.g. "۱۲ تیر ۱۴۰۳"
+    fun formatDate(millis: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        val j = fromGregorian(cal)
+        return "${j.day} ${persianMonths[j.month - 1]} ${j.year}"
     }
 
     // e.g. "۱۲ تیر ۱۴۰۳، ۱۴:۳۰"

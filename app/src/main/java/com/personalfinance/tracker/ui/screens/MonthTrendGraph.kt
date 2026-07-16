@@ -3,12 +3,12 @@ package com.personalfinance.tracker.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -20,7 +20,7 @@ import com.personalfinance.tracker.util.JalaliCalendar
 import java.util.Calendar
 
 /**
- * Simple grouped bar chart of the last [months] months: income (emerald) vs
+ * Simple grouped bar chart of the last months: income (emerald) vs
  * expense (coral). Data is oldest -> newest.
  */
 @Composable
@@ -30,26 +30,31 @@ fun MonthTrendGraph(
 ) {
     if (data.isEmpty()) return
     val measurer = rememberTextMeasurer()
+    val labelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
 
-    val labels = remember(data.size) {
+    val labelInfo = remember(data.size) {
         val cal = Calendar.getInstance()
         (data.size - 1 downTo 0).map { back ->
             JalaliCalendar.monthLabel(cal, -back)
         }
     }
 
+    val labelLayouts = remember(labelInfo, labelColor) {
+        labelInfo.map { measurer.measure(AnnotatedString(it), TextStyle(fontSize = 10.sp, color = labelColor)) }
+    }
+
     val maxVal = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).coerceAtLeast(1.0)
 
     Column(modifier.fillMaxWidth()) {
         Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-            val barAreaW = size.width - 8.dp.toPx() * 2
+            val sidePad = 8.dp.toPx()
             val gap = 12.dp.toPx()
-            val groupW = barAreaW / data.size
+            val groupW = (size.width - sidePad * 2) / data.size
             val barW = (groupW - gap) / 2
             val baseY = size.height - 18.dp.toPx()
 
             data.forEachIndexed { i, (inc, exp) ->
-                val groupX = 8.dp.toPx() + i * groupW
+                val groupX = sidePad + i * groupW
                 val incH = (inc / maxVal * (baseY - 6.dp.toPx())).toFloat()
                 val expH = (exp / maxVal * (baseY - 6.dp.toPx())).toFloat()
 
@@ -66,15 +71,11 @@ fun MonthTrendGraph(
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
                 )
 
-                val label = labels[i]
-                val text = measurer.measure(
-                    label,
-                    TextStyle(fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                )
+                val layout = labelLayouts[i]
                 drawText(
-                    text,
+                    textLayoutResult = layout,
                     topLeft = Offset(
-                        groupX + groupW / 2 - text.size.width / 2,
+                        groupX + groupW / 2 - layout.size.width / 2,
                         baseY + 2.dp.toPx()
                     )
                 )
