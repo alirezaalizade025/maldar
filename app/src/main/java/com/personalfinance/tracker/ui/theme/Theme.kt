@@ -13,8 +13,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.personalfinance.tracker.R
+
+val Vazir = FontFamily(
+    Font(R.font.vazir_regular, FontWeight.Normal),
+    Font(R.font.vazir_bold, FontWeight.Bold),
+    Font(R.font.vazir_bold, FontWeight.SemiBold),
+    Font(R.font.vazir_bold, FontWeight.Medium)
+)
 
 val Emerald = Color(0xFF0F5C42)
 val EmeraldDark = Color(0xFF0A3D2D)
@@ -42,11 +52,11 @@ private val DarkColors = darkColorScheme(
 )
 
 val AppTypography = Typography(
-    headlineMedium = TextStyle(fontWeight = FontWeight.Bold, fontSize = 26.sp),
-    titleLarge = TextStyle(fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
-    bodyLarge = TextStyle(fontSize = 16.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp),
-    labelSmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    headlineMedium = TextStyle(fontFamily = Vazir, fontWeight = FontWeight.Bold, fontSize = 26.sp),
+    titleLarge = TextStyle(fontFamily = Vazir, fontWeight = FontWeight.SemiBold, fontSize = 20.sp),
+    bodyLarge = TextStyle(fontFamily = Vazir, fontSize = 16.sp),
+    bodyMedium = TextStyle(fontFamily = Vazir, fontSize = 14.sp),
+    labelSmall = TextStyle(fontFamily = Vazir, fontSize = 12.sp, fontWeight = FontWeight.Medium)
 )
 
 @Composable
