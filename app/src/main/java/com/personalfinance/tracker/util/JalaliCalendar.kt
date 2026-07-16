@@ -102,8 +102,15 @@ object JalaliCalendar {
         val targetMonth = if (payDayOfMonth >= jNow.day) jNow.month else jNow.month + 1
         val (y, m) = if (targetMonth <= 12) jNow.year to targetMonth
         else jNow.year + 1 to 1
-        val day = payDayOfMonth.coerceAtMost(29)
+        val day = payDayOfMonth.coerceIn(1, daysInMonth(y, m))
         return toGregorian(y, m, day).apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    }
+
+    // Number of days in a given Jalali month (m is 1-based, 12 = Esfand).
+    private fun daysInMonth(year: Int, month: Int): Int = when {
+        month <= 6 -> 31
+        month < 12 -> 30
+        else -> if (isLeap(year)) 30 else 29
     }
 
     private fun dayOfYear(month: Int): Int {
@@ -132,7 +139,9 @@ object JalaliCalendar {
         }
         days += (jd - 1)
 
-        val anchor = Calendar.getInstance(Locale("fa", "IR")).apply {
+        // Anchor MUST be a Gregorian calendar. Using Locale("fa", "IR") would return a
+        // Jalali calendar instance on Android, which corrupts the whole conversion.
+        val anchor = Calendar.getInstance().apply {
             set(622, Calendar.MARCH, 22, 0, 0, 0)
             set(Calendar.MILLISECOND, 0)
         }

@@ -46,9 +46,18 @@ jobs:
           TAG="v${VERSION_NAME}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # Remove any existing release/tag so the APK is always published as a
+      # downloadable release (otherwise re-runs silently fail on a duplicate tag).
+      - name: Remove existing release/tag if present
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "$TAG" --yes || true
+          git push --delete origin "$TAG" || true
+
       - name: Publish to Release
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Maldar ${{ steps.version.outputs.tag }}

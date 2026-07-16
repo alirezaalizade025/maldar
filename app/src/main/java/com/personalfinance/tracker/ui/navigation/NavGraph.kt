@@ -43,6 +43,7 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     var showUpToDate by remember { mutableStateOf(false) }
     var showFailed by remember { mutableStateOf(false) }
+    var showCrashLog by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
 
@@ -77,6 +78,10 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
                         DropdownMenuItem(
                             text = { Text(AppStrings.menuUpdates) },
                             onClick = { menuExpanded = false; runCheck(auto = false) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(AppStrings.crashLog) },
+                            onClick = { menuExpanded = false; showCrashLog = true }
                         )
                     }
                 }
@@ -120,4 +125,5 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     UpdateDialog(info = updateInfo, onDismiss = { updateInfo = null })
     if (showUpToDate) UpToDateDialog(onDismiss = { showUpToDate = false })
     if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
+    if (showCrashLog) CrashLogScreen(onClose = { showCrashLog = false })
 }

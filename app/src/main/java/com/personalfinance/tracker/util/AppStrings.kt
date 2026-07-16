@@ -117,6 +117,13 @@ object AppStrings {
     val ignore = "نادیده گرفتن"
     val confirmTransaction = "تایید تراکنش"
 
+    // Crash log / diagnostics
+    val crashLog = "گزارش خطاها"
+    val noCrashLog = "هنوز خطایی ثبت نشده است."
+    val sendLog = "ارسال گزارش"
+    val clearLog = "پاک کردن گزارش"
+    val close = "بستن"
+
     // Updates
     val menuUpdates = "بررسی به‌روزرسانی"
     val updateAvailable = "نسخه جدید موجود است"

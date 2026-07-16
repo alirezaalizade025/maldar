@@ -7,6 +7,7 @@ import androidx.work.WorkManager
 import com.personalfinance.tracker.data.AppDatabase
 import com.personalfinance.tracker.data.FinanceRepository
 import com.personalfinance.tracker.notification.NotificationHelper
+import com.personalfinance.tracker.util.CrashLogger
 import com.personalfinance.tracker.worker.LoanReminderWorker
 import java.util.concurrent.TimeUnit
 
@@ -17,6 +18,7 @@ class PersonalFinanceApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLogger.install(this)
         val db = AppDatabase.getInstance(this)
         repository = FinanceRepository(db)
 
