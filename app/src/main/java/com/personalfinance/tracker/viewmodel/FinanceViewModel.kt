@@ -43,6 +43,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         }
     }
     fun deleteBankAccount(account: BankAccountEntity) = viewModelScope.launch { repo.deleteBankAccount(account) }
+    fun updateBankAccount(account: BankAccountEntity) = viewModelScope.launch { repo.updateBankAccount(account) }
 
     // ---- SMS senders (dynamic add) ----
     fun addSmsSender(senderId: String, bankAccountId: Long, label: String) {
@@ -89,6 +90,17 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
                     dueDateMillis = dueDateMillis, reminderDaysBefore = reminderDaysBefore, notes = notes
+                )
+            )
+        }
+    }
+    fun addLoan(name: String, principal: Double, payDayOfMonth: Int, reminderDaysBefore: Int, notes: String) {
+        viewModelScope.launch {
+            repo.addLoan(
+                LoanEntity(
+                    name = name, principal = principal, remainingAmount = principal,
+                    dueDateMillis = JalaliCalendar.nextDueDateMillis(payDayOfMonth),
+                    payDayOfMonth = payDayOfMonth, reminderDaysBefore = reminderDaysBefore, notes = notes
                 )
             )
         }

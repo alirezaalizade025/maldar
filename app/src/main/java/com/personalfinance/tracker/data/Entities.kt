@@ -56,6 +56,8 @@ data class LoanEntity(
     val principal: Double,
     val remainingAmount: Double,
     val dueDateMillis: Long,
+    // Day of the (Jalali) month the payment is due (1-31). Drives dueDateMillis.
+    val payDayOfMonth: Int = 1,
     val reminderDaysBefore: Int = 3,
     val notes: String = "",
     val isPaid: Boolean = false

@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
@@ -26,6 +27,13 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
 
+    val total = loans.sumOf { it.remainingAmount }
+    // Amount whose pay-day has already passed this Jalali month (due so far).
+    val jNow = JalaliCalendar.fromGregorian(Calendar.getInstance())
+    val dueSoFar = loans.filter { !it.isPaid && it.payDayOfMonth <= jNow.day }
+        .sumOf { it.remainingAmount }
+    val remainNext = (total - dueSoFar).coerceAtLeast(0.0)
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -37,6 +45,25 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
+        }
+
+        item {
+            Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(AppStrings.loansSummaryTotal, style = MaterialTheme.typography.labelSmall)
+                        Text(Money.format2(total) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(AppStrings.loansSummaryDue, style = MaterialTheme.typography.labelSmall)
+                        Text(Money.format2(dueSoFar) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelSmall)
+                        Text(Money.format2(remainNext) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                    }
+                }
+            }
         }
 
         if (loans.isEmpty()) {
@@ -55,6 +82,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     }
                     Text(AppStrings.due + ": " + JalaliCalendar.formatDate(loan.dueDateMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
+                    Text(AppStrings.loanPayDay + ": " + loan.payDayOfMonth, style = MaterialTheme.typography.labelSmall)
                     Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                     if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(10.dp))
@@ -73,18 +101,18 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     }
 
     if (showAdd) {
-        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, dueMillis, reminderDays, notes ->
-            viewModel.addLoan(name, principal, dueMillis, reminderDays, notes)
+        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, reminderDays, notes ->
+            viewModel.addLoan(name, principal, payDay, reminderDays, notes)
             showAdd = false
         })
     }
 }
 
 @Composable
-private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, Int, String) -> Unit) {
+private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Int, String) -> Unit) {
     var name by remember { mutableStateOf("") }
     var principal by remember { mutableStateOf("") }
-    var daysFromNow by remember { mutableStateOf("30") }
+    var payDay by remember { mutableStateOf("") }
     var reminderDays by remember { mutableStateOf("3") }
     var notes by remember { mutableStateOf("") }
 
@@ -101,9 +129,9 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, I
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
                 OutlinedTextField(
-                    value = daysFromNow,
-                    onValueChange = { daysFromNow = it.filter { c -> c.isDigit() } },
-                    label = { Text(AppStrings.dueInDays) }
+                    value = payDay,
+                    onValueChange = { payDay = it.filter { c -> c.isDigit() } },
+                    label = { Text(AppStrings.payDayOfMonth) }
                 )
                 OutlinedTextField(
                     value = reminderDays,
@@ -116,11 +144,10 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, I
         confirmButton = {
             TextButton(onClick = {
                 val amount = principal.toDoubleOrNull()
-                val days = daysFromNow.toIntOrNull()
+                val day = payDay.toIntOrNull()
                 val reminder = reminderDays.toIntOrNull() ?: 3
-                if (name.isNotBlank() && amount != null && days != null) {
-                    val due = System.currentTimeMillis() + days * 86_400_000L
-                    onAdd(name, amount, due, reminder, notes)
+                if (name.isNotBlank() && amount != null && day != null && day in 1..31) {
+                    onAdd(name, amount, day, reminder, notes)
                 }
             }) { Text(AppStrings.add) }
         },

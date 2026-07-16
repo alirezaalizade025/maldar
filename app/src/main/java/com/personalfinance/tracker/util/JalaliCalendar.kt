@@ -92,6 +92,20 @@ object JalaliCalendar {
         return "${j.day} ${persianMonths[j.month - 1]} ${j.year}، ${"%02d:%02d".format(hh, mm)}"
     }
 
+    /**
+     * Returns the millis of the next occurrence of [payDayOfMonth] (Jalali) at midnight.
+     * If that day has already passed this Jalali month, returns the day in the next month.
+     */
+    fun nextDueDateMillis(payDayOfMonth: Int): Long {
+        val now = Calendar.getInstance()
+        val jNow = fromGregorian(now)
+        val targetMonth = if (payDayOfMonth >= jNow.day) jNow.month else jNow.month + 1
+        val (y, m) = if (targetMonth <= 12) jNow.year to targetMonth
+        else jNow.year + 1 to 1
+        val day = payDayOfMonth.coerceAtMost(29)
+        return toGregorian(y, m, day).apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+    }
+
     private fun dayOfYear(month: Int): Int {
         // cumulative days before given (1-based) month in a non-leap year
         val cum = intArrayOf(0, 31, 62, 93, 124, 155, 186, 216, 246, 276, 306, 336)

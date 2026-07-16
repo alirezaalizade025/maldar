@@ -5,6 +5,7 @@ class FinanceRepository(private val db: AppDatabase) {
     // Bank accounts
     fun getBankAccounts() = db.bankAccountDao().getAll()
     suspend fun addBankAccount(account: BankAccountEntity) = db.bankAccountDao().insert(account)
+    suspend fun updateBankAccount(account: BankAccountEntity) = db.bankAccountDao().update(account)
     suspend fun deleteBankAccount(account: BankAccountEntity) = db.bankAccountDao().delete(account)
     suspend fun getBankAccount(id: Long) = db.bankAccountDao().getById(id)
 
