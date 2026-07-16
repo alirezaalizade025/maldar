@@ -10,22 +10,22 @@ plugins {
 // versionCode = minor * 10 + patch (monotonic; matches the ".cN" suffix the
 // UpdateChecker compares against, so releases like "vX.Y.c<code>" resolve
 // correctly). versionName = "0.<minor>.<patch>".
-fun gitCommitPrefixCount(prefix: String): Int {
+fun gitLogSubjects(): String {
     return try {
-        val out = ByteArrayOutputStream()
-        exec {
-            commandLine("git", "log", "--pretty=format:%s")
-            standardOutput = out
-        }
-        out.toString().lineSequence()
-            .count { it.trim().lowercase().startsWith(prefix) }
+        val process = Runtime.getRuntime().exec(arrayOf("git", "log", "--pretty=format:%s"))
+        process.inputStream.bufferedReader().use { it.readText() }
     } catch (_: Exception) {
-        0
+        ""
     }
 }
 
-val featCount = gitCommitPrefixCount("feat")
-val fixCount = gitCommitPrefixCount("fix")
+fun gitCommitPrefixCount(log: String, prefix: String): Int {
+    return log.lineSequence().count { it.trim().lowercase().startsWith(prefix) }
+}
+
+val gitLog = gitLogSubjects()
+val featCount = gitCommitPrefixCount(gitLog, "feat")
+val fixCount = gitCommitPrefixCount(gitLog, "fix")
 // Start at 1 so a brand-new repo still produces a valid versionCode >= 1.
 val versionCodeValue = (featCount * 10 + fixCount).coerceAtLeast(1)
 val versionNameValue = "0.$featCount.$fixCount"
