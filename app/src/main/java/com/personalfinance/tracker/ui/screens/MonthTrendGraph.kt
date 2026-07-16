@@ -16,8 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalfinance.tracker.ui.theme.Coral
 import com.personalfinance.tracker.ui.theme.Emerald
+import com.personalfinance.tracker.util.JalaliCalendar
 import java.util.Calendar
-import java.util.Locale
 
 /**
  * Simple grouped bar chart of the last [months] months: income (emerald) vs
@@ -34,8 +34,7 @@ fun MonthTrendGraph(
     val labels = remember(data.size) {
         val cal = Calendar.getInstance()
         (data.size - 1 downTo 0).map { back ->
-            val c = Calendar.getInstance().apply { add(Calendar.MONTH, -back) }
-            "%tB".format(Locale("fa", "IR"), c)
+            JalaliCalendar.monthLabel(cal, -back)
         }
     }
 

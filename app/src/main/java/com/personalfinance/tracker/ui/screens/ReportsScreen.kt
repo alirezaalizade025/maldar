@@ -15,11 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalfinance.tracker.data.CategoryTotal
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.Calendar
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 private val chartColors = listOf(
     Color(0xFF1B7A5A), Color(0xFFE8604C), Color(0xFF3E7CB1),
@@ -40,9 +39,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     }
 
     val monthLabel = remember(monthOffset) {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.MONTH, monthOffset)
-        SimpleDateFormat("MMMM yyyy", Money.faLocale).format(cal.time)
+        JalaliCalendar.monthLabel(Calendar.getInstance(), monthOffset)
     }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {

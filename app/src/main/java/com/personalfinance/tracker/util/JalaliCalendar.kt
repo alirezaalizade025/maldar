@@ -76,6 +76,15 @@ object JalaliCalendar {
         return "${persianMonths[m - 1]} $y"
     }
 
+    // e.g. "۱۲ تیر ۱۴۰۳، ۱۴:۳۰"
+    fun formatDateTime(millis: Long): String {
+        val cal = Calendar.getInstance().apply { timeInMillis = millis }
+        val j = fromGregorian(cal)
+        val hh = cal.get(Calendar.HOUR_OF_DAY)
+        val mm = cal.get(Calendar.MINUTE)
+        return "${j.day} ${persianMonths[j.month - 1]} ${j.year}، ${"%02d:%02d".format(hh, mm)}"
+    }
+
     private fun dayOfYear(month: Int): Int {
         // cumulative days before given (1-based) month in a non-leap year
         val cum = intArrayOf(0, 31, 62, 93, 124, 155, 186, 216, 246, 276, 306, 336)

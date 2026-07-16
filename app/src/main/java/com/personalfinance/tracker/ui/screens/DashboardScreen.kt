@@ -18,11 +18,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @Composable
 fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
@@ -134,7 +133,6 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
         }
 
         items(transactions.take(15)) { tx ->
-            val df = remember { SimpleDateFormat("dd MMM, HH:mm", Money.faLocale) }
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -143,7 +141,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                 ) {
                     Column {
                         Text(tx.category, fontWeight = FontWeight.Medium)
-                        Text(df.format(Date(tx.dateMillis)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                         if (tx.note.isNotBlank()) {
                             Text(tx.note, style = MaterialTheme.typography.labelSmall)
                         }

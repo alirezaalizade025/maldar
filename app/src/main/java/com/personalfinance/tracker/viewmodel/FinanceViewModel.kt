@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.personalfinance.tracker.data.*
+import com.personalfinance.tracker.util.JalaliCalendar
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -128,14 +129,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     private fun monthRange(monthOffset: Int): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-        cal.add(Calendar.MONTH, monthOffset)
-        cal.set(Calendar.DAY_OF_MONTH, 1)
-        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0)
-        val start = cal.timeInMillis
-        cal.add(Calendar.MONTH, 1)
-        val end = cal.timeInMillis - 1
-        return start to end
+        return JalaliCalendar.jalaliMonthRange(Calendar.getInstance(), monthOffset)
     }
 }
 

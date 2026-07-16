@@ -15,16 +15,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
-import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
-    val df = remember { SimpleDateFormat("dd MMM yyyy", Money.faLocale) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -53,7 +52,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                             Text(AppStrings.paid, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         }
                     }
-                    Text(AppStrings.due + ": ${df.format(Date(loan.dueDateMillis))}" + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
+                    Text(AppStrings.due + ": " + JalaliCalendar.formatDate(loan.dueDateMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
                     Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                     if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
