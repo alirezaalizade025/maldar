@@ -13,6 +13,7 @@ import com.personalfinance.tracker.data.PendingSmsEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -85,7 +86,8 @@ private fun ConfirmDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text(AppStrings.amountLabel) }
+                    label = { Text(AppStrings.amountLabel) },
+                    visualTransformation = ThousandsSeparatorTransformation()
                 )
                 SingleChoiceSegmented(
                     options = listOf(AppStrings.expense, AppStrings.income),

@@ -33,9 +33,11 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     var breakdown by remember { mutableStateOf<List<CategoryTotal>>(emptyList()) }
 
     LaunchedEffect(monthOffset) {
-        val (inc, exp) = viewModel.monthlyIncomeExpense(monthOffset)
-        income = inc; expense = exp
-        breakdown = viewModel.categoryBreakdown(monthOffset)
+        runCatching {
+            val (inc, exp) = viewModel.monthlyIncomeExpense(monthOffset)
+            income = inc; expense = exp
+            breakdown = viewModel.categoryBreakdown(monthOffset)
+        }
     }
 
     val monthLabel = remember(monthOffset) {

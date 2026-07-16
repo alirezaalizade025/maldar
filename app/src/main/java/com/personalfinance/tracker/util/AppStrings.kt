@@ -84,6 +84,8 @@ object AppStrings {
     val remindDaysBefore = "یادآوری X روز قبل"
     val notesOptional = "یادداشت (اختیاری)"
     val cancel = "انصراف"
+    val requiredField = "این فیلد الزامی است"
+    val optional = "اختیاری"
 
     // Reports
     val reports = "گزارش‌ها"

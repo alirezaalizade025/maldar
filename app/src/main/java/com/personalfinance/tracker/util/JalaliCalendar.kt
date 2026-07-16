@@ -103,30 +103,26 @@ object JalaliCalendar {
                 jy % 33 == 17 || jy % 33 == 22 || jy % 33 == 26 || jy % 33 == 30)
     }
 
-    // Convert Jalali (y, m, d) to a Gregorian Calendar using the standard algorithm.
+    // Convert Jalali (y, m, d) to a Gregorian Calendar.
+    // Robust approach: count days from the Jalali epoch (1/1/1 = Gregorian 622-03-22)
+    // and add them to an anchor Calendar. Avoids fragile month-arithmetic bugs.
     private fun toGregorian(jy: Int, jm: Int, jd: Int): Calendar {
-        var gy = if (jy > 979) 1600 else 621
-        var jump = 0
-        var theJy = jy - (if (jy > 979) 979 else 0)
-
-        while (theJy - jump >= 33) { gy += 33; jump += 33 }
-        gy += (theJy - jump) / 4 - (theJy - jump) * 3
-        theJy -= (theJy - jump) / 33 * 33
-
-        val days = (if (theJy % 33 == 4 || theJy % 33 == 1) 1 else 0)
-        gy += 2820 - days
-
-        var gd = jd + (if (jm < 7) (jm - 1) * 31 else (jm - 7) * 30 + 186)
-        var gm = if (gd > 365) { gd -= 365; 13 } else 0
-
-        while (gd > (if (gm == 0) 31 else if (gm <= 6) 31 else 30)) {
-            gd -= if (gm == 0) 31 else if (gm <= 6) 31 else 30
-            gm++
+        var days = 0L
+        for (y in 1 until jy) days += if (isLeap(y)) 366 else 365
+        for (m in 1 until jm) {
+            days += when {
+                m <= 6 -> 31
+                m < 12 -> 30
+                else -> if (isLeap(jy)) 30 else 29
+            }
         }
+        days += (jd - 1)
 
-        val cal = Calendar.getInstance(Locale("fa", "IR"))
-        cal.set(gy, gm - 1, gd, 0, 0, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        return cal
+        val anchor = Calendar.getInstance(Locale("fa", "IR")).apply {
+            set(622, Calendar.MARCH, 22, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        anchor.add(Calendar.DAY_OF_MONTH, days.toInt())
+        return anchor
     }
 }

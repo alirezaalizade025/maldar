@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -112,6 +113,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
 @Composable
 private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, String, Double) -> Unit) {
     var bankName by remember { mutableStateOf("") }
+    var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
@@ -121,20 +123,30 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
         title = { Text(AppStrings.addAccount) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = bankName, onValueChange = { bankName = it }, label = { Text(AppStrings.bankName) })
-                OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label) })
-                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text(AppStrings.last4) })
+                OutlinedTextField(
+                    value = bankName,
+                    onValueChange = { bankName = it; bankNameError = false },
+                    label = { Text(AppStrings.bankName) },
+                    isError = bankNameError,
+                    supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
+                )
+                OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
+                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text(AppStrings.openingBalance) }
+                    label = { Text(AppStrings.openingBalance) },
+                    visualTransformation = ThousandsSeparatorTransformation()
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                if (bankName.isNotBlank() && label.isNotBlank()) {
-                    onAdd(bankName, label, last4, balance.toDoubleOrNull() ?: 0.0)
+                if (bankName.isBlank()) {
+                    bankNameError = true
+                } else {
+                    val finalLabel = label.ifBlank { bankName }
+                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0)
                 }
             }) { Text(AppStrings.add) }
         },

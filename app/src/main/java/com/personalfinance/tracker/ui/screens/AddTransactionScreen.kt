@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -42,6 +43,7 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             value = amountText,
             onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
             label = { Text(AppStrings.amountLabel) },
+            visualTransformation = ThousandsSeparatorTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
 

@@ -17,6 +17,7 @@ import com.personalfinance.tracker.data.LoanEntity
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
 
@@ -96,7 +97,8 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, I
                 OutlinedTextField(
                     value = principal,
                     onValueChange = { principal = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text(AppStrings.principal) }
+                    label = { Text(AppStrings.principal) },
+                    visualTransformation = ThousandsSeparatorTransformation()
                 )
                 OutlinedTextField(
                     value = daysFromNow,
