@@ -52,8 +52,8 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
-        private val defaultExpenseCategories = listOf("Food", "Transport", "Bills", "Shopping", "Health", "Entertainment", "Other")
-        private val defaultIncomeCategories = listOf("Salary", "Freelance", "Gift", "Interest", "Other")
+        private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
+        private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {

@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -26,13 +28,13 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Bank Accounts", style = MaterialTheme.typography.headlineMedium)
-                IconButton(onClick = { showAddAccount = true }) { Icon(Icons.Filled.Add, contentDescription = "Add account") }
+                Text(AppStrings.bankAccounts, style = MaterialTheme.typography.headlineMedium)
+                IconButton(onClick = { showAddAccount = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addAccount) }
             }
         }
 
         if (accounts.isEmpty()) {
-            item { Text("No accounts yet. Tap + to add one.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item { Text(AppStrings.noAccounts, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
         }
 
         items(accounts) { acc ->
@@ -43,9 +45,9 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
                         Text("${acc.bankName} •••• ${acc.accountLast4}", style = MaterialTheme.typography.labelSmall)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("₹%,.2f".format(acc.balance), fontWeight = FontWeight.Bold)
+                        Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
                         IconButton(onClick = { viewModel.deleteBankAccount(acc) }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -57,21 +59,21 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("SMS Senders", style = MaterialTheme.typography.titleLarge)
-                    Text("Numbers/IDs to watch for transaction SMS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleLarge)
+                    Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 }
                 IconButton(onClick = { showAddSender = true }, enabled = accounts.isNotEmpty()) {
-                    Icon(Icons.Filled.Add, contentDescription = "Add sender")
+                    Icon(Icons.Filled.Add, contentDescription = AppStrings.addSender)
                 }
             }
         }
 
         if (accounts.isEmpty()) {
-            item { Text("Add a bank account first.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item { Text(AppStrings.addAccountFirst, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
         }
 
         items(senders) { s ->
-            val accName = accounts.firstOrNull { it.id == s.bankAccountId }?.accountLabel ?: "Unknown account"
+            val accName = accounts.firstOrNull { it.id == s.bankAccountId }?.accountLabel ?: "---"
             Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
@@ -79,7 +81,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
                         Text("→ $accName", style = MaterialTheme.typography.labelSmall)
                     }
                     IconButton(onClick = { viewModel.deleteSmsSender(s) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
@@ -116,16 +118,16 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Bank Account") },
+        title = { Text(AppStrings.addAccount) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = bankName, onValueChange = { bankName = it }, label = { Text("Bank name (e.g. HDFC)") })
-                OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text("Label (e.g. Savings)") })
-                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text("Last 4 digits") })
+                OutlinedTextField(value = bankName, onValueChange = { bankName = it }, label = { Text(AppStrings.bankName) })
+                OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label) })
+                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text(AppStrings.last4) })
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Opening balance (₹)") }
+                    label = { Text(AppStrings.openingBalance) }
                 )
             }
         },
@@ -134,9 +136,9 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
                 if (bankName.isNotBlank() && label.isNotBlank()) {
                     onAdd(bankName, label, last4, balance.toDoubleOrNull() ?: 0.0)
                 }
-            }) { Text("Add") }
+            }) { Text(AppStrings.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }
 
@@ -152,19 +154,19 @@ private fun AddSenderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add SMS Sender") },
+        title = { Text(AppStrings.addSender) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Enter the sender ID exactly as shown in your Messages app (e.g. HDFCBK, VM-SBIINB, or a phone number).",
+                    AppStrings.senderHint,
                     style = MaterialTheme.typography.labelSmall
                 )
-                OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text("Sender ID") })
+                OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId) })
                 ExposedDropdownMenuBox(expanded = menuExpanded, onExpandedChange = { menuExpanded = it }) {
                     OutlinedTextField(
                         value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: "",
                         onValueChange = {}, readOnly = true,
-                        label = { Text("Link to account") },
+                        label = { Text(AppStrings.linkToAccount) },
                         modifier = Modifier.menuAnchor()
                     )
                     ExposedDropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
@@ -178,8 +180,8 @@ private fun AddSenderDialog(
         confirmButton = {
             TextButton(onClick = {
                 if (senderId.isNotBlank()) onAdd(senderId.trim(), selectedAccountId, "")
-            }) { Text("Add") }
+            }) { Text(AppStrings.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

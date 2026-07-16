@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.personalfinance.tracker.MainActivity
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 
 object NotificationHelper {
     const val CHANNEL_SMS = "sms_confirmation"
@@ -18,13 +20,13 @@ object NotificationHelper {
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
                 NotificationChannel(
-                    CHANNEL_SMS, "Transaction confirmations", NotificationManager.IMPORTANCE_HIGH
-                ).apply { description = "New transactions detected from bank SMS" }
+                    CHANNEL_SMS, "تایید تراکنش‌ها", NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "تراکنش‌های جدید شناسایی‌شده از پیامک بانک" }
             )
             manager.createNotificationChannel(
                 NotificationChannel(
-                    CHANNEL_LOAN, "Loan due reminders", NotificationManager.IMPORTANCE_HIGH
-                ).apply { description = "Upcoming loan repayment reminders" }
+                    CHANNEL_LOAN, "یادآوری سررسید وام", NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "یادآوری پرداخت اقساط وام" }
             )
         }
     }
@@ -40,11 +42,11 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val amountText = amount?.let { "₹%.2f".format(it) } ?: "amount unclear"
+        val amountText = amount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear
         val notification = NotificationCompat.Builder(context, CHANNEL_SMS)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle("New transaction detected")
-            .setContentText("$amountText ${type ?: ""} - tap to confirm")
+            .setContentTitle("تراکنش جدید شناسایی شد")
+            .setContentText("$amountText ${type ?: ""} - برای تایید لمس کنید")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -64,12 +66,12 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val text = if (dueInDays <= 0) "$loanName is due today"
-                    else "$loanName is due in $dueInDays day(s)"
+        val text = if (dueInDays <= 0) "$loanName امروز سررسید دارد"
+                    else "$loanName تا $dueInDays روز دیگر سررسید دارد"
 
         val notification = NotificationCompat.Builder(context, CHANNEL_LOAN)
             .setSmallIcon(android.R.drawable.stat_notify_more)
-            .setContentTitle("Loan payment reminder")
+            .setContentTitle("یادآوری پرداخت وام")
             .setContentText(text)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)

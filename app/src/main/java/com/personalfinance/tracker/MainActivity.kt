@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.personalfinance.tracker.ui.navigation.NavGraph
 import com.personalfinance.tracker.ui.theme.PersonalFinanceTheme
+import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import com.personalfinance.tracker.viewmodel.FinanceViewModelFactory
 
@@ -26,6 +27,8 @@ class MainActivity : ComponentActivity() {
     ) { /* results not critical - screens re-check permission state as needed */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Force right-to-left layout for the Persian (Farsi) UI.
+        window.decorView.layoutDirection = android.util.LayoutDirection.RTL
         super.onCreate(savedInstanceState)
 
         val permissionsNeeded = mutableListOf(

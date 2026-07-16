@@ -11,6 +11,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.PendingSmsEntity
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -19,17 +21,17 @@ fun SmsConfirmationScreen(viewModel: FinanceViewModel) {
     var editing by remember { mutableStateOf<PendingSmsEntity?>(null) }
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Confirm SMS Transactions", style = MaterialTheme.typography.headlineMedium)
+        Text(AppStrings.confirmSms, style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "Detected from your bank SMS. Review and confirm before they're saved.",
+            AppStrings.confirmSmsHint,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         )
         Spacer(Modifier.height(16.dp))
 
         if (pending.isEmpty()) {
-            Text("Nothing pending right now.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Text(AppStrings.nothingPending, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         }
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -37,17 +39,17 @@ fun SmsConfirmationScreen(viewModel: FinanceViewModel) {
                 Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
-                            "${p.parsedType?.name ?: "Unknown"} • ${p.parsedAmount?.let { "₹%,.2f".format(it) } ?: "amount unclear"}",
+                            "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",
                             fontWeight = FontWeight.Bold
                         )
-                        Text("From: ${p.sender}", style = MaterialTheme.typography.labelSmall)
+                        Text(AppStrings.from + " ${p.sender}", style = MaterialTheme.typography.labelSmall)
                         Spacer(Modifier.height(6.dp))
                         Text(p.rawMessage, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
                         Spacer(Modifier.height(10.dp))
                         Row {
-                            Button(onClick = { editing = p }) { Text("Confirm / Edit") }
+                            Button(onClick = { editing = p }) { Text(AppStrings.confirmEdit) }
                             Spacer(Modifier.width(8.dp))
-                            OutlinedButton(onClick = { viewModel.rejectPendingSms(p) }) { Text("Ignore") }
+                            OutlinedButton(onClick = { viewModel.rejectPendingSms(p) }) { Text(AppStrings.ignore) }
                         }
                     }
                 }
@@ -77,16 +79,16 @@ private fun ConfirmDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Confirm Transaction") },
+        title = { Text(AppStrings.confirmTransaction) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Amount (₹)") }
+                    label = { Text(AppStrings.amountLabel) }
                 )
                 SingleChoiceSegmented(
-                    options = listOf("Expense", "Income"),
+                    options = listOf(AppStrings.expense, AppStrings.income),
                     selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
                     onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME; category = "" }
                 )
@@ -98,7 +100,7 @@ private fun ConfirmDialog(
                 )
                 OutlinedTextField(
                     value = note, onValueChange = { note = it },
-                    label = { Text("Note (optional)") }
+                    label = { Text(AppStrings.noteOptional) }
                 )
             }
         },
@@ -106,8 +108,8 @@ private fun ConfirmDialog(
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) onConfirm(amount, type, category, note)
-            }) { Text("Save") }
+            }) { Text(AppStrings.save) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

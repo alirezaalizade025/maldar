@@ -14,31 +14,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.*
-import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
-    val df = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    val df = remember { SimpleDateFormat("dd MMM yyyy", Money.faLocale) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Loans", style = MaterialTheme.typography.headlineMedium)
-                IconButton(onClick = { showAdd = true }) { Icon(Icons.Filled.Add, contentDescription = "Add loan") }
+                Text(AppStrings.loans, style = MaterialTheme.typography.headlineMedium)
+                IconButton(onClick = { showAdd = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addLoan) }
             }
             Text(
-                "You'll be notified before each due date.",
+                AppStrings.loansHint,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
         }
 
         if (loans.isEmpty()) {
-            item { Text("No loans tracked yet.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item { Text(AppStrings.noLoans, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
         }
 
         items(loans) { loan ->
@@ -48,20 +50,20 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(loan.name, fontWeight = FontWeight.Bold)
                         if (loan.isPaid) {
-                            Text("Paid", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+                            Text(AppStrings.paid, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         }
                     }
-                    Text("Due: ${df.format(Date(loan.dueDateMillis))}" + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft days left" else "overdue"})" else "",
+                    Text(AppStrings.due + ": ${df.format(Date(loan.dueDateMillis))}" + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
-                    Text("Amount: ₹%,.2f".format(loan.remainingAmount), style = MaterialTheme.typography.bodyMedium)
+                    Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                     if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(10.dp))
                     Row {
                         if (!loan.isPaid) {
-                            Button(onClick = { viewModel.markLoanPaid(loan) }) { Text("Mark Paid") }
+                            Button(onClick = { viewModel.markLoanPaid(loan) }) { Text(AppStrings.markPaid) }
                             Spacer(Modifier.width(8.dp))
                         }
-                        OutlinedButton(onClick = { viewModel.deleteLoan(loan) }) { Text("Delete") }
+                        OutlinedButton(onClick = { viewModel.deleteLoan(loan) }) { Text(AppStrings.delete) }
                     }
                 }
             }
@@ -88,26 +90,26 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, I
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Loan") },
+        title = { Text(AppStrings.addLoan) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Loan name") })
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(AppStrings.loanName) })
                 OutlinedTextField(
                     value = principal,
                     onValueChange = { principal = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Amount (₹)") }
+                    label = { Text(AppStrings.principal) }
                 )
                 OutlinedTextField(
                     value = daysFromNow,
                     onValueChange = { daysFromNow = it.filter { c -> c.isDigit() } },
-                    label = { Text("Due in how many days") }
+                    label = { Text(AppStrings.dueInDays) }
                 )
                 OutlinedTextField(
                     value = reminderDays,
                     onValueChange = { reminderDays = it.filter { c -> c.isDigit() } },
-                    label = { Text("Remind me X days before") }
+                    label = { Text(AppStrings.remindDaysBefore) }
                 )
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes (optional)") })
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(AppStrings.notesOptional) })
             }
         },
         confirmButton = {
@@ -119,8 +121,8 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, I
                     val due = System.currentTimeMillis() + days * 86_400_000L
                     onAdd(name, amount, due, reminder, notes)
                 }
-            }) { Text("Add") }
+            }) { Text(AppStrings.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -42,7 +44,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("Overview", style = MaterialTheme.typography.headlineMedium)
+            Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium)
         }
 
         if (pending.isNotEmpty()) {
@@ -58,7 +60,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                     ) {
                         Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
                         Spacer(Modifier.width(10.dp))
-                        Text("${pending.size} transaction(s) from SMS need confirmation", fontWeight = FontWeight.Medium)
+                        Text(AppStrings.pendingSms.format(pending.size), fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -71,35 +73,35 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Total Balance", color = Color.White.copy(alpha = 0.85f))
+                    Text(AppStrings.totalBalance, color = Color.White.copy(alpha = 0.85f))
                     Text(
-                        "₹%,.2f".format(totalBalance),
+                        Money.format2(totalBalance) + " " + AppStrings.moneyUnit,
                         color = Color.White,
                         style = MaterialTheme.typography.headlineMedium
                     )
                     Spacer(Modifier.height(14.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
-                            Text("This month income", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text("₹%,.2f".format(monthIncome), color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(AppStrings.monthIncome, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
+                            Text(Money.format2(monthIncome) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
                         Column {
-                            Text("This month spent", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text("₹%,.2f".format(monthExpense), color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(AppStrings.monthExpense, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
+                            Text(Money.format2(monthExpense) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
             }
         }
 
-        item { Text("Recent Transactions", style = MaterialTheme.typography.titleLarge) }
+        item { Text(AppStrings.recentTransactions, style = MaterialTheme.typography.titleLarge) }
 
         if (transactions.isEmpty()) {
-            item { Text("No transactions yet. Add one from the Add tab.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item { Text(AppStrings.noTransactions, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
         }
 
         items(transactions.take(15)) { tx ->
-            val df = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
+            val df = remember { SimpleDateFormat("dd MMM, HH:mm", Money.faLocale) }
             Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -114,7 +116,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                         }
                     }
                     Text(
-                        (if (tx.type == TxType.INCOME) "+ " else "- ") + "₹%,.2f".format(tx.amount),
+                        (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
                         color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
                         fontWeight = FontWeight.Bold
                     )

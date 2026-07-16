@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -26,10 +27,10 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Add Transaction", style = MaterialTheme.typography.headlineMedium)
+        Text(AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium)
 
         SingleChoiceSegmented(
-            options = listOf("Expense", "Income"),
+            options = listOf(AppStrings.expense, AppStrings.income),
             selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
             onSelected = {
                 type = if (it == 0) TxType.EXPENSE else TxType.INCOME
@@ -40,7 +41,7 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
         OutlinedTextField(
             value = amountText,
             onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
-            label = { Text("Amount (₹)") },
+            label = { Text(AppStrings.amountLabel) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -53,13 +54,13 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
 
         ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
             OutlinedTextField(
-                value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: "None (cash)",
+                value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
                 onValueChange = {}, readOnly = true,
-                label = { Text("Bank Account") },
+                label = { Text(AppStrings.bankAccount) },
                 modifier = Modifier.menuAnchor().fillMaxWidth()
             )
             ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                DropdownMenuItem(text = { Text("None (cash)") }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
+                DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
                 accounts.forEach { acc ->
                     DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
                 }
@@ -68,7 +69,7 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
 
         OutlinedTextField(
             value = note, onValueChange = { note = it },
-            label = { Text("Note (optional)") },
+            label = { Text(AppStrings.noteOptional) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -77,14 +78,14 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
                     viewModel.addTransaction(amount, type, category, note, selectedAccountId)
-                    confirmationMessage = "Saved!"
+                    confirmationMessage = AppStrings.saved
                     amountText = ""; note = ""
                 } else {
-                    confirmationMessage = "Enter a valid amount"
+                    confirmationMessage = AppStrings.invalidAmount
                 }
             },
             modifier = Modifier.fillMaxWidth()
-        ) { Text("Save") }
+        ) { Text(AppStrings.save) }
 
         confirmationMessage?.let {
             Text(it, color = MaterialTheme.colorScheme.primary)

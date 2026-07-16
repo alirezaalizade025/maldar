@@ -17,16 +17,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.personalfinance.tracker.ui.screens.*
+import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 private data class NavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
 private val bottomItems = listOf(
-    NavItem("dashboard", "Home", Icons.Filled.Home),
-    NavItem("add_transaction", "Add", Icons.Filled.Add),
-    NavItem("loans", "Loans", Icons.Filled.Payments),
-    NavItem("reports", "Reports", Icons.Filled.Assessment),
-    NavItem("bank_accounts", "Accounts", Icons.Filled.AccountBalance),
+    NavItem("dashboard", AppStrings.navHome, Icons.Filled.Home),
+    NavItem("add_transaction", AppStrings.navAdd, Icons.Filled.Add),
+    NavItem("loans", AppStrings.navLoans, Icons.Filled.Payments),
+    NavItem("reports", AppStrings.navReports, Icons.Filled.Assessment),
+    NavItem("bank_accounts", AppStrings.navAccounts, Icons.Filled.AccountBalance),
 )
 
 @Composable

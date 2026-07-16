@@ -14,6 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalfinance.tracker.data.CategoryTotal
+import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.Calendar
 import java.text.SimpleDateFormat
@@ -40,39 +42,39 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     val monthLabel = remember(monthOffset) {
         val cal = Calendar.getInstance()
         cal.add(Calendar.MONTH, monthOffset)
-        SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        SimpleDateFormat("MMMM yyyy", Money.faLocale).format(cal.time)
     }
 
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Reports", style = MaterialTheme.typography.headlineMedium)
+        Text(AppStrings.reports, style = MaterialTheme.typography.headlineMedium)
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            OutlinedButton(onClick = { monthOffset-- }) { Text("< Prev") }
+            OutlinedButton(onClick = { monthOffset-- }) { Text(AppStrings.prev) }
             Text(monthLabel, style = MaterialTheme.typography.titleLarge)
-            OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 0) { Text("Next >") }
+            OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 0) { Text(AppStrings.next) }
         }
 
         Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    Text("Income", style = MaterialTheme.typography.labelSmall)
-                    Text("₹%,.0f".format(income), fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                    Text(AppStrings.reportIncome, style = MaterialTheme.typography.labelSmall)
+                    Text(Money.format(income) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                 }
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    Text("Expense", style = MaterialTheme.typography.labelSmall)
-                    Text("₹%,.0f".format(expense), fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
+                    Text(AppStrings.reportExpense, style = MaterialTheme.typography.labelSmall)
+                    Text(Money.format(expense) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
                 }
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    Text("Net", style = MaterialTheme.typography.labelSmall)
-                    Text("₹%,.0f".format(income - expense), fontWeight = FontWeight.Bold)
+                    Text(AppStrings.net, style = MaterialTheme.typography.labelSmall)
+                    Text(Money.format(income - expense) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        Text("Spending by category", style = MaterialTheme.typography.titleLarge)
+        Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
 
         if (breakdown.isEmpty()) {
-            Text("No expenses recorded this month.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Text(AppStrings.noExpenses, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         } else {
             val maxVal = breakdown.maxOf { it.total }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -80,7 +82,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                     Column {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(item.category, style = MaterialTheme.typography.bodyMedium)
-                            Text("₹%,.0f".format(item.total), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(Money.format(item.total) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         }
                         Spacer(Modifier.height(4.dp))
                         val fraction = (item.total / maxVal).toFloat().coerceIn(0.02f, 1f)

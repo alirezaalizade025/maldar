@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.CategoryEntity
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 /**
@@ -49,7 +50,7 @@ fun CategoryPicker(
             }
             Divider()
             DropdownMenuItem(
-                text = { Text("Manage categories…") },
+                text = { Text(AppStrings.manageCategories) },
                 onClick = { expanded = false; showManage = true }
             )
         }
@@ -78,7 +79,7 @@ private fun ManageCategoriesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (type == TxType.EXPENSE) "Manage expense categories" else "Manage income categories") },
+        title = { Text(if (type == TxType.EXPENSE) AppStrings.manageExpenseCategories else AppStrings.manageIncomeCategories) },
         text = {
             Column {
                 LazyColumnLike(categories) { cat ->

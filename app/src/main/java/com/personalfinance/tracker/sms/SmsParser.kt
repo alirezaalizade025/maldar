@@ -4,25 +4,25 @@ import com.personalfinance.tracker.data.TxType
 import java.util.regex.Pattern
 
 /**
- * Generic parser that tries to work across many Indian/international bank SMS formats
- * without needing a bank-specific template. It looks for:
- *  1. An amount, preceded by a currency marker (Rs, INR, ₹, $, etc.)
- *  2. A debit/credit keyword to decide the transaction type.
+ * Parser for Iranian bank SMS. Amounts in bank SMS are in Rial, so they are
+ * converted to Toman (Rial / 10) before being returned. It looks for:
+ *  1. An amount (optionally preceded by a Rial/Toman marker like "ریال", "تومان", "Rls", "IRR")
+ *  2. A debit/credit keyword (Persian or English) to decide the transaction type.
  *
  * This is intentionally permissive - false positives are expected, which is exactly
- * why every parsed SMS goes to a confirmation screen instead of being saved directly.
+ * why every parsed SMS goes to a confirm screen instead of being saved directly.
  */
 object SmsParser {
 
     data class ParseResult(
-        val amount: Double?,
+        val amount: Double?,   // in Toman
         val type: TxType?,
         val merchantOrNote: String?
     )
 
-    // Matches amounts like: Rs.1,234.50  INR 500  ₹99  $45.00
+    // Matches amounts like: 1,234,500  ریال ۵۰۰۰۰۰ تومان  Rls 500
     private val amountPattern = Pattern.compile(
-        "(?:rs\\.?|inr|₹|usd|\\$)\\s?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)",
+        "([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ریال|rls|IRR|تومان|toman)?",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -30,15 +30,17 @@ object SmsParser {
     private val bareAmountPattern = Pattern.compile("([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
 
     private val debitKeywords = listOf(
-        "debited", "debit", "spent", "withdrawn", "paid", "purchase", "deducted", "sent"
+        "debited", "debit", "spent", "withdrawn", "paid", "purchase", "deducted", "sent",
+        "برداشت", "خرید", "پرداخت", "کسر", "کم شد", "شارژ", "هزینه"
     )
     private val creditKeywords = listOf(
-        "credited", "credit", "received", "deposited", "refund", "added"
+        "credited", "credit", "received", "deposited", "refund", "added",
+        "واریز", "دریافت", "سپرده", "برگشت", "اضافه", "مانده"
     )
 
-    // Common patterns for extracting a merchant name, e.g. "at AMAZON" or "to John Doe"
+    // Common patterns for extracting a merchant name, e.g. "at AMAZON" or "خرید از دیجیکالا"
     private val merchantPattern = Pattern.compile(
-        "(?:at|to)\\s+([A-Za-z0-9 &._-]{3,30})",
+        "(?:at|to|از)\\s+([\\p{L}\\p{N} &._-]{3,40})",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -63,13 +65,16 @@ object SmsParser {
     private fun extractAmount(message: String): Double? {
         val matcher = amountPattern.matcher(message)
         if (matcher.find()) {
-            return matcher.group(1)?.replace(",", "")?.toDoubleOrNull()
+            val rial = matcher.group(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
+            // Bank SMS amounts are in Rial; convert to Toman (Rial / 10).
+            return rial / 10.0
         }
         // fallback: first plausible bare number (used only if a currency marker is absent
         // but a debit/credit keyword IS present - handled by caller's confidence check)
         val bareMatcher = bareAmountPattern.matcher(message)
         if (bareMatcher.find()) {
-            return bareMatcher.group(1)?.replace(",", "")?.toDoubleOrNull()
+            val rial = bareMatcher.group(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
+            return rial / 10.0
         }
         return null
     }
