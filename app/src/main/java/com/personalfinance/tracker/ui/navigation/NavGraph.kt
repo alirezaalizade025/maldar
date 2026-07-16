@@ -6,10 +6,12 @@ import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -18,7 +20,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.personalfinance.tracker.ui.screens.*
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.UpdateChecker
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
+import kotlinx.coroutines.launch
 
 private data class NavItem(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
@@ -33,8 +37,51 @@ private val bottomItems = listOf(
 @Composable
 fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = null) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+
+    var menuExpanded by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    var showUpToDate by remember { mutableStateOf(false) }
+    var showFailed by remember { mutableStateOf(false) }
+    // Avoid showing the startup prompt more than once per session.
+    var startupChecked by rememberSaveable { mutableStateOf(false) }
+
+    fun runCheck(auto: Boolean) {
+        scope.launch {
+            val result = UpdateChecker.checkForUpdate()
+            when {
+                result != null -> updateInfo = result
+                auto -> { /* silent when up-to-date on startup */ }
+                else -> showFailed = true
+            }
+        }
+    }
+
+    // Automatic check on startup (once per session).
+    LaunchedEffect(Unit) {
+        if (!startupChecked) {
+            startupChecked = true
+            runCheck(auto = true)
+        }
+    }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(AppStrings.appName) },
+                actions = {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text(AppStrings.menuUpdates) },
+                            onClick = { menuExpanded = false; runCheck(auto = false) }
+                        )
+                    }
+                }
+            )
+        },
         bottomBar = {
             NavigationBar {
                 val backStackEntry by navController.currentBackStackEntryAsState()
@@ -59,7 +106,7 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
         NavHost(
             navController = navController,
             startDestination = startDestinationOverride ?: "dashboard",
-            modifier = androidx.compose.ui.Modifier.padding(padding)
+            modifier = Modifier.padding(padding)
         ) {
             composable("dashboard") { DashboardScreen(viewModel, onGoToConfirm = { navController.navigate("confirm_sms_list") }) }
             composable("add_transaction") { AddTransactionScreen(viewModel) }
@@ -69,4 +116,8 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
             composable("reports") { ReportsScreen(viewModel) }
         }
     }
+
+    UpdateDialog(info = updateInfo, onDismiss = { updateInfo = null })
+    if (showUpToDate) UpToDateDialog(onDismiss = { showUpToDate = false })
+    if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
 }

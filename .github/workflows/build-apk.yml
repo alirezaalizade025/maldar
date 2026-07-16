@@ -42,14 +42,16 @@ jobs:
       - name: Get version tag
         id: version
         run: |
-          TAG="v$(date +'%Y%m%d-%H%M%S')"
+          VERSION_NAME=$(grep -oP "versionName\s*=\s*\"\K[^\"]+" app/build.gradle.kts)
+          TAG="v${VERSION_NAME}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Publish to Release
         uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Debug APK ${{ steps.version.outputs.tag }}
+          name: Maldar ${{ steps.version.outputs.tag }}
           draft: false
           prerelease: true
           files: app/build/outputs/apk/debug/app-debug.apk

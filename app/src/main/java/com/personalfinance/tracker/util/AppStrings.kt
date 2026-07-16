@@ -105,6 +105,16 @@ object AppStrings {
     val confirmEdit = "تایید / ویرایش"
     val ignore = "نادیده گرفتن"
     val confirmTransaction = "تایید تراکنش"
+
+    // Updates
+    val menuUpdates = "بررسی به‌روزرسانی"
+    val updateAvailable = "نسخه جدید موجود است"
+    val updateAvailableBody = "نسخه %s منتشر شده است. برای دریافت روی دکمه زیر بزنید."
+    val download = "دانلود نسخه جدید"
+    val upToDate = "برنامه به‌روز است"
+    val upToDateBody = "شما آخرین نسخه (%s) را دارید."
+    val checkFailed = "بررسی به‌روزرسانی ممکن نشد"
+    val later = "بعداً"
 }
 
 /**
