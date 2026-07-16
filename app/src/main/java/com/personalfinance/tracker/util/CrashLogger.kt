@@ -2,6 +2,7 @@ package com.personalfinance.tracker.util
 
 import android.content.Context
 import android.os.Build
+import com.personalfinance.tracker.BuildConfig
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
