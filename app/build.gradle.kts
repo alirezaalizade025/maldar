@@ -4,6 +4,24 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Auto-increment version from the Git commit count so every CI build gets a
+// unique versionCode/versionName and releases never collide on a duplicate tag.
+// versionCode = total commits; versionName = "1.0.<commits>".
+fun gitCommitCount(): Int {
+    return try {
+        val out = ByteArrayOutputStream()
+        exec {
+            commandLine("git", "rev-list", "--count", "HEAD")
+            standardOutput = out
+        }
+        out.toString().trim().toIntOrNull() ?: 1
+    } catch (_: Exception) {
+        1
+    }
+}
+
+val commitCount = gitCommitCount()
+
 android {
     namespace = "com.personalfinance.tracker"
     compileSdk = 34
@@ -12,8 +30,8 @@ android {
         applicationId = "com.personalfinance.tracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = commitCount
+        versionName = "1.0.$commitCount"
     }
 
     buildTypes {
@@ -34,6 +52,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -44,6 +63,14 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+// Prints the resolved versionName so CI can tag the release without parsing
+// the (dynamically computed) value out of this file.
+tasks.register("printVersionName") {
+    doLast {
+        println(android.defaultConfig.versionName)
     }
 }
 

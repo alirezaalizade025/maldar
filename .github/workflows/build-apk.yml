@@ -42,8 +42,9 @@ jobs:
       - name: Get version tag
         id: version
         run: |
-          VERSION_NAME=$(grep -oP "versionName\s*=\s*\"\K[^\"]+" app/build.gradle.kts)
+          VERSION_NAME=$(gradle -q printVersionName --no-daemon)
           TAG="v${VERSION_NAME}"
+          echo "Resolved version: $TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       # Remove any existing release/tag so the APK is always published as a

@@ -3,6 +3,7 @@ package com.personalfinance.tracker.util
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.personalfinance.tracker.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -17,9 +18,9 @@ import java.net.URL
  */
 object UpdateChecker {
 
-    // Must match versionName / versionCode in app/build.gradle.kts
-    const val CURRENT_VERSION_NAME = "1.1"
-    const val CURRENT_VERSION_CODE = 2
+    // Pulled from BuildConfig so it always matches the built APK's auto-bumped version.
+    val CURRENT_VERSION_NAME: String = BuildConfig.VERSION_NAME
+    val CURRENT_VERSION_CODE: Int = BuildConfig.VERSION_CODE
 
     private const val RELEASES_URL = "https://api.github.com/repos/alirezaalizade025/maldar/releases"
     private const val TAG = "UpdateChecker"

@@ -37,6 +37,7 @@ object JalaliCalendar {
 
         jy += (days / 1461).toInt()
         days %= 1461
+        if (days < 0) days += 1461
 
         var iy2 = ((days - 1) / 365).toInt()
         if (iy2 == 4) iy2 = 3
@@ -58,6 +59,7 @@ object JalaliCalendar {
         var off = offsetMonths
         while (off > 0) { m++; if (m > 12) { m = 1; y++ }; off-- }
         while (off < 0) { m--; if (m < 1) { m = 12; y-- }; off++ }
+        m = m.coerceIn(1, 12)
 
         val startCal = toGregorian(y, m, 1)
         val endCal = (Calendar.getInstance().apply {
@@ -73,6 +75,7 @@ object JalaliCalendar {
         var off = offsetMonths
         while (off > 0) { m++; if (m > 12) { m = 1; y++ }; off-- }
         while (off < 0) { m--; if (m < 1) { m = 12; y-- }; off++ }
+        m = m.coerceIn(1, 12)
         return "${persianMonths[m - 1]} $y"
     }
 
