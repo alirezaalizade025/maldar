@@ -135,9 +135,6 @@ interface CategoryDao {
     @Query("UPDATE transactions SET category = :target WHERE category = :name")
     suspend fun reassignTransactionsCategory(name: String, target: String)
 
-    @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
-    suspend fun getAllOnce(): List<TransactionEntity>
-
     @Insert
     suspend fun insertAll(categories: List<CategoryEntity>)
 }
