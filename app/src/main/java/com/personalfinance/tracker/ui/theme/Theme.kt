@@ -16,27 +16,29 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val Emerald = Color(0xFF1B7A5A)
-val EmeraldDark = Color(0xFF11543E)
-val Coral = Color(0xFFE8604C)
-val Slate = Color(0xFF2B2F36)
-val Cream = Color(0xFFF7F5F0)
+val Emerald = Color(0xFF0F5C42)
+val EmeraldDark = Color(0xFF0A3D2D)
+val Coral = Color(0xFFC8422F)
+val Slate = Color(0xFF1A1D22)
+val Cream = Color(0xFFEDEAE3)
 
 private val LightColors = lightColorScheme(
     primary = Emerald,
     secondary = Coral,
-    background = Cream,
-    surface = Color.White,
+    background = Color(0xFFE4E1DA),
+    surface = Color(0xFFF2F0EB),
     onPrimary = Color.White,
     onBackground = Slate,
     onSurface = Slate
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFF4FBF95),
+    primary = Color(0xFF2E8B66),
     secondary = Coral,
-    background = Color(0xFF14171A),
-    surface = Color(0xFF1E2226),
+    background = Color(0xFF0C0E10),
+    surface = Color(0xFF16191C),
+    onSurface = Color(0xFFD7DBDF),
+    onSurfaceVariant = Color(0xFF9AA1A8)
 )
 
 val AppTypography = Typography(

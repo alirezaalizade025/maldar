@@ -117,6 +117,16 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         return repo.expenseByCategory(start, end)
     }
 
+    // Last `count` months (including current) of income/expense, oldest first.
+    suspend fun monthlyHistory(count: Int = 6): List<Pair<Double, Double>> {
+        return (count - 1 downTo 0).map { offset ->
+            val (start, end) = monthRange(-offset)
+            val income = repo.totalByType(TxType.INCOME, start, end)
+            val expense = repo.totalByType(TxType.EXPENSE, start, end)
+            income to expense
+        }
+    }
+
     private fun monthRange(monthOffset: Int): Pair<Long, Long> {
         val cal = Calendar.getInstance()
         cal.add(Calendar.MONTH, monthOffset)

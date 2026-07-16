@@ -19,6 +19,8 @@ object AppStrings {
 
     // Dashboard
     val overview = "نمای کلی"
+    val monthlyTrend = "نمودار ماهانه"
+    val noTrendData = "داده‌ای برای نمودار وجود ندارد."
     val totalBalance = "موجودی کل"
     val monthIncome = "درآمد این ماه"
     val monthExpense = "هزینه این ماه"

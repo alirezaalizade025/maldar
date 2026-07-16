@@ -60,6 +60,8 @@ interface TransactionDao {
     suspend fun expenseByCategoryBetween(start: Long, end: Long): List<CategoryTotal>
 }
 
+@Dao
+
 data class CategoryTotal(val category: String, val total: Double)
 
 @Dao
