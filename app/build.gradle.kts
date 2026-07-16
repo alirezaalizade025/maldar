@@ -4,23 +4,31 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Auto-increment version from the Git commit count so every CI build gets a
-// unique versionCode/versionName and releases never collide on a duplicate tag.
-// versionCode = total commits; versionName = "1.0.<commits>".
-fun gitCommitCount(): Int {
+// Semantic versioning driven by conventional commit prefixes:
+//   - commits starting with "feat" bump MINOR (0.1.0)
+//   - commits starting with "fix"  bump PATCH (0.0.1)
+// versionCode = minor * 10 + patch (monotonic; matches the ".cN" suffix the
+// UpdateChecker compares against, so releases like "vX.Y.c<code>" resolve
+// correctly). versionName = "0.<minor>.<patch>".
+fun gitCommitPrefixCount(prefix: String): Int {
     return try {
         val out = ByteArrayOutputStream()
         exec {
-            commandLine("git", "rev-list", "--count", "HEAD")
+            commandLine("git", "log", "--pretty=format:%s")
             standardOutput = out
         }
-        out.toString().trim().toIntOrNull() ?: 1
+        out.toString().lineSequence()
+            .count { it.trim().lowercase().startsWith(prefix) }
     } catch (_: Exception) {
-        1
+        0
     }
 }
 
-val commitCount = gitCommitCount()
+val featCount = gitCommitPrefixCount("feat")
+val fixCount = gitCommitPrefixCount("fix")
+// Start at 1 so a brand-new repo still produces a valid versionCode >= 1.
+val versionCodeValue = (featCount * 10 + fixCount).coerceAtLeast(1)
+val versionNameValue = "0.$featCount.$fixCount"
 
 android {
     namespace = "com.personalfinance.tracker"
@@ -30,8 +38,8 @@ android {
         applicationId = "com.personalfinance.tracker"
         minSdk = 26
         targetSdk = 34
-        versionCode = commitCount
-        versionName = "1.0.$commitCount"
+        versionCode = versionCodeValue
+        versionName = versionNameValue
     }
 
     buildTypes {
@@ -66,11 +74,17 @@ android {
     }
 }
 
-// Prints the resolved versionName so CI can tag the release without parsing
-// the (dynamically computed) value out of this file.
+// Prints the resolved versionName / versionCode so CI can tag the release
+// without parsing the (dynamically computed) values out of this file.
 tasks.register("printVersionName") {
     doLast {
         println(android.defaultConfig.versionName)
+    }
+}
+
+tasks.register("printVersionCode") {
+    doLast {
+        println(android.defaultConfig.versionCode)
     }
 }
 

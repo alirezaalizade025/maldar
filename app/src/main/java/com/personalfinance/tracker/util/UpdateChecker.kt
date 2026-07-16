@@ -99,17 +99,22 @@ object UpdateChecker {
     }
 
     private fun parseVersionCode(version: String): Int {
-        // Accept explicit ".cN" suffix, e.g. "1.2.c3" -> 3
+        // Accept an explicit ".cN" suffix that mirrors the build's versionCode,
+        // e.g. "1.2.c3" -> 3. This is the ONLY reliable code to compare against
+        // BuildConfig.VERSION_CODE (which is the git commit count). Without this
+        // suffix the tag is a plain semver and we must NOT synthesize a code,
+        // because mapping "1.1" -> 10100 would always beat the real code (2..N).
         val suffix = version.substringAfterLast(".c", "")
-        if (suffix.isNotBlank()) suffix.toIntOrNull()?.let { return it }
-        // Fall back: map a semver to a comparable int (1.2.3 -> 10203). Not exact
-        // versionCode parity, but enough to order named releases.
-        val parts = version.split(".").map { it.toIntOrNull() ?: 0 }
-        return (parts.getOrElse(0) { 0 } * 10000) + (parts.getOrElse(1) { 0 } * 100) + parts.getOrElse(2) { 0 }
+        if (version.contains(".c") && suffix.isNotBlank()) {
+            suffix.toIntOrNull()?.let { return it }
+        }
+        return -1
     }
 
     private fun isNewer(candidateCode: Int, candidateVersion: String): Boolean {
-        if (candidateCode > 0 && CURRENT_VERSION_CODE > 0) return candidateCode > CURRENT_VERSION_CODE
+        // Only trust the code comparison when the candidate actually carries a
+        // matching ".cN" versionCode suffix; otherwise fall back to semver.
+        if (candidateCode > 0) return candidateCode > CURRENT_VERSION_CODE
         return compareVersions(candidateVersion, CURRENT_VERSION_NAME) > 0
     }
 
