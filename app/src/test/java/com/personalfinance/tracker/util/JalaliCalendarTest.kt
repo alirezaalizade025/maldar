@@ -30,15 +30,30 @@ class JalaliCalendarTest {
 
     @Test
     fun knownDates_matchReference() {
-        // 1 Farvardin 1403 = 21 March 2024 (Gregorian)
+        // 1 Farvardin 1403 = 20 March 2024 (Gregorian)
         val c = JalaliCalendar.toGregorianPublic(1403, 1, 1)
         val (y, m, d) = gregYearMonthDay(c.timeInMillis)
-        assertEquals(2024, y); assertEquals(3, m); assertEquals(21, d)
+        assertEquals(2024, y); assertEquals(3, m); assertEquals(20, d)
 
-        // 29 Esfand 1403 (leap year) = 19 March 2025
-        val c2 = JalaliCalendar.toGregorianPublic(1403, 12, 29)
+        // 30 Esfand 1403 (leap year) = 20 March 2025
+        val c2 = JalaliCalendar.toGregorianPublic(1403, 12, 30)
         val (y2, m2, d2) = gregYearMonthDay(c2.timeInMillis)
-        assertEquals(2025, y2); assertEquals(3, m2); assertEquals(19, d2)
+        assertEquals(2025, y2); assertEquals(3, m2); assertEquals(20, d2)
+    }
+
+    @Test
+    fun recentGregorian_mapsTo1400s() {
+        // 18 July 2026 must convert to a 1400s Jalali year (was wrongly 823).
+        val j = JalaliCalendar.fromGregorian(GregorianCalendar(2026, 6, 18))
+        assertTrue("Jalali year must be in the 1400s, was ${j.year}", j.year in 1400..1499)
+        assertEquals(4, j.month) // Tir
+    }
+
+    @Test
+    fun currentDate_roundTrip_matchesReference() {
+        // Guard against the year-offset regression: 2026-07-18 -> 1405/04/26.
+        val j = JalaliCalendar.fromGregorian(GregorianCalendar(2026, 6, 18))
+        assertEquals(1405, j.year); assertEquals(4, j.month); assertEquals(26, j.day)
     }
 
     @Test

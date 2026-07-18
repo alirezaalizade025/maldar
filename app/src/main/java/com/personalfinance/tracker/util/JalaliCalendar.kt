@@ -17,39 +17,58 @@ object JalaliCalendar {
     data class Jalali(val year: Int, val month: Int, val day: Int)
 
     fun fromGregorian(calendar: Calendar): Jalali {
-        var gy = calendar.get(Calendar.YEAR)
+        val gy = calendar.get(Calendar.YEAR)
         val gm = calendar.get(Calendar.MONTH) + 1
         val gd = calendar.get(Calendar.DAY_OF_MONTH)
 
-        var jy: Int
-        if (gy > 1600) {
-            jy = 979
-            gy -= 1600
-        } else {
-            jy = 0
-            gy -= 621
+        // Gregorian days elapsed since 1 Farvardin 1 (22 Mar 622 CE), inclusive.
+        // Computed with proleptic Gregorian day counting to avoid fragile formulas.
+        val gDaysInMonth = intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        val gregDay = gregorianOrdinal(gy, gm, gd)
+        val epochDay = gregorianOrdinal(622, 3, 22)
+        var days = gregDay - epochDay // days since start of Jalali year 1
+
+        var jy = 1
+        while (true) {
+            val yearLen = if (isLeap(jy)) 366 else 365
+            if (days < yearLen) break
+            days -= yearLen
+            jy++
         }
 
-        val gd2 = if (gm > 2) gd + (if (isLeap(gy + 1)) 30 else 29) + (gm - 3) * 30 + dayOfYear(gm - 1)
-        else gd + dayOfYear(gm - 1)
+        var jm = 1
+        while (true) {
+            val monthLen = when {
+                jm <= 6 -> 31
+                jm < 12 -> 30
+                else -> if (isLeap(jy)) 30 else 29
+            }
+            if (days < monthLen) break
+            days -= monthLen
+            jm++
+        }
 
-        var days = 365L * gy + (gy / 33) * 8 + (gy % 33 + 3) / 4 + gd2 - 386211
-
-        jy += (days / 1461).toInt()
-        days %= 1461
-        if (days < 0) days += 1461
-
-        var iy2 = ((days - 1) / 365).toInt()
-        if (iy2 == 4) iy2 = 3
-        days -= 365L * iy2
-
-        jy += iy2
-
-        val jm = if (days < 186) (1 + days / 31) else (7 + (days - 186) / 30)
-        val jd = if (days < 186) (1 + days % 31) else (1 + (days - 186) % 30)
-
-        return Jalali(jy, jm.toInt(), jd.toInt())
+        val jd = days + 1
+        return Jalali(jy, jm, jd)
     }
+
+    // Days since the (proleptic) Gregorian epoch 0001-01-01.
+    private fun gregorianOrdinal(y: Int, m: Int, d: Int): Int {
+        val gDaysInMonth = intArrayOf(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        var days = 0
+        for (yy in 1 until y) {
+            days += if (gregorianLeap(yy)) 366 else 365
+        }
+        for (mm in 0 until m - 1) {
+            days += gDaysInMonth[mm]
+            if (mm == 1 && gregorianLeap(y)) days += 1 // February leap day
+        }
+        days += d - 1
+        return days
+    }
+
+    private fun gregorianLeap(y: Int): Boolean =
+        (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
 
     // Returns the [start, end] millis for the Gregorian month containing `base`
     // shifted by `offsetMonths`. Stored transaction dates are Gregorian millis, so
@@ -116,12 +135,6 @@ object JalaliCalendar {
         month <= 6 -> 31
         month < 12 -> 30
         else -> if (isLeap(year)) 30 else 29
-    }
-
-    private fun dayOfYear(month: Int): Int {
-        // cumulative days before given (1-based) month in a non-leap year
-        val cum = intArrayOf(0, 31, 62, 93, 124, 155, 186, 216, 246, 276, 306, 336)
-        return if (month == 0) 0 else cum[month - 1]
     }
 
     private fun isLeap(jy: Int): Boolean {
