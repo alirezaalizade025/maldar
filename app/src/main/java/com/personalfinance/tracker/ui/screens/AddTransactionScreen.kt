@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
@@ -28,8 +29,20 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
     var rialMode by remember { mutableStateOf(false) }
     var selectedLoanId by remember { mutableStateOf<Long?>(null) }
     var loanMenuExpanded by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    Column(
+    LaunchedEffect(confirmationMessage) {
+        confirmationMessage?.let {
+            snackbarHostState.showSnackbar(
+                message = it,
+                duration = SnackbarDuration.Short
+            )
+            confirmationMessage = null
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -125,10 +138,12 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text(AppStrings.save) }
+    }
 
-        confirmationMessage?.let {
-            Text(it, color = MaterialTheme.colorScheme.primary)
-        }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.TopCenter)
+    )
     }
 }
 
