@@ -28,7 +28,7 @@ import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.Date
 
 @Composable
-fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
+fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit = {}) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val pending by viewModel.pendingSms.collectAsState()
@@ -82,10 +82,17 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 tonalElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().clickable { onGoToReports() }
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
+                        Text(AppStrings.more, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
                     Spacer(Modifier.height(12.dp))
                     if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
                         Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))

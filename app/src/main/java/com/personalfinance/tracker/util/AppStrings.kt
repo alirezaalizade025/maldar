@@ -133,6 +133,7 @@ object AppStrings {
     val net = "خالص"
     val balanceTrend = "روند موجودی"
     val spendingByCategory = "هزینه بر اساس دسته‌بندی"
+    val more = "بیشتر"
     val noExpenses = "امسال هزینه‌ای ثبت نشده است."
 
     // SMS confirmation

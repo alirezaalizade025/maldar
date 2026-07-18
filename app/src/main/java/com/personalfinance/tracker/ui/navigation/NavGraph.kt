@@ -123,7 +123,7 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
             startDestination = startDestinationOverride ?: "dashboard",
             modifier = Modifier.padding(padding)
         ) {
-            composable("dashboard") { DashboardScreen(viewModel, onGoToConfirm = { navController.navigate("confirm_sms_list") }) }
+            composable("dashboard") { DashboardScreen(viewModel, onGoToConfirm = { navController.navigate("confirm_sms_list") }, onGoToReports = { navController.navigate("reports") }) }
             composable("add_transaction") { AddTransactionScreen(viewModel) }
             composable("confirm_sms_list") { SmsConfirmationScreen(viewModel) }
             composable("bank_accounts") { BankAccountsScreen(viewModel) }
