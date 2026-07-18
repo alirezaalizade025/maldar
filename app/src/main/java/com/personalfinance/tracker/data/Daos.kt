@@ -167,7 +167,4 @@ interface CategoryDao {
 
     @Query("UPDATE transactions SET category = :target WHERE category = :name")
     suspend fun reassignTransactionsCategory(name: String, target: String)
-
-    @Insert
-    suspend fun insertAll(categories: List<CategoryEntity>)
 }
