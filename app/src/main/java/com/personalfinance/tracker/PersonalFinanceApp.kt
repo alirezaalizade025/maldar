@@ -26,9 +26,14 @@ class PersonalFinanceApp : Application() {
         val db = AppDatabase.getInstance(this)
         repository = FinanceRepository(db)
 
-        NotificationHelper.ensureChannels(this)
-        scheduleLoanReminderWorker()
-        if (Settings.dailyReminderEnabled) DailyReminderScheduler.scheduleNext(this)
+        try {
+            NotificationHelper.ensureChannels(this)
+            scheduleLoanReminderWorker()
+            if (Settings.dailyReminderEnabled) DailyReminderScheduler.scheduleNext(this)
+        } catch (_: Exception) {
+            // None of these are essential for the app to launch; never let a
+            // scheduling/channel failure crash startup.
+        }
     }
 
     private fun scheduleLoanReminderWorker() {

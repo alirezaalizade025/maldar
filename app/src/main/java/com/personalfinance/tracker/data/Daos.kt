@@ -89,8 +89,6 @@ interface TransactionDao {
     suspend fun deleteAll()
 }
 
-@Dao
-
 data class CategoryTotal(val category: String, val total: Double)
 
 @Dao
