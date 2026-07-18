@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -76,21 +77,26 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
                     }
-                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 6.dp
+                    ) {
                         DropdownMenuItem(
-                            text = { Text(AppStrings.menuUpdates) },
+                            text = { Text(AppStrings.menuUpdates, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; runCheck(auto = false) }
                         )
                         DropdownMenuItem(
-                            text = { Text(AppStrings.crashLog) },
+                            text = { Text(AppStrings.crashLog, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; showCrashLog = true }
                         )
                         DropdownMenuItem(
-                            text = { Text(AppStrings.exportData) },
+                            text = { Text(AppStrings.exportData, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; showExport = true }
                         )
                         DropdownMenuItem(
-                            text = { Text(AppStrings.about) },
+                            text = { Text(AppStrings.about, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; showAbout = true }
                         )
                     }
