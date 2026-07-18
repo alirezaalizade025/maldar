@@ -134,6 +134,8 @@ object AppStrings {
     val net = "خالص"
     val balanceTrend = "روند موجودی"
     val spendingByCategory = "هزینه بر اساس دسته‌بندی"
+    val viewByAmount = "نمایش به مبلغ"
+    val viewByPercent = "نمایش به درصد"
     val more = "بیشتر"
     val noExpenses = "امسال هزینه‌ای ثبت نشده است."
 

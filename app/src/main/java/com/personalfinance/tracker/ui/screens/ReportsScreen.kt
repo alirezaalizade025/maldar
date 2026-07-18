@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -31,6 +32,8 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     var income by remember { mutableStateOf(0.0) }
     var expense by remember { mutableStateOf(0.0) }
     var breakdown by remember { mutableStateOf<List<CategoryTotal>>(emptyList()) }
+    // Charts show the spent amount by default; toggle to view as a percentage.
+    var byPercent by remember { mutableStateOf(false) }
 
     LaunchedEffect(monthOffset) {
         runCatching {
@@ -70,21 +73,43 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
+            FilterChip(
+                selected = byPercent,
+                onClick = { byPercent = !byPercent },
+                label = { Text(if (byPercent) AppStrings.viewByAmount else AppStrings.viewByPercent) }
+            )
+        }
 
         if (breakdown.isEmpty()) {
             Text(AppStrings.noExpenses, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         } else {
             val maxVal = breakdown.maxOf { it.total }
+            val total = breakdown.sumOf { it.total }.coerceAtLeast(1.0)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 breakdown.forEachIndexed { index, item ->
+                    val fraction = if (byPercent) {
+                        (item.total / total).toFloat().coerceIn(0.02f, 1f)
+                    } else {
+                        (item.total / maxVal).toFloat().coerceIn(0.02f, 1f)
+                    }
+                    val valueText = if (byPercent) {
+                        val pct = (item.total / total * 100.0)
+                        "٪" + Money.format(pct)
+                    } else {
+                        Money.format(item.total) + " " + AppStrings.moneyUnit
+                    }
                     Column {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(item.category, style = MaterialTheme.typography.bodyMedium)
-                            Text(Money.format(item.total) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(valueText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         }
                         Spacer(Modifier.height(4.dp))
-                        val fraction = (item.total / maxVal).toFloat().coerceIn(0.02f, 1f)
                         val color = chartColors[index % chartColors.size]
                         Canvas(modifier = Modifier.fillMaxWidth().height(10.dp)) {
                             drawRoundRect(
