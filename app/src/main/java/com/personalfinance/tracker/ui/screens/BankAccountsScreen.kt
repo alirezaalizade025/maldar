@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,41 +62,51 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
-                        IconButton(
-                            onClick = { navController?.navigate("account_sms/${acc.id}") },
-                            enabled = navController != null
-                        ) {
-                            Icon(Icons.Filled.Message, contentDescription = AppStrings.showSms)
-                        }
-                        IconButton(
-                            onClick = {
-                                val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
-                                if (accSenders.isEmpty()) { message = AppStrings.refreshFailed; return@IconButton }
-                                refreshingId = acc.id
-                                scope.launch {
-                                    val res = SmsInboxReader.lastSmsForSenders(context, accSenders)
-                                    if (res.amount != null) {
-                                        viewModel.updateBankAccount(acc.copy(balance = res.amount))
-                                        message = AppStrings.refreshDone
-                                    } else {
-                                        message = AppStrings.refreshFailed
-                                    }
-                                    refreshingId = null
-                                }
-                            },
-                            enabled = refreshingId != acc.id
-                        ) {
-                            if (refreshingId == acc.id) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refresh)
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.accountActions)
                             }
-                        }
-                        IconButton(onClick = { showEditAccount = acc }) {
-                            Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit)
-                        }
-                        IconButton(onClick = { viewModel.deleteBankAccount(acc) }) {
-                            Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 6.dp
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(AppStrings.showSms, color = MaterialTheme.colorScheme.onSurface) },
+                                    enabled = navController != null,
+                                    onClick = { menuExpanded = false; navController?.navigate("account_sms/${acc.id}") }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(AppStrings.refresh, color = MaterialTheme.colorScheme.onSurface) },
+                                    enabled = refreshingId != acc.id,
+                                    onClick = {
+                                        menuExpanded = false
+                                        val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
+                                        if (accSenders.isEmpty()) { message = AppStrings.refreshFailed; return@DropdownMenuItem }
+                                        refreshingId = acc.id
+                                        scope.launch {
+                                            val res = SmsInboxReader.lastSmsForSenders(context, accSenders)
+                                            if (res.amount != null) {
+                                                viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                                                message = AppStrings.refreshDone
+                                            } else {
+                                                message = AppStrings.refreshFailed
+                                            }
+                                            refreshingId = null
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(AppStrings.edit, color = MaterialTheme.colorScheme.onSurface) },
+                                    onClick = { menuExpanded = false; showEditAccount = acc }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(AppStrings.delete, color = MaterialTheme.colorScheme.error) },
+                                    onClick = { menuExpanded = false; viewModel.deleteBankAccount(acc) }
+                                )
+                            }
                         }
                     }
                 }
