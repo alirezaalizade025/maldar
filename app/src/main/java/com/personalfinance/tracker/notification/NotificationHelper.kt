@@ -14,6 +14,7 @@ import com.personalfinance.tracker.util.Money
 object NotificationHelper {
     const val CHANNEL_SMS = "sms_confirmation"
     const val CHANNEL_LOAN = "loan_reminders"
+    const val CHANNEL_DAILY = "daily_reminder"
 
     fun ensureChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -27,6 +28,11 @@ object NotificationHelper {
                 NotificationChannel(
                     CHANNEL_LOAN, "یادآوری سررسید وام", NotificationManager.IMPORTANCE_HIGH
                 ).apply { description = "یادآوری پرداخت اقساط وام" }
+            )
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_DAILY, "یادآوری روزانه", NotificationManager.IMPORTANCE_DEFAULT
+                ).apply { description = "یادآوری ثبت تراکنش‌های روزانه" }
             )
         }
     }
@@ -80,5 +86,28 @@ object NotificationHelper {
 
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify((1000 + loanId).toInt(), notification)
+    }
+
+    fun notifyDailyReminder(context: Context) {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("open_screen", "add_transaction")
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context, 2000, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_DAILY)
+            .setSmallIcon(android.R.drawable.stat_notify_more)
+            .setContentTitle("یادآوری ثبت تراکنش")
+            .setContentText("فراموش نکنید امروز تراکنش‌هایتان را ثبت کنید.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.notify(2000, notification)
     }
 }

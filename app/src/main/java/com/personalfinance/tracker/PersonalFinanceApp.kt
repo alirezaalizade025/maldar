@@ -9,6 +9,8 @@ import com.personalfinance.tracker.data.FinanceRepository
 import com.personalfinance.tracker.notification.NotificationHelper
 import com.personalfinance.tracker.util.AppContextProvider
 import com.personalfinance.tracker.util.CrashLogger
+import com.personalfinance.tracker.util.Settings
+import com.personalfinance.tracker.worker.DailyReminderScheduler
 import com.personalfinance.tracker.worker.LoanReminderWorker
 import java.util.concurrent.TimeUnit
 
@@ -26,6 +28,7 @@ class PersonalFinanceApp : Application() {
 
         NotificationHelper.ensureChannels(this)
         scheduleLoanReminderWorker()
+        if (Settings.dailyReminderEnabled) DailyReminderScheduler.scheduleNext(this)
     }
 
     private fun scheduleLoanReminderWorker() {

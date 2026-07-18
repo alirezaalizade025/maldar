@@ -196,6 +196,14 @@ object AppStrings {
     val checkFailed = "بررسی به‌روزرسانی ممکن نشد"
     val later = "بعداً"
     val skipVersion = "رد کردن این نسخه"
+
+    // Settings
+    val settings = "تنظیمات"
+    val dailyReminder = "یادآوری روزانه"
+    val dailyReminderHint = "هر روز در ساعت انتخاب‌شده به ثبت تراکنش‌هایتان یادآوری می‌شود."
+    val dailyReminderTime = "ساعت یادآوری"
+    val dailyReminderOff = "خاموش"
+    val dailyReminderOn = "روشن"
 }
 
 /**
