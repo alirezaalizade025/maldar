@@ -22,9 +22,6 @@ interface BankAccountDao {
 
     @Query("SELECT * FROM bank_accounts ORDER BY id DESC")
     suspend fun getAllOnce(): List<BankAccountEntity>
-
-    @Query("UPDATE bank_accounts SET balance = balance + :delta WHERE id = :id")
-    suspend fun adjustBalance(id: Long, delta: Double)
 }
 
 @Dao
@@ -73,6 +70,11 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE loanId = :loanId ORDER BY dateMillis DESC")
     suspend fun getPaymentsForLoan(loanId: Long): List<TransactionEntity>
+
+    // Most recent transaction (by time) for a given account that carries a
+    // non-null balanceAfter snapshot. Used to read that account's latest remained.
+    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC LIMIT 1")
+    suspend fun latestBalanceForAccount(accountId: Long): TransactionEntity?
 }
 
 @Dao

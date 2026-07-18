@@ -37,7 +37,7 @@ class Converters {
         LoanEntity::class,
         CategoryEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

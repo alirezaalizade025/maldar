@@ -24,6 +24,7 @@ object AppStrings {
     val monthlyTrend = "نمودار ماهانه"
     val noTrendData = "داده‌ای برای نمودار وجود ندارد."
     val totalBalance = "موجودی کل"
+    val remainedAfter = "مانده حساب"
     val monthIncome = "درآمد این ماه"
     val monthExpense = "هزینه این ماه"
     val loanPaidThisMonth = "پرداخت وام این ماه"

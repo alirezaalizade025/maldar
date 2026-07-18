@@ -41,15 +41,15 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
     var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
-    LaunchedEffect(transactions) {
+    var totalBalance by remember { mutableStateOf(0.0) }
+    LaunchedEffect(transactions, accounts) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
         monthLoanPaid = viewModel.loanPaymentsThisMonth()
         trend = viewModel.monthlyHistory(6)
         balanceTrend = viewModel.balanceHistory(6)
+        totalBalance = viewModel.totalAccountBalance()
     }
-
-    val totalBalance = accounts.sumOf { it.balance }
 
     val allIncome = transactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
     val allExpense = transactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
@@ -276,6 +276,13 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
                             Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             if (tx.note.isNotBlank()) {
                                 Text(tx.note, style = MaterialTheme.typography.labelSmall)
+                            }
+                            tx.balanceAfter?.let {
+                                Text(
+                                    "${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                         Text(

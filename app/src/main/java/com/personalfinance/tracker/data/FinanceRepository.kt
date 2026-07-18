@@ -19,20 +19,32 @@ class FinanceRepository(private val db: AppDatabase) {
     fun getTransactions() = db.transactionDao().getAll()
     fun getTransactionsBetween(start: Long, end: Long) = db.transactionDao().getBetween(start, end)
 
+    // Inserts a transaction and, when it is linked to a bank account, records the
+    // account's remaining balance right after it (balanceAfter) on the transaction
+    // itself, and updates the account's current remained.
     suspend fun addTransaction(tx: TransactionEntity) {
-        db.transactionDao().insert(tx)
-        // keep bank account balance in sync
         if (tx.bankAccountId != null) {
-            val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
-            db.bankAccountDao().adjustBalance(tx.bankAccountId, delta)
+            val account = db.bankAccountDao().getById(tx.bankAccountId)
+            if (account != null) {
+                val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
+                val remained = (account.balance + delta).coerceAtLeast(0.0)
+                db.bankAccountDao().update(account.copy(balance = remained))
+                db.transactionDao().insert(tx.copy(balanceAfter = remained))
+                return
+            }
         }
+        db.transactionDao().insert(tx)
     }
 
     suspend fun deleteTransaction(tx: TransactionEntity) {
         db.transactionDao().delete(tx)
         if (tx.bankAccountId != null) {
-            val delta = if (tx.type == TxType.INCOME) -tx.amount else tx.amount
-            db.bankAccountDao().adjustBalance(tx.bankAccountId, delta)
+            val account = db.bankAccountDao().getById(tx.bankAccountId)
+            if (account != null) {
+                // Revert the effect of this transaction on the account's remained.
+                val delta = if (tx.type == TxType.INCOME) -tx.amount else tx.amount
+                db.bankAccountDao().update(account.copy(balance = (account.balance + delta).coerceAtLeast(0.0)))
+            }
         }
     }
 
@@ -55,8 +67,17 @@ class FinanceRepository(private val db: AppDatabase) {
         return income - expense
     }
 
-    suspend fun totalAccountBalance(): Double =
-        db.bankAccountDao().getAllOnce().sumOf { it.balance }
+    // Total remained = sum of each account's latest remained balance.
+    // The remained for an account is read from the balanceAfter snapshot on its
+    // most recent transaction; if the account has no transactions yet, its stored
+    // balance (opening remained) is used.
+    suspend fun totalAccountBalance(): Double {
+        val accounts = db.bankAccountDao().getAllOnce()
+        return accounts.sumOf { account ->
+            val latest = db.transactionDao().latestBalanceForAccount(account.id)
+            latest?.balanceAfter ?: account.balance
+        }
+    }
 
     suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> =
         db.transactionDao().expenseByCategoryBetween(start, end)

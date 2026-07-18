@@ -35,6 +35,11 @@ data class TransactionEntity(
     val bankAccountId: Long? = null,
     val source: TxSource = TxSource.MANUAL,
     val rawSms: String? = null,
+    // Remaining balance of the linked account right after this transaction.
+    // Captures a per-transaction snapshot so each account's "remained" can be
+    // reconstructed from its latest transaction, and the total balance is the sum
+    // of every account's remained. Null for cash (no linked account).
+    val balanceAfter: Double? = null,
     // When this transaction is a loan repayment, links back to the loan so we can
     // show the last payment on the loan and reduce its remaining balance.
     val loanId: Long? = null
