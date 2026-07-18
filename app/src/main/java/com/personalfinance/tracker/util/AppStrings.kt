@@ -188,6 +188,7 @@ object Money {
     }
 
     fun format2(amount: Double): String {
-        return "%,.2f".format(faLocale, amount)
+        // Displayed amounts are whole Toman; drop the fractional part everywhere.
+        return "%,.0f".format(faLocale, kotlin.math.round(amount))
     }
 }
