@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import com.personalfinance.tracker.ui.screens.*
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.UpdateChecker
+import com.personalfinance.tracker.BuildConfig
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,7 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     var showFailed by remember { mutableStateOf(false) }
     var showCrashLog by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
 
@@ -87,6 +89,10 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
                         DropdownMenuItem(
                             text = { Text(AppStrings.exportData) },
                             onClick = { menuExpanded = false; showExport = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(AppStrings.about) },
+                            onClick = { menuExpanded = false; showAbout = true }
                         )
                     }
                 }
@@ -132,4 +138,17 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
     if (showCrashLog) CrashLogScreen(onClose = { showCrashLog = false })
     if (showExport) ExportScreen(viewModel, onClose = { showExport = false })
+    if (showAbout) {
+        AlertDialog(
+            onDismissRequest = { showAbout = false },
+            title = { Text(AppStrings.about) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(AppStrings.appName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(AppStrings.versionLabel.format(BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAbout = false }) { Text(AppStrings.close) } }
+        )
+    }
 }

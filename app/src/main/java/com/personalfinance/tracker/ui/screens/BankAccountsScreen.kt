@@ -100,8 +100,10 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
     androidx.compose.material3.SnackbarHost(hostState = snackbarHostState)
 
     if (showAddAccount) {
-        AddAccountDialog(onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal ->
-            viewModel.addBankAccount(bank, label, last4, bal)
+        AddAccountDialog(onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, sender ->
+            viewModel.addBankAccount(bank, label, last4, bal) { accountId ->
+                if (sender.isNotBlank()) viewModel.addSmsSender(sender.trim(), accountId, "")
+            }
             showAddAccount = false
         })
     }
@@ -115,12 +117,13 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
 }
 
 @Composable
-private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, String, Double) -> Unit) {
+private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, String, Double, String) -> Unit) {
     var bankName by remember { mutableStateOf("") }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
+    var senderId by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -142,6 +145,10 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
                     label = { Text(AppStrings.openingBalance) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
+                HorizontalDivider()
+                Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleMedium)
+                Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId + " (" + AppStrings.optional + ")") }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -150,7 +157,7 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
                     bankNameError = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0)
+                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, senderId)
                 }
             }) { Text(AppStrings.add) }
         },

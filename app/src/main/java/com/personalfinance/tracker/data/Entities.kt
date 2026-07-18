@@ -61,6 +61,11 @@ data class LoanEntity(
     val dueDateMillis: Long,
     // Day of the (Jalali) month the payment is due (1-31). Drives dueDateMillis.
     val payDayOfMonth: Int = 1,
+    // Monthly installment amount. Used to derive how many months remain and to
+    // project the payoff schedule.
+    val installment: Double = 0.0,
+    // Total number of installments for the loan term.
+    val totalMonths: Int = 0,
     val reminderDaysBefore: Int = 3,
     val notes: String = "",
     val isPaid: Boolean = false

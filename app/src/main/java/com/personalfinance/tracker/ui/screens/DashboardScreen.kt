@@ -34,12 +34,14 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
 
     var monthIncome by remember { mutableStateOf(0.0) }
     var monthExpense by remember { mutableStateOf(0.0) }
+    var monthLoanPaid by remember { mutableStateOf(0.0) }
     var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
     var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     LaunchedEffect(transactions) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
+        monthLoanPaid = viewModel.loanPaymentsThisMonth()
         trend = viewModel.monthlyHistory(6)
         balanceTrend = viewModel.balanceHistory(6)
     }
@@ -154,7 +156,14 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
                         }
                         Column {
                             Text(AppStrings.monthExpense, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text(Money.format2(monthExpense) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(Money.format2(monthExpense + monthLoanPaid) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (monthLoanPaid > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(AppStrings.loanPaidThisMonth, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
+                            Text(Money.format2(monthLoanPaid) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

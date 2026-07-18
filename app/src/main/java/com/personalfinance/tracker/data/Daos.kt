@@ -68,6 +68,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
     suspend fun getAllOnce(): List<TransactionEntity>
 
+    @Query("SELECT * FROM transactions WHERE loanId IS NOT NULL AND dateMillis BETWEEN :start AND :end ORDER BY dateMillis DESC")
+    suspend fun getPaymentsBetween(start: Long, end: Long): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE loanId = :loanId ORDER BY dateMillis DESC")
     suspend fun getPaymentsForLoan(loanId: Long): List<TransactionEntity>
 }

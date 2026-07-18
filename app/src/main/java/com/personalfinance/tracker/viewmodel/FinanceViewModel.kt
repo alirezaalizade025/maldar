@@ -35,11 +35,12 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         repo.getCategoriesByType(TxType.INCOME).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ---- Bank accounts ----
-    fun addBankAccount(bankName: String, label: String, last4: String, openingBalance: Double) {
+    fun addBankAccount(bankName: String, label: String, last4: String, openingBalance: Double, onCreated: (Long) -> Unit = {}) {
         viewModelScope.launch {
-            repo.addBankAccount(
+            val id = repo.addBankAccount(
                 BankAccountEntity(bankName = bankName, accountLabel = label, accountLast4 = last4, balance = openingBalance)
             )
+            onCreated(id)
         }
     }
     fun deleteBankAccount(account: BankAccountEntity) = viewModelScope.launch { repo.deleteBankAccount(account) }
@@ -85,6 +86,13 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     suspend fun getLoanPayments(loanId: Long): List<TransactionEntity> = repo.getLoanPayments(loanId)
 
+    // Total loan repayments made during the current (Jalali) month, so the
+    // dashboard can fold them into the expense total / chart.
+    suspend fun loanPaymentsThisMonth(): Double {
+        val (start, end) = monthRange(0)
+        return repo.getLoanPaymentsBetween(start, end).sumOf { it.amount }
+    }
+
     // ---- Pending SMS confirmation ----
     fun confirmPendingSms(pending: PendingSmsEntity, finalAmount: Double, type: TxType, category: String, note: String) {
         viewModelScope.launch {
@@ -103,29 +111,39 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     // ---- Loans ----
-    fun addLoan(name: String, principal: Double, dueDateMillis: Long, reminderDaysBefore: Int, notes: String) {
+    fun addLoan(name: String, principal: Double, dueDateMillis: Long, installment: Double, totalMonths: Int, reminderDaysBefore: Int, notes: String) {
         viewModelScope.launch {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
-                    dueDateMillis = dueDateMillis, reminderDaysBefore = reminderDaysBefore, notes = notes
+                    dueDateMillis = dueDateMillis, installment = installment, totalMonths = totalMonths,
+                    reminderDaysBefore = reminderDaysBefore, notes = notes
                 )
             )
         }
     }
-    fun addLoan(name: String, principal: Double, payDayOfMonth: Int, reminderDaysBefore: Int, notes: String) {
+    fun addLoan(name: String, principal: Double, payDayOfMonth: Int, installment: Double, totalMonths: Int, reminderDaysBefore: Int, notes: String) {
         viewModelScope.launch {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
                     dueDateMillis = JalaliCalendar.nextDueDateMillis(payDayOfMonth),
-                    payDayOfMonth = payDayOfMonth, reminderDaysBefore = reminderDaysBefore, notes = notes
+                    payDayOfMonth = payDayOfMonth, installment = installment, totalMonths = totalMonths,
+                    reminderDaysBefore = reminderDaysBefore, notes = notes
                 )
             )
         }
     }
     fun markLoanPaid(loan: LoanEntity) = viewModelScope.launch { repo.updateLoan(loan.copy(isPaid = true, remainingAmount = 0.0)) }
     fun deleteLoan(loan: LoanEntity) = viewModelScope.launch { repo.deleteLoan(loan) }
+
+    // Remaining months until payoff, derived from the installment so it drops
+    // automatically with every payment. Defaults to totalMonths when no installment.
+    fun monthsRemaining(loan: LoanEntity): Int {
+        return if (loan.installment > 0.0) {
+            kotlin.math.ceil(loan.remainingAmount / loan.installment).toInt().coerceAtLeast(0)
+        } else loan.totalMonths
+    }
 
     // ---- Categories ----
     fun addCategory(name: String, type: TxType) {
@@ -155,11 +173,12 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     // Last `count` months (including current) of income/expense, oldest first.
+    // Expense includes loan repayments made that month.
     suspend fun monthlyHistory(count: Int = 6): List<Pair<Double, Double>> {
         return (count - 1 downTo 0).map { offset ->
             val (start, end) = monthRange(-offset)
             val income = repo.totalByType(TxType.INCOME, start, end)
-            val expense = repo.totalByType(TxType.EXPENSE, start, end)
+            val expense = repo.totalByType(TxType.EXPENSE, start, end) + repo.getLoanPaymentsBetween(start, end).sumOf { it.amount }
             income to expense
         }
     }

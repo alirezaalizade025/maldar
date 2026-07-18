@@ -12,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +24,8 @@ import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.CornerRadius
 
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
@@ -36,6 +40,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     val dueSoFar = loans.filter { !it.isPaid && it.payDayOfMonth <= jNow.day }
         .sumOf { it.remainingAmount }
     val remainNext = (total - dueSoFar).coerceAtLeast(0.0)
+    val totalMonthsRemaining = loans.filter { !it.isPaid }.sumOf { viewModel.monthsRemaining(it) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -65,6 +70,10 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                         Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelSmall)
                         Text(Money.format2(remainNext) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                     }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(AppStrings.loansSummaryMonths, style = MaterialTheme.typography.labelSmall)
+                        Text(AppStrings.monthsFormat.format(totalMonthsRemaining), fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -87,6 +96,10 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     Text(AppStrings.due + ": " + JalaliCalendar.formatDate(loan.dueDateMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
                     Text(AppStrings.loanPayDay + ": " + loan.payDayOfMonth, style = MaterialTheme.typography.labelSmall)
+                    if (loan.installment > 0.0) {
+                        Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
+                        Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan), style = MaterialTheme.typography.labelSmall)
+                    }
                     Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                     if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(10.dp))
@@ -114,8 +127,8 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     }
 
     if (showAdd) {
-        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, reminderDays, notes ->
-            viewModel.addLoan(name, principal, payDay, reminderDays, notes)
+        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, reminderDays, notes ->
+            viewModel.addLoan(name, principal, payDay, installment, totalMonths, reminderDays, notes)
             showAdd = false
         })
     }
@@ -150,12 +163,25 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
     val payments by produceState(initialValue = emptyList<com.personalfinance.tracker.data.TransactionEntity>(), loan.id) {
         value = viewModel.getLoanPayments(loan.id)
     }
+    // Projected remaining balance over the next months until payoff.
+    val projection = remember(loan.id) {
+        val inst = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
+        val months = if (loan.installment > 0.0) viewModel.monthsRemaining(loan) else 1
+        (0..months.coerceAtMost(24)).scan(loan.remainingAmount) { acc, _ -> (acc - inst).coerceAtLeast(0.0) }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(loan.name) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
+                if (loan.installment > 0.0) {
+                    Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
+                    Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan), style = MaterialTheme.typography.labelSmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text(AppStrings.loanProjection, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    LoanProjectionChart(projection = projection)
+                }
                 Text(AppStrings.loanLastPayment + ":", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 if (payments.isEmpty()) {
                     Text(AppStrings.loanNoPayment, style = MaterialTheme.typography.labelSmall)
@@ -172,10 +198,44 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
 }
 
 @Composable
-private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Int, String) -> Unit) {
+private fun LoanProjectionChart(projection: List<Double>) {
+    if (projection.size < 2) return
+    val maxVal = projection.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    Canvas(modifier = Modifier.fillMaxWidth().height(90.dp)) {
+        val sidePad = 8.dp.toPx()
+        val groupW = (size.width - sidePad * 2) / projection.size
+        val baseY = size.height - 6.dp.toPx()
+        val top = 6.dp.toPx()
+        val lineH = baseY - top
+        val points = projection.mapIndexed { i, v ->
+            val x = sidePad + i * groupW + groupW / 2
+            val y = baseY - ((v / maxVal) * lineH).toFloat()
+            Offset(x, y)
+        }
+        for (i in 1 until points.size) {
+            drawLine(
+                color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                start = points[i - 1], end = points[i], strokeWidth = 3.dp.toPx()
+            )
+        }
+        points.forEach { p ->
+            drawRoundRect(
+                color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                topLeft = Offset(p.x - 3.dp.toPx(), p.y - 3.dp.toPx()),
+                size = Size(6.dp.toPx(), 6.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+            )
+        }
+    }
+}
+
+@Composable
+private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Double, Int, Int, String) -> Unit) {
     var name by remember { mutableStateOf("") }
     var principal by remember { mutableStateOf("") }
     var payDay by remember { mutableStateOf("") }
+    var installment by remember { mutableStateOf("") }
+    var totalMonths by remember { mutableStateOf("") }
     var reminderDays by remember { mutableStateOf("3") }
     var notes by remember { mutableStateOf("") }
 
@@ -190,6 +250,17 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, In
                     onValueChange = { principal = it.filter { c -> c.isDigit() || c == '.' } },
                     label = { Text(AppStrings.principal) },
                     visualTransformation = ThousandsSeparatorTransformation()
+                )
+                OutlinedTextField(
+                    value = installment,
+                    onValueChange = { installment = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text(AppStrings.loanInstallment) },
+                    visualTransformation = ThousandsSeparatorTransformation()
+                )
+                OutlinedTextField(
+                    value = totalMonths,
+                    onValueChange = { totalMonths = it.filter { c -> c.isDigit() } },
+                    label = { Text(AppStrings.loanTotalMonths) }
                 )
                 OutlinedTextField(
                     value = payDay,
@@ -208,9 +279,11 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, In
             TextButton(onClick = {
                 val amount = principal.toDoubleOrNull()
                 val day = payDay.toIntOrNull()
+                val inst = installment.toDoubleOrNull() ?: 0.0
+                val months = totalMonths.toIntOrNull() ?: 0
                 val reminder = reminderDays.toIntOrNull() ?: 3
                 if (name.isNotBlank() && amount != null && day != null && day in 1..31) {
-                    onAdd(name, amount, day, reminder, notes)
+                    onAdd(name, amount, day, inst, months, reminder, notes)
                 }
             }) { Text(AppStrings.add) }
         },
