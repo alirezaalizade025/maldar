@@ -236,7 +236,9 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
     var payDay by remember { mutableStateOf("") }
     var installment by remember { mutableStateOf("") }
     var totalMonths by remember { mutableStateOf("") }
-    var reminderDays by remember { mutableStateOf("3") }
+    // Reminder is a fixed choice (not free input): 7, 3, or 1 day before due date.
+    var reminderDays by remember { mutableStateOf(3) }
+    val reminderOptions = listOf(7 to AppStrings.remind7Days, 3 to AppStrings.remind3Days, 1 to AppStrings.remind1Day)
     var notes by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -267,11 +269,16 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
                     onValueChange = { payDay = it.filter { c -> c.isDigit() } },
                     label = { Text(AppStrings.payDayOfMonth) }
                 )
-                OutlinedTextField(
-                    value = reminderDays,
-                    onValueChange = { reminderDays = it.filter { c -> c.isDigit() } },
-                    label = { Text(AppStrings.remindDaysBefore) }
-                )
+                Text(AppStrings.remindDaysBefore, style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    reminderOptions.forEach { (days, label) ->
+                        FilterChip(
+                            selected = reminderDays == days,
+                            onClick = { reminderDays = days },
+                            label = { Text(label) }
+                        )
+                    }
+                }
                 OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(AppStrings.notesOptional) })
             }
         },
@@ -281,9 +288,8 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
                 val day = payDay.toIntOrNull()
                 val inst = installment.toDoubleOrNull() ?: 0.0
                 val months = totalMonths.toIntOrNull() ?: 0
-                val reminder = reminderDays.toIntOrNull() ?: 3
                 if (name.isNotBlank() && amount != null && day != null && day in 1..31) {
-                    onAdd(name, amount, day, inst, months, reminder, notes)
+                    onAdd(name, amount, day, inst, months, reminderDays, notes)
                 }
             }) { Text(AppStrings.add) }
         },
