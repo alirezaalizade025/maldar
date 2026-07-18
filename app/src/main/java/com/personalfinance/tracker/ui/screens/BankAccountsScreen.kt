@@ -69,9 +69,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                             }
                             DropdownMenu(
                                 expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false },
-                                containerColor = MaterialTheme.colorScheme.surface,
-                                tonalElevation = 6.dp
+                                onDismissRequest = { menuExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(AppStrings.showSms, color = MaterialTheme.colorScheme.onSurface) },

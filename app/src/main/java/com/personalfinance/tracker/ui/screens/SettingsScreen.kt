@@ -17,6 +17,21 @@ import com.personalfinance.tracker.worker.DailyReminderScheduler
 import java.util.Locale
 
 @Composable
+private fun TimePickerDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        text = content
+    )
+}
+
+@Composable
 fun SettingsScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(Settings.dailyReminderEnabled) }

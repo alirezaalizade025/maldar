@@ -195,7 +195,7 @@ fun MonthTrendGraph(
                 val textStyle = TextStyle(fontSize = 11.sp, color = Color.White)
                 val measured = lines.map { measurer.measure(AnnotatedString(it), textStyle) }
                 val boxW = (measured.maxOfOrNull { it.size.width } ?: 0) + 20.dp.toPx()
-                val boxH = measured.sumOf { (it.size.height + 4.dp.toPx()).toDouble() } + 12.dp.toPx()
+                val boxH = measured.sumOf { (it.size.height + 4.dp.toPx()).toDouble() }.toFloat() + 12.dp.toPx()
 
                 val groupX = sidePadPx + idx * groupW
                 var boxX = groupX + groupW / 2 - boxW / 2

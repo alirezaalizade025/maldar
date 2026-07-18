@@ -88,9 +88,7 @@ fun NavGraph(
                     }
                     DropdownMenu(
                         expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 6.dp
+                        onDismissRequest = { menuExpanded = false }
                     ) {
                         DropdownMenuItem(
                             text = { Text(AppStrings.menuUpdates, color = MaterialTheme.colorScheme.onSurface) },
