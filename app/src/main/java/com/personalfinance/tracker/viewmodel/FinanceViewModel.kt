@@ -25,6 +25,9 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     val pendingSms: StateFlow<List<PendingSmsEntity>> =
         repo.getPendingSms().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val reviewedSms: StateFlow<List<PendingSmsEntity>> =
+        repo.getReviewedSms().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val loans: StateFlow<List<LoanEntity>> =
         repo.getLoans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -94,6 +97,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     // ---- Pending SMS confirmation ----
+    // Confirmed/rejected SMS are kept (status = CHECKED) so the user retains a
+    // review history instead of the record vanishing.
     fun confirmPendingSms(pending: PendingSmsEntity, finalAmount: Double, type: TxType, category: String, note: String) {
         viewModelScope.launch {
             repo.addTransaction(
@@ -103,12 +108,13 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                     source = TxSource.SMS, rawSms = pending.rawMessage
                 )
             )
-            repo.updatePendingSms(pending.copy(status = PendingStatus.CONFIRMED))
+            repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED, parsedType = type, parsedAmount = finalAmount))
         }
     }
     fun rejectPendingSms(pending: PendingSmsEntity) {
-        viewModelScope.launch { repo.updatePendingSms(pending.copy(status = PendingStatus.REJECTED)) }
+        viewModelScope.launch { repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED)) }
     }
+    fun deletePendingSms(pending: PendingSmsEntity) = viewModelScope.launch { repo.deletePendingSms(pending) }
 
     // ---- Loans ----
     fun addLoan(name: String, principal: Double, dueDateMillis: Long, installment: Double, totalMonths: Int, reminderDaysBefore: Int, notes: String) {

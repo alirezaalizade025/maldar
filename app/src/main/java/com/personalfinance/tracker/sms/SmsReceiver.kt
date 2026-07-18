@@ -47,8 +47,9 @@ class SmsReceiver : BroadcastReceiver() {
                 watched.senderId.contains(sender, ignoreCase = true)
         } ?: return // sender not in the watched list -> ignore entirely
 
-        if (!SmsParser.looksLikeTransaction(body)) return // e.g. OTP, promo - skip
-
+        // Capture every SMS from a watched sender. We no longer pre-filter on
+        // keywords/amounts here: the user reviews each one manually, so a missed
+        // keyword shouldn't silently drop a real bank SMS.
         val parsed = SmsParser.parse(body)
 
         val pending = PendingSmsEntity(

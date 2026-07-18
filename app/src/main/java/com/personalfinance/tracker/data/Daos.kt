@@ -84,6 +84,12 @@ interface PendingSmsDao {
     @Query("SELECT * FROM pending_sms WHERE status = 'PENDING' ORDER BY timestampMillis DESC")
     fun getPending(): Flow<List<PendingSmsEntity>>
 
+    @Query("SELECT * FROM pending_sms WHERE status != 'PENDING' ORDER BY timestampMillis DESC")
+    fun getReviewed(): Flow<List<PendingSmsEntity>>
+
+    @Query("SELECT * FROM pending_sms ORDER BY timestampMillis DESC")
+    fun getAll(): Flow<List<PendingSmsEntity>>
+
     @Insert
     suspend fun insert(pending: PendingSmsEntity): Long
 

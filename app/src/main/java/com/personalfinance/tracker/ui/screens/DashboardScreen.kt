@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +32,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val pending by viewModel.pendingSms.collectAsState()
+    val reviewed by viewModel.reviewedSms.collectAsState()
 
     var monthIncome by remember { mutableStateOf(0.0) }
     var monthExpense by remember { mutableStateOf(0.0) }
@@ -38,6 +40,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
     var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
     var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
+    var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
     LaunchedEffect(transactions) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
@@ -117,19 +120,57 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit) {
         }
 
         if (pending.isNotEmpty()) {
+            item { Text(AppStrings.unreadSms, style = MaterialTheme.typography.titleLarge) }
+            items(pending) { p ->
+                Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(AppStrings.from + " ${p.sender}", style = MaterialTheme.typography.labelSmall)
+                        Spacer(Modifier.height(6.dp))
+                        Text(p.rawMessage, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+                        Spacer(Modifier.height(10.dp))
+                        Row {
+                            Button(onClick = { editingTxForSms = p }) { Text(AppStrings.confirmEdit) }
+                            Spacer(Modifier.width(8.dp))
+                            OutlinedButton(onClick = { viewModel.rejectPendingSms(p) }) { Text(AppStrings.ignore) }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (reviewed.isNotEmpty()) {
             item {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().clickable { onGoToConfirm() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
-                        Spacer(Modifier.width(10.dp))
-                        Text(AppStrings.pendingSms.format(pending.size), fontWeight = FontWeight.Medium)
+                var expanded by remember { mutableStateOf(false) }
+                Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(AppStrings.reviewedSms.format(reviewed.size), style = MaterialTheme.typography.titleMedium)
+                            Text(if (expanded) AppStrings.collapse else AppStrings.expand, style = MaterialTheme.typography.labelSmall)
+                        }
+                        if (expanded) {
+                            reviewed.take(30).forEach { p ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(p.sender, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+                                        Text(p.rawMessage, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    IconButton(onClick = { viewModel.deletePendingSms(p) }) {
+                                        Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -318,5 +359,70 @@ private fun EditTransactionDialog(
                 onDismiss()
             }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
         }
+    )
+}
+
+editingTxForSms?.let { p ->
+    SmsConfirmDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editingTxForSms = null })
+}
+
+@Composable
+private fun SmsConfirmDialog(
+    pending: com.personalfinance.tracker.data.PendingSmsEntity,
+    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit
+) {
+    var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
+    var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
+    var category by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var selectedAccountId by remember { mutableStateOf(pending.bankAccountId) }
+    var accountMenuExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(AppStrings.confirmTransaction) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text(AppStrings.amountLabel) },
+                    visualTransformation = ThousandsSeparatorTransformation()
+                )
+                SingleChoiceSegmented(
+                    options = listOf(AppStrings.expense, AppStrings.income),
+                    selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
+                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME; category = "" }
+                )
+                CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
+                ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
+                        onValueChange = {}, readOnly = true,
+                        label = { Text(AppStrings.bankAccount) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
+                        accounts.forEach { acc ->
+                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
+                        }
+                    }
+                }
+                OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val amount = amountText.toDoubleOrNull()
+                if (amount != null && amount > 0 && category.isNotBlank()) {
+                    viewModel.confirmPendingSms(pending, amount, type, category, note)
+                    onDismiss()
+                }
+            }) { Text(AppStrings.save) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

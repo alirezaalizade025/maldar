@@ -5,7 +5,7 @@ import androidx.room.PrimaryKey
 
 enum class TxType { INCOME, EXPENSE }
 enum class TxSource { MANUAL, SMS }
-enum class PendingStatus { PENDING, CONFIRMED, REJECTED }
+enum class PendingStatus { PENDING, CONFIRMED, REJECTED, CHECKED }
 
 @Entity(tableName = "bank_accounts")
 data class BankAccountEntity(

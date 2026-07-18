@@ -63,6 +63,7 @@ class FinanceRepository(private val db: AppDatabase) {
 
     // Pending SMS (awaiting user confirmation)
     fun getPendingSms() = db.pendingSmsDao().getPending()
+    fun getReviewedSms() = db.pendingSmsDao().getReviewed()
     suspend fun addPendingSms(pending: PendingSmsEntity) = db.pendingSmsDao().insert(pending)
     suspend fun updatePendingSms(pending: PendingSmsEntity) = db.pendingSmsDao().update(pending)
     suspend fun deletePendingSms(pending: PendingSmsEntity) = db.pendingSmsDao().delete(pending)

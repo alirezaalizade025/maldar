@@ -34,7 +34,6 @@ class BankNotificationListenerService : NotificationListenerService() {
         val body = "$title\n$text\n$bigText".trim()
 
         if (body.isBlank()) return
-        if (!SmsParser.looksLikeTransaction(body)) return
 
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { handleNotification(this@BankNotificationListenerService, sbn.packageName, body) }
