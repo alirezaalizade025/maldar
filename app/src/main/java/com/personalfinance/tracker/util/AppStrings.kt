@@ -89,6 +89,7 @@ object AppStrings {
     val linkToAccount = "اتصال به حساب"
     val senderHint = "شناسه فرستنده را دقیقاً همان‌طور که در پیام‌رسان نمایش داده می‌شود وارد کنید (مثل BPIR، ۳۰۰۰۷۳۲۷۳)."
     val showSms = "نمایش پیامک‌ها"
+    val accountActions = "عملیات حساب"
     val smsList = "پیامک‌های حساب"
     val noSmsForAccount = "پیامکی از فرستندگان این حساب یافت نشد."
     val noSendersForAccount = "برای این حساب فرستنده پیامکی تنظیم نشده است."

@@ -60,6 +60,7 @@ fun MonthTrendGraph(
     val totalNet = totalIncome - totalExpense
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     val maxVal = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).coerceAtLeast(1.0)
 
@@ -141,7 +142,7 @@ fun MonthTrendGraph(
                 // Highlight ring on the selected group.
                 if (i == selectedIndex) {
                     drawRoundRect(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                        color = primaryColor.copy(alpha = 0.25f),
                         topLeft = Offset(groupX - 4.dp.toPx(), 2.dp.toPx()),
                         size = Size(groupW + 8.dp.toPx(), baseY - 2.dp.toPx() + 16.dp.toPx()),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx())
@@ -194,7 +195,7 @@ fun MonthTrendGraph(
                 val textStyle = TextStyle(fontSize = 11.sp, color = Color.White)
                 val measured = lines.map { measurer.measure(AnnotatedString(it), textStyle) }
                 val boxW = (measured.maxOfOrNull { it.size.width } ?: 0) + 20.dp.toPx()
-                val boxH = measured.sumOf { it.size.height + 4.dp.toPx() } + 12.dp.toPx()
+                val boxH = measured.sumOf { (it.size.height + 4.dp.toPx()).toDouble() } + 12.dp.toPx()
 
                 val groupX = sidePadPx + idx * groupW
                 var boxX = groupX + groupW / 2 - boxW / 2

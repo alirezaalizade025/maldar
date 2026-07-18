@@ -206,10 +206,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         }
     }
 
-    // Running net-worth at the END of each of the last `count` months (oldest first).
-    // Seeded with the current account balance minus the window's net, so the final
-    // point matches the live total account balance.
     suspend fun balanceHistory(count: Int = 6): List<Double> {
+        // Running net-worth at the END of each of the last `count` months (oldest first).
+        // Seeded with the current account balance minus the window's net, so the final
+        // point matches the live total account balance.
         val ranges = (count - 1 downTo 0).map { offset -> monthRange(-offset) }
         val nets = ranges.map { (start, end) -> repo.netBetween(start, end) }
         val windowNet = nets.sum()
@@ -222,6 +222,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         }
         return out
     }
+
+    suspend fun totalAccountBalance(): Double = repo.totalAccountBalance()
 
     private fun monthRange(monthOffset: Int): Pair<Long, Long> {
         return JalaliCalendar.jalaliMonthRange(Calendar.getInstance(), monthOffset)
