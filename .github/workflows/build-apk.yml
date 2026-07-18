@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: maldar-release-apk
-          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          path: app/build/outputs/apk/release/app-release.apk
 
       - name: Get version tag
         id: version
@@ -67,4 +67,4 @@ jobs:
           name: Maldar ${{ steps.version.outputs.tag }}
           draft: false
           prerelease: true
-          files: app/build/outputs/apk/release/app-release-unsigned.apk
+          files: app/build/outputs/apk/release/app-release.apk

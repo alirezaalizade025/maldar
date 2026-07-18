@@ -83,6 +83,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Sign the release build with the auto-generated debug keystore so
+            // the resulting APK is installable on Android. (An unsigned APK
+            // cannot be installed.) Replace with a real release keystore before
+            // publishing to the Play Store.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
