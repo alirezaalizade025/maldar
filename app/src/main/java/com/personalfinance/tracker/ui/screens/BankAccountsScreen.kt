@@ -57,7 +57,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text(acc.accountLabel, fontWeight = FontWeight.Medium)
-                        Text("${acc.bankName} •••• ${acc.accountLast4}", style = MaterialTheme.typography.labelSmall)
+                        Text(acc.bankName, style = MaterialTheme.typography.labelSmall)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
