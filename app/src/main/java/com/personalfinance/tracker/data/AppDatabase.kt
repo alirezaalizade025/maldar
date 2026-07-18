@@ -7,9 +7,6 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.io.File
 
 class Converters {
@@ -71,21 +68,32 @@ abstract class AppDatabase : RoomDatabase() {
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
-                        val built = this@Companion.INSTANCE
-                        if (built != null) {
-                            CoroutineScope(Dispatchers.IO).launch {
-                                val dao = built.categoryDao()
-                                if (dao.count() == 0) {
-                                    dao.insertAll(
-                                        defaultExpenseCategories.map { CategoryEntity(name = it, type = TxType.EXPENSE) } +
-                                        defaultIncomeCategories.map { CategoryEntity(name = it, type = TxType.INCOME) }
-                                    )
-                                }
-                            }
-                        }
+                        // Seed default categories directly against the database handed to
+                        // this callback. Room fires onCreate lazily on the first DB access,
+                        // which can be before the companion INSTANCE is assigned, so we must
+                        // NOT depend on INSTANCE here (doing so silently skipped seeding).
+                        seedDefaultCategories(db)
                     }
                 })
                 .build()
+        }
+
+        // Inserts the default expense/income categories using the raw database from
+        // the Room onCreate callback. Runs synchronously on Room's own transaction
+        // thread; onCreate only fires once, when the tables are first created.
+        private fun seedDefaultCategories(db: SupportSQLiteDatabase) {
+            try {
+                val insert: (String, TxType) -> Unit = { name, type ->
+                    db.execSQL(
+                        "INSERT INTO categories (name, type) VALUES (?, ?)",
+                        arrayOf<Any>(name, type.name)
+                    )
+                }
+                defaultExpenseCategories.forEach { insert(it, TxType.EXPENSE) }
+                defaultIncomeCategories.forEach { insert(it, TxType.INCOME) }
+            } catch (_: Exception) {
+                // Seeding is a convenience; never let it crash database creation.
+            }
         }
 
         fun getInstance(context: Context): AppDatabase {

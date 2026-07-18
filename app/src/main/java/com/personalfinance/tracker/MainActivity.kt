@@ -27,9 +27,12 @@ class MainActivity : ComponentActivity() {
     ) { /* results not critical - screens re-check permission state as needed */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Force right-to-left layout for the Persian (Farsi) UI.
-        window.decorView.layoutDirection = android.util.LayoutDirection.RTL
         super.onCreate(savedInstanceState)
+        // Force right-to-left layout for the Persian (Farsi) UI. Must run AFTER
+        // super.onCreate(): touching window.decorView earlier materializes the
+        // decor view before the framework has initialized the activity/window,
+        // which crashes on entry (right after the splash window).
+        window.decorView.layoutDirection = android.util.LayoutDirection.RTL
 
         val permissionsNeeded = mutableListOf(
             Manifest.permission.RECEIVE_SMS,
