@@ -52,11 +52,10 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
 
     fun runCheck(auto: Boolean) {
         scope.launch {
-            val result = UpdateChecker.checkForUpdate()
-            when {
-                result != null -> updateInfo = result
-                auto -> { /* silent when up-to-date on startup */ }
-                else -> showFailed = true
+            when (val result = UpdateChecker.checkForUpdate()) {
+                is UpdateChecker.UpdateResult.Available -> updateInfo = result.info
+                is UpdateChecker.UpdateResult.UpToDate -> if (!auto) showUpToDate = true
+                is UpdateChecker.UpdateResult.Error -> if (!auto) showFailed = true
             }
         }
     }

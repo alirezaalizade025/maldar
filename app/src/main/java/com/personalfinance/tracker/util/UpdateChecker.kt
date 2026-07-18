@@ -15,6 +15,7 @@ import java.net.URL
  * Compares the release's [versionCode] (parsed from the tag when possible, else
  * falls back to a semver compare of [versionName]) against the installed build.
  * A "skip this version" choice is persisted so a dismissed update doesn't nag.
+ * Results are reported via [UpdateResult] to tell "up to date" apart from errors.
  */
 object UpdateChecker {
 
@@ -47,11 +48,19 @@ object UpdateChecker {
         prefs?.edit()?.remove(KEY_SKIPPED)?.apply()
     }
 
+    sealed interface UpdateResult {
+        data class Available(val info: UpdateInfo) : UpdateResult
+        object UpToDate : UpdateResult
+        object Error : UpdateResult
+    }
+
     /**
-     * Returns the newest release that has an APK asset and is newer than the
-     * installed version (and not the skipped one), or null if none found / on error.
+     * Checks GitHub Releases for a newer version of the app.
+     * Returns [UpdateResult.Available] when a newer, non-skipped release with an
+     * APK is found, [UpdateResult.UpToDate] when the installed build is current,
+     * and [UpdateResult.Error] when the network/parse check fails.
      */
-    suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
             val connection = URL(RELEASES_URL).openConnection()
             connection.setRequestProperty("Accept", "application/vnd.github+json")
@@ -82,19 +91,21 @@ object UpdateChecker {
                     }
                 }
                 val htmlUrl = r.optString("html_url", null)
-                return@withContext UpdateInfo(
-                    tag = tag,
-                    version = version,
-                    versionCode = code,
-                    name = r.optString("name", tag),
-                    downloadUrl = apkUrl ?: htmlUrl,
-                    notes = r.optString("body", "")
+                return@withContext UpdateResult.Available(
+                    UpdateInfo(
+                        tag = tag,
+                        version = version,
+                        versionCode = code,
+                        name = r.optString("name", tag),
+                        downloadUrl = apkUrl ?: htmlUrl,
+                        notes = r.optString("body", "")
+                    )
                 )
             }
-            null
+            UpdateResult.UpToDate
         } catch (e: Exception) {
             Log.e(TAG, "update check failed", e)
-            null
+            UpdateResult.Error
         }
     }
 
