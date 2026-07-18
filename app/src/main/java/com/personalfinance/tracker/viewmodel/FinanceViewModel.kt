@@ -164,6 +164,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     // ---- Export / backup ----
     suspend fun exportAll(): FinanceRepository.ExportBundle = repo.exportAll()
+    suspend fun importBundle(bundle: FinanceRepository.ExportBundle) = repo.importBundle(bundle)
 
     // ---- Reports ----
     suspend fun monthlyIncomeExpense(monthOffset: Int = 0): Pair<Double, Double> {

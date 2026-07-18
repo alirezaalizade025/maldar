@@ -5,9 +5,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Builds human-readable CSV and JSON exports of all local data so the user can
- * back up or move their records. Everything lives in the Room DB, so this is the
- * only safe way to preserve data before a destructive schema migration.
+ * Builds and parses full-data backups so the user can move or restore their
+ * records. Everything lives in the Room DB, so this is the only safe way to
+ * preserve data before a destructive schema migration.
+ *
+ * JSON is the canonical round-trippable format (see [toJson]/[fromJson]).
+ * CSV is kept as a human-readable companion export.
  */
 object DataExport {
 
@@ -15,7 +18,8 @@ object DataExport {
         transactions: List<TransactionEntity>,
         accounts: List<BankAccountEntity>,
         loans: List<LoanEntity>,
-        categories: List<CategoryEntity>
+        categories: List<CategoryEntity>,
+        smsSenders: List<SmsSenderEntity> = emptyList()
     ): String = buildString {
         appendLine("--- Transactions ---")
         appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter")
@@ -46,6 +50,12 @@ object DataExport {
             )
         }
         appendLine()
+        appendLine("--- SMS Senders ---")
+        appendLine("id,senderId,bankAccountId,label")
+        smsSenders.forEach { s ->
+            appendLine(listOf(s.id, csvCell(s.senderId), s.bankAccountId, csvCell(s.label)).joinToString(","))
+        }
+        appendLine()
         appendLine("--- Categories ---")
         appendLine("id,name,type")
         categories.forEach { c -> appendLine(listOf(c.id, csvCell(c.name), c.type).joinToString(",")) }
@@ -55,7 +65,8 @@ object DataExport {
         transactions: List<TransactionEntity>,
         accounts: List<BankAccountEntity>,
         loans: List<LoanEntity>,
-        categories: List<CategoryEntity>
+        categories: List<CategoryEntity>,
+        smsSenders: List<SmsSenderEntity> = emptyList()
     ): String = JSONObject().apply {
         put("transactions", JSONArray(transactions.map {
             JSONObject().apply {
@@ -79,10 +90,94 @@ object DataExport {
                 put("notes", it.notes); put("isPaid", it.isPaid)
             }
         }))
+        put("smsSenders", JSONArray(smsSenders.map {
+            JSONObject().apply {
+                put("id", it.id); put("senderId", it.senderId); put("bankAccountId", it.bankAccountId)
+                put("label", it.label)
+            }
+        }))
         put("categories", JSONArray(categories.map {
             JSONObject().apply { put("id", it.id); put("name", it.name); put("type", it.type.name) }
         }))
     }.toString(2)
+
+    /**
+     * Parses a JSON backup produced by [toJson] back into an [FinanceRepository.ExportBundle].
+     * Throws [Exception] if the content is not a valid backup. IDs are preserved so
+     * relationships survive the round-trip.
+     */
+    @Throws(Exception::class)
+    fun fromJson(json: String): FinanceRepository.ExportBundle {
+        val root = JSONObject(json)
+        fun arr(name: String) = root.optJSONArray(name) ?: JSONArray()
+
+        val transactions = (0 until arr("transactions").length()).map { i ->
+            val o = arr("transactions").getJSONObject(i)
+            TransactionEntity(
+                id = o.optLong("id"),
+                amount = o.optDouble("amount"),
+                type = enumValueOf<TxType>(o.optString("type", "EXPENSE")),
+                category = o.optString("category", ""),
+                note = o.optString("note", ""),
+                dateMillis = o.optLong("dateMillis"),
+                bankAccountId = if (o.isNull("bankAccountId")) null else o.optLong("bankAccountId"),
+                source = enumValueOf<TxSource>(o.optString("source", "MANUAL")),
+                rawSms = if (o.isNull("rawSms")) null else o.optString("rawSms", null),
+                balanceAfter = if (o.isNull("balanceAfter")) null else o.optDouble("balanceAfter"),
+                loanId = if (o.isNull("loanId")) null else o.optLong("loanId")
+            )
+        }
+        val accounts = (0 until arr("bankAccounts").length()).map { i ->
+            val o = arr("bankAccounts").getJSONObject(i)
+            BankAccountEntity(
+                id = o.optLong("id"),
+                bankName = o.optString("bankName", ""),
+                accountLabel = o.optString("accountLabel", ""),
+                accountLast4 = o.optString("accountLast4", ""),
+                balance = o.optDouble("balance", 0.0)
+            )
+        }
+        val loans = (0 until arr("loans").length()).map { i ->
+            val o = arr("loans").getJSONObject(i)
+            LoanEntity(
+                id = o.optLong("id"),
+                name = o.optString("name", ""),
+                principal = o.optDouble("principal", 0.0),
+                remainingAmount = o.optDouble("remainingAmount", 0.0),
+                dueDateMillis = o.optLong("dueDateMillis"),
+                payDayOfMonth = o.optInt("payDayOfMonth", 1),
+                installment = o.optDouble("installment", 0.0),
+                totalMonths = o.optInt("totalMonths", 0),
+                reminderDaysBefore = o.optInt("reminderDaysBefore", 3),
+                notes = o.optString("notes", ""),
+                isPaid = o.optBoolean("isPaid", false)
+            )
+        }
+        val smsSenders = (0 until arr("smsSenders").length()).map { i ->
+            val o = arr("smsSenders").getJSONObject(i)
+            SmsSenderEntity(
+                id = o.optLong("id"),
+                senderId = o.optString("senderId", ""),
+                bankAccountId = if (o.isNull("bankAccountId")) 0L else o.optLong("bankAccountId"),
+                label = o.optString("label", "")
+            )
+        }
+        val categories = (0 until arr("categories").length()).map { i ->
+            val o = arr("categories").getJSONObject(i)
+            CategoryEntity(
+                id = o.optLong("id"),
+                name = o.optString("name", ""),
+                type = enumValueOf<TxType>(o.optString("type", "EXPENSE"))
+            )
+        }
+        return FinanceRepository.ExportBundle(
+            transactions = transactions,
+            accounts = accounts,
+            loans = loans,
+            categories = categories,
+            smsSenders = smsSenders
+        )
+    }
 
     private fun csvCell(value: String): String {
         return if (value.contains(',') || value.contains('"') || value.contains('\n')) {

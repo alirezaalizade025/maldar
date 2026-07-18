@@ -22,6 +22,9 @@ interface BankAccountDao {
 
     @Query("SELECT * FROM bank_accounts ORDER BY id DESC")
     suspend fun getAllOnce(): List<BankAccountEntity>
+
+    @Query("DELETE FROM bank_accounts")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -37,6 +40,9 @@ interface SmsSenderDao {
 
     @Delete
     suspend fun delete(sender: SmsSenderEntity)
+
+    @Query("DELETE FROM sms_senders")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -75,6 +81,9 @@ interface TransactionDao {
     // non-null balanceAfter snapshot. Used to read that account's latest remained.
     @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC LIMIT 1")
     suspend fun latestBalanceForAccount(accountId: Long): TransactionEntity?
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -121,6 +130,9 @@ interface LoanDao {
 
     @Query("SELECT * FROM loans ORDER BY dueDateMillis ASC")
     suspend fun getAllOnce(): List<LoanEntity>
+
+    @Query("DELETE FROM loans")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -133,6 +145,9 @@ interface CategoryDao {
 
     @Query("SELECT * FROM categories ORDER BY name ASC")
     suspend fun getAllOnce(): List<CategoryEntity>
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAll()
 
     @Insert
     suspend fun insert(category: CategoryEntity): Long

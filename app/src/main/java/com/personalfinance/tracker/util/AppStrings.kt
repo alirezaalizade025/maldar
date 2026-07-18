@@ -163,6 +163,13 @@ object AppStrings {
     val exportCsv = "خروجی CSV"
     val exportJson = "خروجی JSON"
     val sendExport = "اشتراک‌گذاری فایل پشتیبان"
+    val importData = "بازیابی از فایل"
+    val importHint = "یک فایل پشتیبان (JSON) انتخاب کنید تا داده‌ها بازیابی شوند. داده‌های فعلی جایگزین می‌شوند."
+    val importChooseFile = "انتخاب فایل پشتیبان"
+    val importing = "در حال بازیابی…"
+    val importSuccess = "بازیابی با موفقیت انجام شد."
+    val importFailed = "بازیابی انجام نشد: %s"
+    val importInvalid = "فایل پشتیبان معتبر نیست."
 
     // Updates
     val menuUpdates = "بررسی به‌روزرسانی"

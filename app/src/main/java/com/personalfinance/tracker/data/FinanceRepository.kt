@@ -127,14 +127,36 @@ class FinanceRepository(private val db: AppDatabase) {
             transactions = db.transactionDao().getAllOnce(),
             accounts = db.bankAccountDao().getAllOnce(),
             loans = db.loanDao().getAllOnce(),
-            categories = db.categoryDao().getAllOnce()
+            categories = db.categoryDao().getAllOnce(),
+            smsSenders = db.smsSenderDao().getAllOnce()
         )
+    }
+
+    // Replaces all local data with the contents of an imported backup bundle.
+    // IDs are preserved so relationships (e.g. loanId, bankAccountId) survive.
+    suspend fun importBundle(bundle: ExportBundle) {
+        clearAllData()
+        bundle.accounts.forEach { db.bankAccountDao().insert(it) }
+        bundle.smsSenders.forEach { db.smsSenderDao().insert(it) }
+        bundle.categories.forEach { db.categoryDao().insert(it) }
+        bundle.loans.forEach { db.loanDao().insert(it) }
+        bundle.transactions.forEach { db.transactionDao().insert(it) }
+    }
+
+    // Wipes every table so an imported backup fully replaces current data.
+    suspend fun clearAllData() {
+        db.transactionDao().deleteAll()
+        db.loanDao().deleteAll()
+        db.smsSenderDao().deleteAll()
+        db.categoryDao().deleteAll()
+        db.bankAccountDao().deleteAll()
     }
 
     data class ExportBundle(
         val transactions: List<TransactionEntity>,
         val accounts: List<BankAccountEntity>,
         val loans: List<LoanEntity>,
-        val categories: List<CategoryEntity>
+        val categories: List<CategoryEntity>,
+        val smsSenders: List<SmsSenderEntity> = emptyList()
     )
 }

@@ -49,7 +49,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        share(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories),
+                        share(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
                             "text/csv", "maldar-export.csv")
                     }.onFailure { message = it.message }
                     busy = false
@@ -65,7 +65,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        share(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories),
+                        share(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
                             "application/json", "maldar-export.json")
                     }.onFailure { message = it.message }
                     busy = false

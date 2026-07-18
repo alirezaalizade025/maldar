@@ -37,7 +37,11 @@ private val bottomItems = listOf(
 )
 
 @Composable
-fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = null) {
+fun NavGraph(
+    viewModel: FinanceViewModel,
+    startDestinationOverride: String? = null,
+    importUri: String? = null
+) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
 
@@ -47,6 +51,7 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     var showFailed by remember { mutableStateOf(false) }
     var showCrashLog by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
+    var showImport by remember { mutableStateOf<String?>(importUri) }
     var showAbout by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
@@ -96,6 +101,10 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
                             onClick = { menuExpanded = false; showExport = true }
                         )
                         DropdownMenuItem(
+                            text = { Text(AppStrings.importData, color = MaterialTheme.colorScheme.onSurface) },
+                            onClick = { menuExpanded = false; showImport = null }
+                        )
+                        DropdownMenuItem(
                             text = { Text(AppStrings.about, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; showAbout = true }
                         )
@@ -143,6 +152,9 @@ fun NavGraph(viewModel: FinanceViewModel, startDestinationOverride: String? = nu
     if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
     if (showCrashLog) CrashLogScreen(onClose = { showCrashLog = false })
     if (showExport) ExportScreen(viewModel, onClose = { showExport = false })
+    showImport?.let { uri ->
+        ImportScreen(viewModel, initialUri = uri, onClose = { showImport = null })
+    }
     if (showAbout) {
         AlertDialog(
             onDismissRequest = { showAbout = false },

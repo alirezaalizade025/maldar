@@ -42,6 +42,10 @@ class MainActivity : ComponentActivity() {
 
         val openScreen = intent.getStringExtra("open_screen")
         val pendingId = intent.getLongExtra("pending_id", -1L)
+        // Opening a backup file (e.g. from a file manager) hands us its content URI.
+        val importUri = if (intent.action == android.content.Intent.ACTION_VIEW) {
+            intent.data?.toString()
+        } else null
 
         setContent {
             PersonalFinanceTheme {
@@ -52,9 +56,28 @@ class MainActivity : ComponentActivity() {
                             "confirm_sms" -> "confirm_sms_list"
                             "loans" -> "loans"
                             else -> null
-                        }
+                        },
+                        importUri = importUri
                     )
                 }
+            }
+        }
+    }
+
+    // Re-deliver a backup file opened while the app was already running.
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == android.content.Intent.ACTION_VIEW) {
+            intent.data?.let { uri ->
+                val ctx = this
+                // Recreate the UI with the new import URI by relaunching the activity.
+                val relaunch = android.content.Intent(ctx, MainActivity::class.java).apply {
+                    action = android.content.Intent.ACTION_VIEW
+                    data = uri
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+                startActivity(relaunch)
+                finish()
             }
         }
     }
