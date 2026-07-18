@@ -30,14 +30,17 @@ jobs:
         with:
           gradle-version: 8.7
 
-      - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+      # Build the release APK with R8 code shrinking + resource shrinking so
+      # only the code/resources actually used are packaged (unused parts are
+      # stripped). Tests and other unused tasks are skipped for a lean build.
+      - name: Build release APK (shrunk)
+        run: gradle assembleRelease --no-daemon -x test
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: maldar-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: maldar-release-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Get version tag
         id: version
@@ -64,4 +67,4 @@ jobs:
           name: Maldar ${{ steps.version.outputs.tag }}
           draft: false
           prerelease: true
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/release/app-release-unsigned.apk

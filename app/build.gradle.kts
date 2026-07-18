@@ -76,7 +76,13 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Strip unused code (R8) and unused resources from the release APK.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 
