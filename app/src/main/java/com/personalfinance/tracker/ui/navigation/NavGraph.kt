@@ -139,11 +139,38 @@ fun NavGraph(
             modifier = Modifier.padding(padding)
         ) {
             composable("dashboard") { DashboardScreen(viewModel, onGoToConfirm = { navController.navigate("confirm_sms_list") }, onGoToReports = { navController.navigate("reports") }) }
-            composable("add_transaction") { AddTransactionScreen(viewModel) }
+            composable(
+                route = "add_transaction?accountId={accountId}&smsDate={smsDate}",
+                arguments = listOf(
+                    androidx.navigation.navArgument("accountId") { type = androidx.navigation.NavType.LongType; nullable = true; defaultValue = null },
+                    androidx.navigation.navArgument("smsDate") { type = androidx.navigation.NavType.LongType; nullable = true; defaultValue = null }
+                )
+            ) { backStackEntry ->
+                val accId = backStackEntry.arguments?.getLong("accountId")?.takeIf { it != 0L }
+                val smsDate = backStackEntry.arguments?.getLong("smsDate")?.takeIf { it != 0L }
+                AddTransactionScreen(
+                    viewModel = viewModel,
+                    accountId = accId,
+                    smsDate = smsDate,
+                    onContinueToList = if (accId != null) ({ navController.popBackStack("account_sms/$accId", false) }) else null
+                )
+            }
             composable("confirm_sms_list") { SmsConfirmationScreen(viewModel) }
-            composable("bank_accounts") { BankAccountsScreen(viewModel) }
+            composable("bank_accounts") { BankAccountsScreen(viewModel, navController = navController) }
             composable("loans") { LoansScreen(viewModel) }
             composable("reports") { ReportsScreen(viewModel) }
+            composable("account_sms/{accountId}") { backStackEntry ->
+                val accountId = backStackEntry.arguments?.getString("accountId")?.toLongOrNull() ?: 0L
+                val account = viewModel.bankAccounts.value.firstOrNull { it.id == accountId }
+                if (account != null) {
+                    AccountSmsScreen(
+                        account = account,
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                        onSelectSms = { smsDateMillis -> navController.navigate("add_transaction?accountId=$accountId&smsDate=$smsDateMillis") }
+                    )
+                }
+            }
         }
     }
 

@@ -88,6 +88,16 @@ object AppStrings {
     val senderId = "شناسه فرستنده"
     val linkToAccount = "اتصال به حساب"
     val senderHint = "شناسه فرستنده را دقیقاً همان‌طور که در پیام‌رسان نمایش داده می‌شود وارد کنید (مثل BPIR، ۳۰۰۰۷۳۲۷۳)."
+    val showSms = "نمایش پیامک‌ها"
+    val smsList = "پیامک‌های حساب"
+    val noSmsForAccount = "پیامکی از فرستندگان این حساب یافت نشد."
+    val noSendersForAccount = "برای این حساب فرستنده پیامکی تنظیم نشده است."
+    val selectSmsToAdd = "روی یک پیامک بزنید تا تراکنش ثبت شود."
+    val reconciled = "تطبیق‌یافته"
+    val notReconciled = "ثبت نشده"
+    val continueToList = "ادامه به لیست پیامک‌ها"
+    val smsAddHint = "مبلغ و نوع از پیامک پر شد؛ پس از ثبت می‌توانید به لیست پیامک‌ها بازگردید."
+    val back = "بازگشت"
 
     // Loans
     val loans = "وام‌ها"

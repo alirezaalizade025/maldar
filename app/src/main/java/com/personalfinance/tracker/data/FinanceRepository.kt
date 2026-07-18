@@ -19,6 +19,9 @@ class FinanceRepository(private val db: AppDatabase) {
     fun getTransactions() = db.transactionDao().getAll()
     fun getTransactionsBetween(start: Long, end: Long) = db.transactionDao().getBetween(start, end)
 
+    suspend fun getTransactionsByAccount(accountId: Long): List<TransactionEntity> =
+        db.transactionDao().getByAccount(accountId)
+
     // Inserts a transaction and, when it is linked to a bank account, records the
     // account's remaining balance right after it (balanceAfter) on the transaction
     // itself, and updates the account's current remained.

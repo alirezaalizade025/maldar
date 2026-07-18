@@ -7,16 +7,25 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
-fun AddTransactionScreen(viewModel: FinanceViewModel) {
+fun AddTransactionScreen(
+    viewModel: FinanceViewModel,
+    accountId: Long? = null,
+    smsDate: Long? = null,
+    onContinueToList: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
     val accounts by viewModel.bankAccounts.collectAsState()
     val loans by viewModel.loans.collectAsState()
+    val senders by viewModel.smsSenders.collectAsState()
 
     var type by remember { mutableStateOf(TxType.EXPENSE) }
     var amountText by remember { mutableStateOf("") }
@@ -29,7 +38,22 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
     var rialMode by remember { mutableStateOf(false) }
     var selectedLoanId by remember { mutableStateOf<Long?>(null) }
     var loanMenuExpanded by remember { mutableStateOf(false) }
+    var savedCount by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // When opened from a bank SMS, pre-fill the amount/type/account/note from it.
+    LaunchedEffect(accountId, smsDate) {
+        if (accountId != null && smsDate != null) {
+            val senderIds = senders.filter { it.bankAccountId == accountId }.map { it.senderId }
+            val sms = SmsInboxReader.findSmsByDate(context, senderIds, smsDate)
+            sms?.let {
+                if (it.amount != null) amountText = it.amount.toLong().toString()
+                it.type?.let { t -> type = t }
+                selectedAccountId = accountId
+                note = it.body
+            }
+        }
+    }
 
     LaunchedEffect(confirmationMessage) {
         confirmationMessage?.let {
@@ -131,6 +155,7 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
                     val stored = if (rialMode) amount / 10.0 else amount
                     viewModel.addTransaction(stored, type, category, note, selectedAccountId, loanId = selectedLoanId)
                     confirmationMessage = AppStrings.saved
+                    savedCount++
                     amountText = ""; note = ""; selectedLoanId = null
                 } else {
                     confirmationMessage = AppStrings.invalidAmount
@@ -138,6 +163,17 @@ fun AddTransactionScreen(viewModel: FinanceViewModel) {
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text(AppStrings.save) }
+
+        if (onContinueToList != null) {
+            if (savedCount > 0) {
+                OutlinedButton(onClick = onContinueToList, modifier = Modifier.fillMaxWidth()) {
+                    Text(AppStrings.continueToList)
+                }
+            } else {
+                Text(AppStrings.smsAddHint, style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            }
+        }
     }
 
     SnackbarHost(

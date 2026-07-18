@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
@@ -23,7 +25,7 @@ import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
 @Composable
-fun BankAccountsScreen(viewModel: FinanceViewModel) {
+fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController? = null) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val senders by viewModel.smsSenders.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -59,6 +61,12 @@ fun BankAccountsScreen(viewModel: FinanceViewModel) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
+                        IconButton(
+                            onClick = { navController?.navigate("account_sms/${acc.id}") },
+                            enabled = navController != null
+                        ) {
+                            Icon(Icons.Filled.Message, contentDescription = AppStrings.showSms)
+                        }
                         IconButton(
                             onClick = {
                                 val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }

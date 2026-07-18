@@ -70,6 +70,22 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
     fun deleteTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.deleteTransaction(tx) }
 
+    // Returns true when a transaction already exists for this account whose amount
+    // (within 1 Toman) and calendar day match the given SMS, i.e. the SMS has been
+    // reconciled. Used by the per-account SMS view to tick the checkbox.
+    suspend fun isReconciled(accountId: Long, amount: Double, dateMillis: Long): Boolean {
+        if (amount <= 0.0) return false
+        val sameDay = repo.getTransactionsByAccount(accountId).filter { sameDay(it.dateMillis, dateMillis) }
+        return sameDay.any { kotlin.math.abs(it.amount - amount) <= 1.0 }
+    }
+
+    private fun sameDay(a: Long, b: Long): Boolean {
+        val ca = java.util.Calendar.getInstance().apply { timeInMillis = a }
+        val cb = java.util.Calendar.getInstance().apply { timeInMillis = b }
+        return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) &&
+                ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+
     fun updateTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.updateTransaction(tx) }
 
     // Records a loan repayment as a transaction linked to the loan, and reduces the

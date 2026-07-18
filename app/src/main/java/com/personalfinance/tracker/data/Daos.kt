@@ -82,6 +82,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC LIMIT 1")
     suspend fun latestBalanceForAccount(accountId: Long): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId")
+    suspend fun getByAccount(accountId: Long): List<TransactionEntity>
+
     @Query("DELETE FROM transactions")
     suspend fun deleteAll()
 }
