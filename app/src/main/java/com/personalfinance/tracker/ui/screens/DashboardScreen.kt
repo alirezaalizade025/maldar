@@ -306,6 +306,10 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
             onDismiss = { editingTx = null }
         )
     }
+
+    editingTxForSms?.let { p ->
+        SmsConfirmDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editingTxForSms = null })
+    }
 }
 
 @Composable
@@ -374,10 +378,6 @@ private fun EditTransactionDialog(
             }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
         }
     )
-}
-
-editingTxForSms?.let { p ->
-    SmsConfirmDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editingTxForSms = null })
 }
 
 @Composable
