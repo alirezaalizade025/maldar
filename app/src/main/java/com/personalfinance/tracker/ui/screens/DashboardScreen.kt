@@ -1,6 +1,5 @@
 package com.personalfinance.tracker.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,13 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
-import com.personalfinance.tracker.ui.theme.Coral
-import com.personalfinance.tracker.ui.theme.Emerald
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -188,57 +184,41 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         }
 
         items(transactions.take(15)) { tx ->
-            val dismissState = rememberSwipeToDismissBoxState(
-                confirmValueChange = {
-                    if (it == SwipeToDismissBoxValue.EndToStart || it == SwipeToDismissBoxValue.StartToEnd) {
-                        viewModel.deleteTransaction(tx)
-                        true
-                    } else false
-                }
-            )
-            SwipeToDismissBox(
-                state = dismissState,
-                enableDismissFromEndToStart = true,
-                enableDismissFromStartToEnd = true,
-                backgroundContent = {
-                    val direction = dismissState.dismissDirection
-                    val color = if (direction != null) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.surface
-                    Box(
-                        Modifier.fillMaxSize().background(color).padding(horizontal = 20.dp),
-                        contentAlignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                    ) {
-                        Text(AppStrings.delete, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(
+                        onClick = { editingTx = tx },
+                        role = androidx.compose.ui.semantics.Role.Button
+                    )
             ) {
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp,
-                modifier = Modifier.clickable { editingTx = tx }) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(tx.category, fontWeight = FontWeight.Medium)
-                            Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                            if (tx.note.isNotBlank()) {
-                                Text(tx.note, style = MaterialTheme.typography.labelSmall)
-                            }
-                            tx.balanceAfter?.let {
-                                Text(
-                                    "${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(tx.category, fontWeight = FontWeight.Medium)
+                        Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        if (tx.note.isNotBlank()) {
+                            Text(tx.note, style = MaterialTheme.typography.labelSmall)
                         }
-                        Text(
-                            (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
-                            color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
-                            fontWeight = FontWeight.Bold
-                        )
+                        tx.balanceAfter?.let {
+                            Text(
+                                "${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
+                    Text(
+                        (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
+                        color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -273,6 +253,22 @@ private fun EditTransactionDialog(
     var note by remember { mutableStateOf(tx.note) }
     var selectedAccountId by remember { mutableStateOf(tx.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(AppStrings.deleteTransactionConfirmTitle) },
+            text = { Text(AppStrings.deleteTransactionConfirmBody) },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.deleteTransaction(tx); onDismiss() },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(AppStrings.delete) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text(AppStrings.cancel) } }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -320,10 +316,8 @@ private fun EditTransactionDialog(
             }) { Text(AppStrings.save) }
         },
         dismissButton = {
-            TextButton(onClick = {
-                viewModel.deleteTransaction(tx)
-                onDismiss()
-            }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
+            TextButton(onClick = { showDeleteConfirm = true },
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
         }
     )
 }

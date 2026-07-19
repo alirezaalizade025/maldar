@@ -34,12 +34,16 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     var breakdown by remember { mutableStateOf<List<CategoryTotal>>(emptyList()) }
     // Charts show the spent amount by default; toggle to view as a percentage.
     var byPercent by remember { mutableStateOf(false) }
+    var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+    var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
 
     LaunchedEffect(monthOffset) {
         runCatching {
             val (inc, exp) = viewModel.monthlyIncomeExpense(monthOffset)
             income = inc; expense = exp
             breakdown = viewModel.categoryBreakdown(monthOffset)
+            trend = viewModel.monthlyHistory(6)
+            balanceTrend = viewModel.balanceHistory(6)
         }
     }
 
@@ -54,6 +58,41 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             OutlinedButton(onClick = { monthOffset-- }) { Text(AppStrings.prev) }
             Text(monthLabel, style = MaterialTheme.typography.titleLarge)
             OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) { Text(AppStrings.next) }
+        }
+
+        Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
+                    Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                } else {
+                    MonthTrendGraph(data = trend, balanceLine = balanceTrend)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).background(Color(0xFF1B7A5A), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(6.dp))
+                            Text(AppStrings.reportIncome, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).background(Color(0xFFE8604C), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(6.dp))
+                            Text(AppStrings.reportExpense, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).background(Color(0xFF5A5F66), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(6.dp))
+                            Text(AppStrings.net, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).background(Color(0xFF2B6CB0), RoundedCornerShape(3.dp)))
+                            Spacer(Modifier.width(6.dp))
+                            Text(AppStrings.balanceTrend, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
         }
 
         Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {

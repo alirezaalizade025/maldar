@@ -37,6 +37,8 @@ object AppStrings {
     val collapse = "بستن"
     val allTransactionsSum = "جمع تراکنش‌ها"
     val editTransaction = "ویرایش تراکنش"
+    val deleteTransactionConfirmTitle = "حذف تراکنش"
+    val deleteTransactionConfirmBody = "آیا از حذف این تراکنش مطمئن هستید؟ این عمل قابل بازگشت نیست."
     val transactionCount = "%d تراکنش"
 
     // Add transaction
