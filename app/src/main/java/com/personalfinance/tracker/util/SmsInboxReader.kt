@@ -78,6 +78,11 @@ object SmsInboxReader {
      */
     fun contactName(context: Context, address: String): String? {
         if (address.isBlank()) return null
+        // Without the contacts permission the app still works from SMS alone; we
+        // simply skip the name lookup and fall back to the raw address.
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return null
         return try {
             val lookupUri = Uri.withAppendedPath(
                 ContactsContract.PhoneLookup.CONTENT_FILTER_URI,

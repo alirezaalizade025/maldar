@@ -70,16 +70,11 @@ class FinanceRepository(private val db: AppDatabase) {
         return income - expense
     }
 
-    // Total remained = sum of each account's latest remained balance.
-    // The remained for an account is read from the balanceAfter snapshot on its
-    // most recent transaction; if the account has no transactions yet, its stored
-    // balance (opening remained) is used.
+    // Total remained = sum of each account's current stored balance. The stored
+    // balance is kept in sync by transactions (add/delete) and by direct edits /
+    // SMS refreshes, so it is the single source of truth for the main-page total.
     suspend fun totalAccountBalance(): Double {
-        val accounts = db.bankAccountDao().getAllOnce()
-        return accounts.sumOf { account ->
-            val latest = db.transactionDao().latestBalanceForAccount(account.id)
-            latest?.balanceAfter ?: account.balance
-        }
+        return db.bankAccountDao().getAllOnce().sumOf { it.balance }
     }
 
     suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> =

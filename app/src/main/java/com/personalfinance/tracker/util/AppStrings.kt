@@ -80,6 +80,7 @@ object AppStrings {
     val openingBalance = "موجودی اولیه (تومان)"
     val edit = "ویرایش"
     val refresh = "به‌روزرسانی از پیامک"
+    val refreshAll = "به‌روزرسانی همه از پیامک"
     val refreshDone = "موجودی از آخرین پیامک به‌روز شد"
     val refreshFailed = "پیامک معتبری برای این حساب یافت نشد"
     val smsSenders = "فرستندگان پیامک"
@@ -166,6 +167,7 @@ object AppStrings {
     val confirmEdit = "تایید / ویرایش"
     val ignore = "نادیده گرفتن"
     val confirmTransaction = "تایید تراکنش"
+    val smsBody = "متن پیامک"
 
     // Crash log / diagnostics
     val crashLog = "گزارش خطاها"

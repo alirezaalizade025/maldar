@@ -47,3 +47,26 @@ class ThousandsSeparatorTransformation(
         return substring(0, dot) to substring(dot + 1)
     }
 }
+
+/**
+ * Normalizes a user-typed number so it can be parsed by the backend (Double).
+ * Persian (۰-۹) and Arabic-Indic (٠-٩) digits are converted to ASCII digits,
+ * and any character that is not a digit or a single decimal point is dropped.
+ * Thousands separators are intentionally removed since the visual
+ * [ThousandsSeparatorTransformation] handles display grouping.
+ */
+fun sanitizeNumberInput(input: String): String {
+    val sb = StringBuilder()
+    var seenDot = false
+    for (c in input) {
+        val normalized = when {
+            c in '۰'..'۹' -> (c - '۰' + '0')
+            c in '٠'..'٩' -> (c - '٠' + '0')
+            c.isDigit() -> c
+            c == '.' -> if (seenDot) null else { seenDot = true; c }
+            else -> null
+        }
+        normalized?.let { sb.append(it) }
+    }
+    return sb.toString()
+}

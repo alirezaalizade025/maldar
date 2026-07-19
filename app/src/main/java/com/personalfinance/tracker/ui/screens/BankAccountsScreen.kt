@@ -22,6 +22,7 @@ import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
+import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 
@@ -35,6 +36,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     var showAddAccount by remember { mutableStateOf(false) }
     var showEditAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
     var refreshingId by remember { mutableStateOf<Long?>(null) }
+    var refreshingAll by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     LaunchedEffect(message) {
@@ -45,7 +47,31 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(AppStrings.bankAccounts, style = MaterialTheme.typography.headlineMedium)
-                IconButton(onClick = { showAddAccount = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addAccount) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            if (accounts.isEmpty() || refreshingAll) return@IconButton
+                            refreshingAll = true
+                            scope.launch {
+                                var updated = 0
+                                accounts.forEach { acc ->
+                                    val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
+                                    if (accSenders.isNotEmpty()) {
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders)
+                                        if (res.amount != null) {
+                                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                                            updated++
+                                        }
+                                    }
+                                }
+                                refreshingAll = false
+                                message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
+                            }
+                        },
+                        enabled = !refreshingAll
+                    ) { Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refreshAll) }
+                    IconButton(onClick = { showAddAccount = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addAccount) }
+                }
             }
         }
 
@@ -171,10 +197,10 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
-                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
+                OutlinedTextField(value = last4, onValueChange = { last4 = sanitizeNumberInput(it).take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
                 OutlinedTextField(
                     value = balance,
-                    onValueChange = { balance = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { balance = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.openingBalance) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
@@ -299,10 +325,10 @@ private fun EditAccountDialog(
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
-                OutlinedTextField(value = last4, onValueChange = { last4 = it.take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
+                OutlinedTextField(value = last4, onValueChange = { last4 = sanitizeNumberInput(it).take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
                 OutlinedTextField(
                     value = balance,
-                    onValueChange = { balance = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { balance = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.openingBalance) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )

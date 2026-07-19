@@ -20,6 +20,7 @@ import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
+import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.Date
 
@@ -73,21 +74,29 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         if (pending.isNotEmpty()) {
             item { Text(AppStrings.unreadSms, style = MaterialTheme.typography.titleLarge) }
             items(pending) { p ->
-                Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",
-                            fontWeight = FontWeight.Bold
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    tonalElevation = 1.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClick = { editingTxForSms = p },
+                            role = androidx.compose.ui.semantics.Role.Button
                         )
-                        Text(AppStrings.from + " ${p.sender}", style = MaterialTheme.typography.labelSmall)
-                        Spacer(Modifier.height(6.dp))
-                        Text(p.rawMessage, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
-                        Spacer(Modifier.height(10.dp))
-                        Row {
-                            Button(onClick = { editingTxForSms = p }) { Text(AppStrings.confirmEdit) }
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(onClick = { viewModel.rejectPendingSms(p) }) { Text(AppStrings.ignore) }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(AppStrings.from + " ${p.sender}", style = MaterialTheme.typography.labelSmall)
                         }
+                        OutlinedButton(onClick = { viewModel.rejectPendingSms(p) }) { Text(AppStrings.ignore) }
                     }
                 }
             }
@@ -282,7 +291,7 @@ private fun EditTransactionDialog(
                 )
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { amountText = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.amountLabel) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
@@ -344,9 +353,21 @@ private fun SmsConfirmDialog(
         title = { Text(AppStrings.confirmTransaction) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(AppStrings.from + " ${pending.sender}", style = MaterialTheme.typography.labelSmall)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        pending.rawMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { amountText = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.amountLabel) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )

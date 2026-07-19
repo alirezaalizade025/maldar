@@ -125,6 +125,13 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                     balanceAfter = pending.parsedBalance
                 )
             )
+            // When the SMS states the remaining balance (مانده), trust it as the
+            // account's balance after this transaction, overriding the recomputed
+            // delta so the account stays in sync with the bank.
+            if (pending.bankAccountId != null && pending.parsedBalance != null) {
+                val account = repo.getBankAccount(pending.bankAccountId)
+                account?.let { repo.updateBankAccount(it.copy(balance = pending.parsedBalance)) }
+            }
             repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED, parsedType = type, parsedAmount = finalAmount))
         }
     }
