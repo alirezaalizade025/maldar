@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.personalfinance.tracker.ui.theme.AppCard
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money

@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import com.personalfinance.tracker.ui.theme.AppCard
+import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.PendingSmsEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings

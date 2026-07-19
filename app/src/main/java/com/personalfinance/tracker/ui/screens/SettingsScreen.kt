@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import com.personalfinance.tracker.ui.theme.AppCard
+import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.worker.DailyReminderScheduler

@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import com.personalfinance.tracker.ui.theme.AppCard
+import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
