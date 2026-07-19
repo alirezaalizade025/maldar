@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.data.CategoryTotal
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -61,7 +61,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) { Text(AppStrings.next) }
         }
 
-        Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        AppCard(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(12.dp))
@@ -96,7 +96,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        AppCard(modifier = Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
                     Text(AppStrings.reportIncome, style = MaterialTheme.typography.labelSmall)

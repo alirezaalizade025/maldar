@@ -10,7 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.worker.DailyReminderScheduler
@@ -64,7 +64,7 @@ fun SettingsScreen(onClose: () -> Unit) {
     ) {
         Text(AppStrings.settings, style = MaterialTheme.typography.headlineMedium)
 
-        Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        AppCard(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {

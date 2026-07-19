@@ -83,6 +83,10 @@ fun NavGraph(
         topBar = {
             TopAppBar(
                 title = { Text(AppStrings.appName) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                    scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+                ),
                 actions = {
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {
@@ -122,7 +126,10 @@ fun NavGraph(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination
                 bottomItems.forEach { item ->

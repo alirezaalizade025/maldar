@@ -16,7 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.navigation.NavController
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
@@ -80,7 +80,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
         }
 
         items(accounts) { acc ->
-            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column {
                         Text(acc.accountLabel, fontWeight = FontWeight.Medium)

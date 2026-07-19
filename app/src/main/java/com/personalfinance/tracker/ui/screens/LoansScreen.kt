@@ -16,7 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.data.LoanEntity
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -56,7 +56,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         }
 
         item {
-            Surface(shape = RoundedCornerShape(16.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loansSummaryTotal, style = MaterialTheme.typography.labelSmall)
@@ -84,7 +84,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 
         items(loans) { loan ->
             val daysLeft = ((loan.dueDateMillis - System.currentTimeMillis()) / 86_400_000L)
-            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp,
+            AppCard(
                 modifier = Modifier.fillMaxWidth().clickable { selectedLoan = loan }) {
                 Column(Modifier.padding(14.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

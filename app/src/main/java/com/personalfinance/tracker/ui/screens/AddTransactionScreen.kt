@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
@@ -149,6 +152,13 @@ fun AddTransactionScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        val saveInteraction = remember { MutableInteractionSource() }
+        val pressed by saveInteraction.collectIsPressedAsState()
+        val saveScale by animateFloatAsState(
+            targetValue = if (pressed) 0.97f else 1f,
+            animationSpec = tween(durationMillis = 120),
+            label = "saveScale"
+        )
         Button(
             onClick = {
                 val amount = amountText.toDoubleOrNull()
@@ -162,7 +172,8 @@ fun AddTransactionScreen(
                     confirmationMessage = AppStrings.invalidAmount
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            interactionSource = saveInteraction,
+            modifier = Modifier.fillMaxWidth().scale(saveScale)
         ) { Text(AppStrings.save) }
 
         if (onContinueToList != null) {

@@ -8,7 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.data.PendingSmsEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
@@ -37,7 +37,7 @@ fun SmsConfirmationScreen(viewModel: FinanceViewModel) {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(pending) { p ->
-                Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
                             "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",

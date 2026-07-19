@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -58,11 +61,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         // First-launch onboarding: guide the user when the app is completely empty.
         if (accounts.isEmpty() && transactions.isEmpty()) {
             item {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                AppCard(filled = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(AppStrings.onboardingTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(AppStrings.onboardingBody, style = MaterialTheme.typography.bodyMedium)
@@ -74,9 +73,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         if (pending.isNotEmpty()) {
             item { Text(AppStrings.unreadSms, style = MaterialTheme.typography.titleLarge) }
             items(pending) { p ->
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    tonalElevation = 1.dp,
+                AppCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(
@@ -105,7 +102,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         if (reviewed.isNotEmpty()) {
             item {
                 var expanded by remember { mutableStateOf(false) }
-                Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth()) {
                         Row(
                             Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(14.dp),
@@ -137,15 +134,16 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         }
 
         item {
-            Surface(
-                color = MaterialTheme.colorScheme.primary,
-                shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            AppCard(filled = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp)) {
                     Text(AppStrings.totalBalance, color = Color.White.copy(alpha = 0.85f))
+                    val animatedBalance by animateFloatAsState(
+                        targetValue = totalBalance.toFloat(),
+                        animationSpec = tween(durationMillis = 400),
+                        label = "balance"
+                    )
                     Text(
-                        Money.format2(totalBalance) + " " + AppStrings.moneyUnit,
+                        Money.format2(animatedBalance.toDouble()) + " " + AppStrings.moneyUnit,
                         color = Color.White,
                         style = MaterialTheme.typography.headlineMedium
                     )
@@ -174,7 +172,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         item { Text(AppStrings.recentTransactions, style = MaterialTheme.typography.titleLarge) }
 
         item {
-            Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(AppStrings.transactionCount.format(transactions.size), style = MaterialTheme.typography.labelSmall)
@@ -193,10 +191,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         }
 
         items(transactions.take(15)) { tx ->
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
+            AppCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(
