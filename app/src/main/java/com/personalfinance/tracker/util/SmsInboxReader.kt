@@ -1,8 +1,6 @@
 package com.personalfinance.tracker.util
 
 import android.content.Context
-import android.net.Uri
-import android.provider.ContactsContract
 import android.provider.Telephony
 import com.personalfinance.tracker.sms.SmsParser
 
@@ -39,20 +37,17 @@ object SmsInboxReader {
 
     /**
      * A sender detected from the SMS inbox: its raw address (phone number / short
-     * code) plus the contact display name when the address matches a contact.
-     * The [address] is what gets stored as the sender ID (it is what the inbox
-     * actually uses to deliver messages); [displayName] is only for showing and
-     * searching in the UI, since users rename contacts and the inbox still stores
-     * the raw address.
+     * code), which is also what gets stored as the sender ID (it is what the inbox
+     * actually uses to deliver messages). [displayName] mirrors [address] since the
+     * app no longer reads contacts, so the UI always shows the real sender address.
      */
     data class DetectedSender(val address: String, val displayName: String?)
 
     /**
      * Returns the most recent distinct sender addresses from the inbox, newest first,
      * so the user can pick their bank's sender ID without typing it manually.
-     * Senders already configured are excluded. Each entry also carries the contact
-     * display name (when resolvable) so the user can find a sender by the name they
-     * gave it in their contacts, not just by the raw number.
+     * Senders already configured are excluded. The display name is the raw address
+     * (contacts are not accessed).
      */
     fun recentSenders(context: Context, exclude: Set<String> = emptySet(), limit: Int = 30): List<DetectedSender> {
         val uri = Telephony.Sms.Inbox.CONTENT_URI
@@ -65,38 +60,11 @@ object SmsInboxReader {
                 val address = cursor.getString(addrIdx)?.trim() ?: continue
                 if (address.isBlank()) continue
                 if (exclude.any { address.equals(it, ignoreCase = true) || address.contains(it, ignoreCase = true) }) continue
-                out.add(DetectedSender(address, contactName(context, address)))
+                out.add(DetectedSender(address, address))
             }
         }
         return out.toList()
     }
-
-    /**
-     * Resolves the contact display name for a phone number using the system
-     * contacts provider. Returns null when there is no matching contact (e.g. an
-     * alphanumeric bank short code) or when the permission is unavailable.
-     */
-    fun contactName(context: Context, address: String): String? {
-        if (address.isBlank()) return null
-        // Without the contacts permission the app still works from SMS alone; we
-        // simply skip the name lookup and fall back to the raw address.
-        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS)
-            != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) return null
-        return try {
-            val lookupUri = Uri.withAppendedPath(
-                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                Uri.encode(address)
-            )
-            val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
-            context.contentResolver.query(lookupUri, projection, null, null, null)?.use { c ->
-                if (c.moveToFirst()) c.getString(0) else null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
     /**
      * A single bank SMS from the device inbox, with its parsed transaction details.
      */
