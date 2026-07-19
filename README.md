@@ -1,25 +1,112 @@
-# Maldar (Android)
+# Maldar (مل der / مال‌دار) — Android
 
-A fully offline personal accounting app: manual + SMS-detected expense/income tracking,
-loan due-date reminders, bank account balances, and monthly reports.
+A fully offline personal accounting app (Farsi / RTL, Toman currency, Jalali
+calendar): manual + SMS/notification-detected expense/income tracking, loan
+due-date reminders, bank account balances, and monthly reports.
 
-## How the 5 features map to the code
+## Features → code map
 
 | # | Feature | Where |
 |---|---------|-------|
-| 1 | Add daily spend via bank SMS, with a dynamic sender list and a confirm-before-save step | `sms/SmsReceiver.kt`, `sms/SmsParser.kt`, `ui/screens/SmsConfirmationScreen.kt`, `ui/screens/BankAccountsScreen.kt` (Add SMS Sender) |
+| 1 | Capture bank transactions from SMS **or** notifications, with a dynamic sender list and a confirm-before-save step | `sms/SmsReceiver.kt`, `sms/BankNotificationListenerService.kt`, `sms/SmsParser.kt`, `ui/screens/SmsConfirmationScreen.kt`, `ui/screens/BankAccountsScreen.kt` |
 | 2 | Loan details + reminder before due date | `data/Entities.kt` (`LoanEntity`), `ui/screens/LoansScreen.kt`, `worker/LoanReminderWorker.kt` |
-| 3 | Reports from daily data | `ui/screens/ReportsScreen.kt` |
-| 4 | Add incomes | `ui/screens/AddTransactionScreen.kt` (Income/Expense toggle) |
-| 5 | Bank accounts + balances, linked to SMS | `ui/screens/BankAccountsScreen.kt`, `data/FinanceRepository.kt` (`adjustBalance`) |
+| 3 | Reports (month totals + category bars + income/expense/balance trend) | `ui/screens/ReportsScreen.kt`, `ui/screens/MonthTrendGraph.kt` |
+| 4 | Manual income/expense entry + edit/delete | `ui/screens/AddTransactionScreen.kt`, `ui/screens/DashboardScreen.kt` (edit/delete dialogs) |
+| 5 | Bank accounts + balances, linked to SMS/notification | `ui/screens/BankAccountsScreen.kt`, `ui/screens/AccountSmsScreen.kt`, `data/FinanceRepository.kt` (`adjustBalance`) |
+| 6 | Daily reminder notification | `ui/screens/SettingsScreen.kt`, `worker/DailyReminderWorker.kt` |
+| 7 | Data export / import (CSV + JSON backup) | `ui/screens/ExportScreen.kt`, `ui/screens/ImportScreen.kt`, `util/DataExport.kt` |
+| 8 | In-app update checker (auto-check on launch, skip version) | `util/UpdateChecker.kt`, `ui/screens/UpdateDialogs.kt` |
+| 9 | Crash log viewer (share/clear) | `ui/screens/CrashLogScreen.kt`, `util/CrashLogger.kt` |
+
+## Navigation
+
+Bottom bar: **Home / Add / Loans / Reports / Accounts**. The top-right menu
+(⋮) opens: check for updates, crash log, export, import, settings, about.
 
 ## Categories
 
-Categories (Food, Transport, Salary, etc.) are stored in the database, not hardcoded.
-A default set is seeded the first time the app runs (`data/AppDatabase.kt`), and from
-then on you can add, rename, or delete categories from the **"Manage categories…"**
-option at the bottom of any category dropdown (`ui/screens/CategoryPicker.kt`) — used
-consistently in both Add Transaction and the SMS confirmation screen.
+Categories (Food, Transport, Salary, etc.) are stored in the database, not
+hardcoded. A default set is seeded the first time the app runs
+(`data/AppDatabase.kt`). From then on you can add, rename, or delete categories
+from the **"Manage categories…"** option in any category dropdown
+(`ui/screens/CategoryPicker.kt`), used consistently in Add Transaction and the
+SMS/notification confirmation dialog. Deleting a category that is still used by
+transactions automatically reassigns those records to "سایر" so nothing is lost.
+
+## Capture path: SMS vs Notification Listener
+
+`READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
+of app categories (default SMS app, etc.) — a personal finance app doesn't
+qualify.
+
+- **SMS Receiver** (`SmsReceiver`) works when the app is **sideloaded** (APK
+  installed directly via `adb install` or file transfer). It has no Play Store
+  restriction in that context.
+- **Notification Listener** (`BankNotificationListenerService`) is the
+  **Play-Store-compatible** alternative. It reads bank transaction
+  *notifications* (which banks post for every card/account event) without the
+  restricted SMS permission. The user enables it in system settings
+  (Settings ▸ Notifications ▸ Maldar).
+
+Whichever path is active, nothing is saved automatically: a "pending" entry is
+created and the user confirms it on the Confirm screen. Both paths share the
+same `SmsParser` (looks for currency markers `تومان`, `ریال`, `Rls`, `IRR`,
+`toman`, and debit/credit keywords) and the same pending/confirm flow in
+`SmsConfirmationScreen`.
+
+## How the capture flow works
+
+1. Go to **Accounts** → add a bank account → add an **SMS Sender** (the exact
+   sender ID shown in your Messages app, e.g. `HDFCBK`, `VM-SBIINB`, or a phone
+   number), linked to that account. The sender picker can also **detect recent
+   bank senders** from your SMS inbox (`util/SmsInboxReader.recentSenders`) so
+   you don't have to type the ID manually.
+2. When an SMS arrives from a watched sender, or a matching bank notification is
+   posted, the parser extracts amount/type/balance and creates a "pending" entry
+   + fires a notification. It does **not** auto-save.
+3. Tapping the notification (or the banner on the Dashboard) opens **Confirm SMS
+   Transactions**, where you review/edit amount, type, and category before
+   saving. This "stay for confirm" step exists because generic parsing across
+   many bank formats will occasionally misread a message — better to catch it
+   here than to silently miscount. (Pending items can also be opened/edited
+   directly from the Dashboard banner, and reviewed/ignored/deleted from the
+   "Reviewed" section.)
+4. Once confirmed, the transaction is saved and the linked bank account's balance
+   is updated automatically via `FinanceRepository.adjustBalance`.
+
+## Account SMS reconciliation
+
+Inside a bank account you can open **Show SMS** (`AccountSmsScreen`) which lists
+the recent inbox SMS for that account's senders (parsed amount/type + Jalali
+date) and marks each as reconciled or not against your saved transactions. Tap a
+message to prefill the Add Transaction screen — handy for backfilling historical
+spend from your bank's messages.
+
+## Loan reminders
+
+`LoanReminderWorker` runs once a day via WorkManager and checks every active
+loan's due date against its `reminderDaysBefore` setting, firing a local
+notification when you're inside that window.
+
+## Daily reminder
+
+`DailyReminderWorker` fires a daily summary notification at a user-chosen hour
+(configured in **Settings**) and reschedules itself. Disabling it cancels the
+pending work. A `BootReceiver` re-arms WorkManager after reboot.
+
+## Backup / export / import
+
+From the top-right menu → **Export** you can share all data as CSV or JSON
+(`util/DataExport`). **Import** restores a JSON backup (also triggered
+automatically if you tap a `.json` backup from a file manager — see the
+`VIEW`/`BROWSABLE` intent filter in `AndroidManifest.xml`).
+
+## Reports
+
+One month at a time (navigate back up to 12 months, forward to current month).
+Shows income/expense/net, a per-category bar breakdown (toggle amount ↔
+percent), and a 6-month trend graph with income, expense, net, and **balance
+over time** lines (`MonthTrendGraph`).
 
 ## Opening the project
 
@@ -29,51 +116,28 @@ consistently in both Add Transaction and the SMS confirmation screen.
    first sync (this project ships `gradle-wrapper.properties` but not the binary
    jar, since it can't be downloaded in this environment). Just click through
    the sync prompt — it needs internet access once, to pull Gradle + dependencies.
-4. Run on a device or emulator with **API 26+**. SMS parsing only works on a
-   real device (or an emulator you send test SMS to via `adb emu sms send`),
-   since emulators without a SIM don't receive real bank SMS.
+4. Run on a device or emulator with **API 26+**. SMS parsing only works on a real
+   device (or an emulator you send test SMS to via `adb emu sms send`), since
+   emulators without a SIM don't receive real bank SMS. The Notification Listener
+   works on any device/emulator that receives the bank's notifications.
 
-## About the SMS permission (and a Play Store path)
+## Versioning & release
 
-`READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
-of app categories (default SMS app, etc.) — a personal finance app doesn't
-qualify. This project is built for **sideloading** (installing the APK
-directly, e.g. via `adb install` or transferring the file to your phone), which
-has no such restriction. If you ever want to distribute this more broadly,
-switch to a **Notification Listener** (`NotificationListenerService`): it can
-read bank transaction notifications without the restricted SMS permission, and
-Play Store allows that permission. The SMS path can stay as a personal-use
-fallback.
-
-## How the SMS flow works
-
-1. Go to **Accounts** tab → add a bank account → add an **SMS Sender** (the
-   exact sender ID shown in your Messages app, e.g. `HDFCBK`, `VM-SBIINB`, or
-   a phone number), linked to that account.
- 2. When an SMS arrives from a watched sender, `SmsReceiver` checks it with a
-    generic regex parser (`SmsParser`) that looks for currency markers
-    (`تومان`, `ریال`, `Rls`, `IRR`, `toman`) and debit/credit keywords. It does
-    **not** auto-save — it creates a "pending" entry and fires a notification.
- 3. Tapping the notification (or the banner on the Dashboard) opens the
-    **Confirm SMS Transactions** screen, where you review/edit the amount,
-    type, and category before it's saved. This "stay for confirm" step exists
-    because generic parsing across many bank formats will occasionally
-    misread a message — better to catch it here than to silently miscount.
-4. Once confirmed, the transaction is saved and the linked bank account's
-   balance is updated automatically.
-
-## Loan reminders
-
-`LoanReminderWorker` runs once a day via WorkManager and checks every active
-loan's due date against its `reminderDaysBefore` setting, firing a local
-notification when you're inside that window.
+`app/build.gradle.kts` computes `versionName` / `versionCode` from conventional
+commits since the last `vX.Y[.Z]` tag (a `feat` bumps MINOR and resets PATCH; a
+`fix` bumps PATCH; `versionCode` is monotonic). `.github/workflows/build-apk.yml`
+builds the release APK and publishes a GitHub **prerelease** tagged by the
+resolved `versionName`. The update checker compares `versionCode` (Int), not
+parsed `versionName`. Bump is handled automatically by the commit convention —
+no manual edit of `versionName`/`versionCode` is needed.
 
 ## Notes / next steps you may want
 
 - Categories are fully user-editable from the **"Manage categories…"** option
-  in any category dropdown. Deleting a category that's still used by transactions
-  automatically reassigns those records to "سایر" so nothing is lost.
-- You can export all your data (CSV or JSON) from the top-right menu →
-  **خروجی و پشتیبان‌گیری** and share it anywhere for backup.
-- Reports show one month at a time with category bars plus a net marker; a
-  year-over-year view would be a natural next addition.
+  in any category dropdown; deleting a used category reassigns records to "سایر".
+- Transaction edit/delete is exposed on the Dashboard; `deleteTransaction` calls
+  `adjustBalance`, so removing a record keeps account balances correct.
+- Reports show one month at a time with category bars plus a net/balance marker;
+  a year-over-year view would be a natural next addition.
+- Hand-rolled date converters (Jalali) have unit tests around leap years /
+  boundaries in `app/src/test/java/com/personalfinance/tracker/util/JalaliCalendarTest.kt`.
