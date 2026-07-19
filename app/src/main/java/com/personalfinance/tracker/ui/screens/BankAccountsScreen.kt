@@ -146,13 +146,15 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
     val detectedSenders = remember {
         SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
     }
-    var addedSenders by remember { mutableStateOf<List<String>>(emptyList()) }
+    var addedSenders by remember { mutableStateOf<List<SmsInboxReader.DetectedSender>>(emptyList()) }
     var senderQuery by remember { mutableStateOf("") }
     var senderMenuExpanded by remember { mutableStateOf(false) }
 
     val filteredSenders = remember(senderQuery, detectedSenders, addedSenders) {
-        detectedSenders.filter {
-            it.contains(senderQuery, ignoreCase = true) && !addedSenders.any { a -> a.equals(it, ignoreCase = true) }
+        detectedSenders.filter { ds ->
+            (ds.displayName != null && ds.displayName.contains(senderQuery, ignoreCase = true) ||
+                ds.address.contains(senderQuery, ignoreCase = true)) &&
+                !addedSenders.any { a -> a.address.equals(ds.address, ignoreCase = true) }
         }
     }
 
@@ -180,10 +182,15 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                 Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleMedium)
                 Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
 
-                addedSenders.forEach { s ->
+                addedSenders.forEach { ds ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(s, style = MaterialTheme.typography.bodyMedium)
-                        IconButton(onClick = { addedSenders = addedSenders - s }) {
+                        Column(Modifier.weight(1f)) {
+                            Text(ds.displayName ?: ds.address, style = MaterialTheme.typography.bodyMedium)
+                            if (ds.displayName != null) {
+                                Text(ds.address, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                        }
+                        IconButton(onClick = { addedSenders = addedSenders - ds }) {
                             Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -204,9 +211,16 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                                 onClick = { senderMenuExpanded = false }
                             )
                         }
-                        filteredSenders.forEach { s ->
-                            DropdownMenuItem(text = { Text(s) }, onClick = {
-                                addedSenders = addedSenders + s
+                        filteredSenders.forEach { ds ->
+                            DropdownMenuItem(text = {
+                                Column {
+                                    Text(ds.displayName ?: ds.address)
+                                    if (ds.displayName != null) {
+                                        Text(ds.address, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                }
+                            }, onClick = {
+                                addedSenders = addedSenders + ds
                                 senderQuery = ""
                                 senderMenuExpanded = false
                             })
@@ -222,8 +236,8 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                 )
                 Button(onClick = {
                     val trimmed = senderQuery.trim()
-                    if (trimmed.isNotBlank() && !addedSenders.any { it.equals(trimmed, ignoreCase = true) }) {
-                        addedSenders = addedSenders + trimmed
+                    if (trimmed.isNotBlank() && !addedSenders.any { it.address.equals(trimmed, ignoreCase = true) }) {
+                        addedSenders = addedSenders + SmsInboxReader.DetectedSender(trimmed, null)
                         senderQuery = ""
                     }
                 }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
@@ -235,7 +249,7 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                     bankNameError = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.trim() })
+                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.address })
                 }
             }) { Text(AppStrings.add) }
         },
@@ -265,9 +279,10 @@ private fun EditAccountDialog(
         SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
     }
     val filteredSenders = remember(senderQuery, detectedSenders, accountSenders) {
-        detectedSenders.filter {
-            it.contains(senderQuery, ignoreCase = true) &&
-                !accountSenders.any { added -> added.senderId.equals(it, ignoreCase = true) }
+        detectedSenders.filter { ds ->
+            (ds.displayName != null && ds.displayName.contains(senderQuery, ignoreCase = true) ||
+                ds.address.contains(senderQuery, ignoreCase = true)) &&
+                !accountSenders.any { added -> added.senderId.equals(ds.address, ignoreCase = true) }
         }
     }
 
@@ -320,9 +335,16 @@ private fun EditAccountDialog(
                                 onClick = { senderMenuExpanded = false }
                             )
                         }
-                        filteredSenders.forEach { s ->
-                            DropdownMenuItem(text = { Text(s) }, onClick = {
-                                viewModel.addSmsSender(s.trim(), account.id, "")
+                        filteredSenders.forEach { ds ->
+                            DropdownMenuItem(text = {
+                                Column {
+                                    Text(ds.displayName ?: ds.address)
+                                    if (ds.displayName != null) {
+                                        Text(ds.address, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                }
+                            }, onClick = {
+                                viewModel.addSmsSender(ds.address.trim(), account.id, "")
                                 senderQuery = ""
                                 senderMenuExpanded = false
                             })
