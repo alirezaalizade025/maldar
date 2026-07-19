@@ -1,6 +1,7 @@
 package com.personalfinance.tracker.sms
 
 import com.personalfinance.tracker.data.TxType
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 /**
@@ -163,12 +164,6 @@ object SmsParser {
             return AmountResult(scale(value, isRial) ?: return null, isRial, sign)
         }
 
-        // True if a Rial marker appears in the few characters following [index].
-        fun unitAfter(message: String, index: Int): Boolean {
-            val window = message.substring(index.coerceAtMost(message.length), (index + 8).coerceAtMost(message.length))
-            return window.contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
-        }
-
         // 1) مبلغ/amount/مقدار ... number
         keywordAmount.matcher(message).takeIf { it.find() }?.let { m ->
             if (!isBalanceContext(m.start(2))) return build(m, message)
@@ -234,6 +229,17 @@ object SmsParser {
     private fun scale(value: Double, isRial: Boolean): Double? {
         if (value <= 0) return null
         return if (isRial) value / 10.0 else value
+    }
+
+    // True if a Rial marker appears in the few characters following [index].
+    // The anchored patterns don't capture the unit marker, which often sits
+    // right after the number, so we scan the following text too.
+    private fun unitAfter(message: String, index: Int): Boolean {
+        val window = message.substring(
+            index.coerceAtMost(message.length),
+            (index + 8).coerceAtMost(message.length)
+        )
+        return window.contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
     }
 
     /**
