@@ -148,8 +148,8 @@ fun NavGraph(
             composable(
                 route = "add_transaction?accountId={accountId}&smsDate={smsDate}",
                 arguments = listOf(
-                    androidx.navigation.navArgument("accountId") { type = androidx.navigation.NavType.LongType; nullable = true; defaultValue = null },
-                    androidx.navigation.navArgument("smsDate") { type = androidx.navigation.NavType.LongType; nullable = true; defaultValue = null }
+                    androidx.navigation.navArgument("accountId") { type = androidx.navigation.NavType.LongType; defaultValue = 0L },
+                    androidx.navigation.navArgument("smsDate") { type = androidx.navigation.NavType.LongType; defaultValue = 0L }
                 )
             ) { backStackEntry ->
                 val accId = backStackEntry.arguments?.getLong("accountId")?.takeIf { it != 0L }
