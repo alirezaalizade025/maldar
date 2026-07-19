@@ -152,7 +152,7 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
 
     val filteredSenders = remember(senderQuery, detectedSenders, addedSenders) {
         detectedSenders.filter {
-            it.contains(senderQuery, ignoreCase = true) && !addedSenders.contains(it, ignoreCase = true)
+            it.contains(senderQuery, ignoreCase = true) && !addedSenders.any { a -> a.equals(it, ignoreCase = true) }
         }
     }
 

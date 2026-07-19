@@ -99,7 +99,7 @@ object SmsParser {
     }
 
     private fun normalizeDigits(s: String): String =
-        s.map { ch -> if (ch in '۰'..'۹') (ch - '۰' + '0') else ch }.joinToString("")
+        s.map { ch -> if (ch in '۰'..'۹') ((ch - '۰') + '0'.code).toChar() else ch }.joinToString("")
 
     private fun toDouble(raw: String?): Double? {
         if (raw == null) return null
