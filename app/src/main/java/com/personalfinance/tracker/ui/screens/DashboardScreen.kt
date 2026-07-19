@@ -389,7 +389,10 @@ private fun SmsConfirmDialog(
 ) {
     var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
     var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
-    var category by remember { mutableStateOf("") }
+    // Default to a generic category so Save never silently no-ops when the
+    // categories table is empty (e.g. after a DB reset left it un-seeded).
+    val fallbackCategory = "سایر"
+    var category by remember { mutableStateOf(fallbackCategory) }
     var note by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(pending.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
@@ -408,7 +411,7 @@ private fun SmsConfirmDialog(
                 SingleChoiceSegmented(
                     options = listOf(AppStrings.expense, AppStrings.income),
                     selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
-                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME; category = "" }
+                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME }
                 )
                 CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
                 ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
@@ -431,8 +434,8 @@ private fun SmsConfirmDialog(
         confirmButton = {
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0 && category.isNotBlank()) {
-                    viewModel.confirmPendingSms(pending, amount, type, category, note)
+                if (amount != null && amount > 0) {
+                    viewModel.confirmPendingSms(pending, amount, type, category.ifBlank { fallbackCategory }, note)
                     onDismiss()
                 }
             }) { Text(AppStrings.save) }

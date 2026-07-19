@@ -85,6 +85,7 @@ object AppStrings {
     val addSender = "افزودن فرستنده پیامک"
     val addAccountFirst = "اول یک حساب بانکی اضافه کنید."
     val detectedSenders = "فرستندگان شناسایی‌شده از پیامک‌ها"
+    val noDetectedSenders = "فرستنده شناسایی‌شده‌ای یافت نشد"
     val senderId = "شناسه فرستنده"
     val linkToAccount = "اتصال به حساب"
     val senderHint = "شناسه فرستنده را دقیقاً همان‌طور که در پیام‌رسان نمایش داده می‌شود وارد کنید (مثل BPIR، ۳۰۰۰۷۳۲۷۳)."

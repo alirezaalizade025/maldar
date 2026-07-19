@@ -117,9 +117,9 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     androidx.compose.material3.SnackbarHost(hostState = snackbarHostState)
 
     if (showAddAccount) {
-        AddAccountDialog(onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, sender ->
+        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senders ->
             viewModel.addBankAccount(bank, label, last4, bal) { accountId ->
-                if (sender.isNotBlank()) viewModel.addSmsSender(sender.trim(), accountId, "")
+                senders.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
             }
             showAddAccount = false
         })
@@ -134,13 +134,27 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
 }
 
 @Composable
-private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, String, Double, String) -> Unit) {
+private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit, onAdd: (String, String, String, Double, List<String>) -> Unit) {
     var bankName by remember { mutableStateOf("") }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
     var last4 by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
-    var senderId by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val allSenders by viewModel.smsSenders.collectAsState()
+    val detectedSenders = remember {
+        SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
+    }
+    var addedSenders by remember { mutableStateOf<List<String>>(emptyList()) }
+    var senderQuery by remember { mutableStateOf("") }
+    var senderMenuExpanded by remember { mutableStateOf(false) }
+
+    val filteredSenders = remember(senderQuery, detectedSenders, addedSenders) {
+        detectedSenders.filter {
+            it.contains(senderQuery, ignoreCase = true) && !addedSenders.contains(it, ignoreCase = true)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -165,7 +179,54 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
                 HorizontalDivider()
                 Text(AppStrings.smsSenders, style = MaterialTheme.typography.titleMedium)
                 Text(AppStrings.smsSendersHint, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId + " (" + AppStrings.optional + ")") }, modifier = Modifier.fillMaxWidth())
+
+                addedSenders.forEach { s ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(s, style = MaterialTheme.typography.bodyMedium)
+                        IconButton(onClick = { addedSenders = addedSenders - s }) {
+                            Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = senderQuery,
+                        onValueChange = { senderQuery = it; senderMenuExpanded = true },
+                        label = { Text(AppStrings.detectedSenders) },
+                        placeholder = { Text(AppStrings.senderHint) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
+                        if (filteredSenders.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text(AppStrings.noDetectedSenders) },
+                                onClick = { senderMenuExpanded = false }
+                            )
+                        }
+                        filteredSenders.forEach { s ->
+                            DropdownMenuItem(text = { Text(s) }, onClick = {
+                                addedSenders = addedSenders + s
+                                senderQuery = ""
+                                senderMenuExpanded = false
+                            })
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = senderQuery,
+                    onValueChange = { senderQuery = it },
+                    label = { Text(AppStrings.senderId + " (" + AppStrings.optional + ")") },
+                    placeholder = { Text(AppStrings.senderHint) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = {
+                    val trimmed = senderQuery.trim()
+                    if (trimmed.isNotBlank() && !addedSenders.any { it.equals(trimmed, ignoreCase = true) }) {
+                        addedSenders = addedSenders + trimmed
+                        senderQuery = ""
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
             }
         },
         confirmButton = {
@@ -174,7 +235,7 @@ private fun AddAccountDialog(onDismiss: () -> Unit, onAdd: (String, String, Stri
                     bankNameError = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, senderId)
+                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.trim() })
                 }
             }) { Text(AppStrings.add) }
         },
@@ -198,11 +259,16 @@ private fun EditAccountDialog(
     var balance by remember { mutableStateOf(account.balance.toString()) }
 
     val accountSenders = allSenders.filter { it.bankAccountId == account.id }
-    var senderId by remember { mutableStateOf("") }
+    var senderQuery by remember { mutableStateOf("") }
     var senderMenuExpanded by remember { mutableStateOf(false) }
-    var showSenderInput by remember { mutableStateOf(false) }
     val detectedSenders = remember {
         SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
+    }
+    val filteredSenders = remember(senderQuery, detectedSenders, accountSenders) {
+        detectedSenders.filter {
+            it.contains(senderQuery, ignoreCase = true) &&
+                !accountSenders.any { added -> added.senderId.equals(it, ignoreCase = true) }
+        }
     }
 
     AlertDialog(
@@ -239,32 +305,44 @@ private fun EditAccountDialog(
                     }
                 }
 
-                if (showSenderInput) {
-                    if (detectedSenders.isNotEmpty()) {
-                        ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
-                            OutlinedTextField(
-                                value = senderId,
-                                onValueChange = { senderId = it },
-                                label = { Text(AppStrings.detectedSenders) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                ExposedDropdownMenuBox(expanded = senderMenuExpanded, onExpandedChange = { senderMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = senderQuery,
+                        onValueChange = { senderQuery = it; senderMenuExpanded = true },
+                        label = { Text(AppStrings.detectedSenders) },
+                        placeholder = { Text(AppStrings.senderHint) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
+                        if (filteredSenders.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text(AppStrings.noDetectedSenders) },
+                                onClick = { senderMenuExpanded = false }
                             )
-                            ExposedDropdownMenu(expanded = senderMenuExpanded, onDismissRequest = { senderMenuExpanded = false }) {
-                                detectedSenders.forEach { s ->
-                                    DropdownMenuItem(text = { Text(s) }, onClick = { senderId = s; senderMenuExpanded = false })
-                                }
-                            }
+                        }
+                        filteredSenders.forEach { s ->
+                            DropdownMenuItem(text = { Text(s) }, onClick = {
+                                viewModel.addSmsSender(s.trim(), account.id, "")
+                                senderQuery = ""
+                                senderMenuExpanded = false
+                            })
                         }
                     }
-                    OutlinedTextField(value = senderId, onValueChange = { senderId = it }, label = { Text(AppStrings.senderId) }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = {
-                        if (senderId.isNotBlank()) {
-                            viewModel.addSmsSender(senderId.trim(), account.id, "")
-                            senderId = ""; showSenderInput = false
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
-                } else {
-                    OutlinedButton(onClick = { showSenderInput = true }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
                 }
+                OutlinedTextField(
+                    value = senderQuery,
+                    onValueChange = { senderQuery = it },
+                    label = { Text(AppStrings.senderId + " (" + AppStrings.optional + ")") },
+                    placeholder = { Text(AppStrings.senderHint) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(onClick = {
+                    val trimmed = senderQuery.trim()
+                    if (trimmed.isNotBlank()) {
+                        viewModel.addSmsSender(trimmed, account.id, "")
+                        senderQuery = ""
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text(AppStrings.addSender) }
             }
         },
         confirmButton = {

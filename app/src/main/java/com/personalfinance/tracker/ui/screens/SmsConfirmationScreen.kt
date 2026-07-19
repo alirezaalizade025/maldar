@@ -75,7 +75,10 @@ private fun ConfirmDialog(
 ) {
     var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
     var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
-    var category by remember { mutableStateOf("") }
+    // Default to the first matching category; if none exist (e.g. the categories
+    // table is empty) fall back to the generic "سایر" so Save never silently no-ops.
+    val fallbackCategory = if (type == TxType.EXPENSE) "سایر" else "سایر"
+    var category by remember { mutableStateOf(fallbackCategory) }
     var note by remember { mutableStateOf("") }
 
     AlertDialog(
@@ -92,7 +95,7 @@ private fun ConfirmDialog(
                 SingleChoiceSegmented(
                     options = listOf(AppStrings.expense, AppStrings.income),
                     selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
-                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME; category = "" }
+                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME }
                 )
                 CategoryPicker(
                     viewModel = viewModel,
@@ -109,7 +112,9 @@ private fun ConfirmDialog(
         confirmButton = {
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0) onConfirm(amount, type, category, note)
+                if (amount != null && amount > 0) {
+                    onConfirm(amount, type, category.ifBlank { fallbackCategory }, note)
+                }
             }) { Text(AppStrings.save) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }

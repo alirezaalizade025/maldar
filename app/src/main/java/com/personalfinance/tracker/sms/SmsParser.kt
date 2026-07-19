@@ -4,13 +4,20 @@ import com.personalfinance.tracker.data.TxType
 import java.util.regex.Pattern
 
 /**
- * Parser for Iranian bank SMS. Amounts in bank SMS are in Rial, so they are
- * converted to Toman (Rial / 10) before being returned. It looks for:
- *  1. An amount (optionally preceded by a Rial/Toman marker like "ریال", "تومان", "Rls", "IRR")
- *  2. A debit/credit keyword (Persian or English) to decide the transaction type.
+ * Parser for Iranian bank SMS. Bank SMS amounts are expressed in either Rial or
+ * Toman; the parser detects the unit from the surrounding text and normalizes
+ * everything to Toman before returning.
  *
- * This is intentionally permissive - false positives are expected, which is exactly
- * why every parsed SMS goes to a confirm screen instead of being saved directly.
+ * It looks for:
+ *  1. A labelled amount, i.e. a number that is immediately followed by a Rial /
+ *     Toman marker (ریال / تومان / Rls / IRR / toman ...). This is the most
+ *     reliable signal and avoids picking up card numbers, OTP codes, dates, etc.
+ *  2. A keyword-anchored amount: a number that appears next to a debit/credit
+ *     keyword (e.g. "مبلغ ۱۲۰۰۰۰ تومان برداشت شد", "واریز ۵۰۰۰۰۰").
+ *  3. A debit/credit keyword to decide the transaction type.
+ *
+ * Because the parser is still permissive, every result is surfaced to a confirm
+ * screen instead of being saved directly.
  */
 object SmsParser {
 
@@ -20,27 +27,56 @@ object SmsParser {
         val merchantOrNote: String?
     )
 
-    // Matches amounts like: 1,234,500  ریال ۵۰۰۰۰۰ تومان  Rls 500
-    private val amountPattern = Pattern.compile(
-        "([0-9][0-9,]*(?:\\.[0-9]{1,2})?)\\s*(?:ریال|rls|IRR|تومان|toman)?",
+    private val debitKeywords = listOf(
+        "debited", "debit", "spent", "withdrawn", "paid", "purchase", "deducted", "sent", "transferred",
+        "برداشت", "خرید", "پرداخت", "کسر", "کم شد", "شارژ", "هزینه", "انتقال", "ارسال"
+    )
+    private val creditKeywords = listOf(
+        "credited", "credit", "received", "deposited", "refund", "added", "transfer in",
+        "واریز", "دریافت", "سپرده", "برگشت", "اضافه", "مانده", "انتقال به حساب"
+    )
+
+    private fun debitOrCreditPattern(): String =
+        "(?:" + (debitKeywords + creditKeywords).joinToString("|") + ")"
+
+    // A number, possibly with Persian/Arabic digits, thousands separators, and
+    // an optional decimal part. Captures the digits as group 1.
+    private val NUMBER = "(?<!\\d)([0-9۰-۹][0-9۰-۹,]*(?:\\.[0-9۰-۹]{1,3})?)(?!\\d)"
+
+    // Currency / unit markers that may follow an amount.
+    private val RIAL_MARKER = "(?:ریال|rls|irr|ر\\.ا|ر ا)"
+    private val TOMAN_MARKER = "(?:تومان|toman|ت\\.ا|ت ا)"
+
+    // 1) Amount directly followed by an explicit unit marker (preferred).
+    private val labelledAmount = Pattern.compile(
+        "$NUMBER\\s*(?:$RIAL_MARKER|$TOMAN_MARKER)",
         Pattern.CASE_INSENSITIVE
     )
 
-    // Fallback: a bare number that looks like money near a debit/credit keyword
-    private val bareAmountPattern = Pattern.compile("([0-9][0-9,]*(?:\\.[0-9]{1,2})?)")
-
-    private val debitKeywords = listOf(
-        "debited", "debit", "spent", "withdrawn", "paid", "purchase", "deducted", "sent",
-        "برداشت", "خرید", "پرداخت", "کسر", "کم شد", "شارژ", "هزینه"
-    )
-    private val creditKeywords = listOf(
-        "credited", "credit", "received", "deposited", "refund", "added",
-        "واریز", "دریافت", "سپرده", "برگشت", "اضافه", "مانده"
+    // 2) Amount preceded by a "مبلغ"/"amount" keyword.
+    private val keywordAmount = Pattern.compile(
+        "(?:مبلغ|amount|مقدار)\\s*[:=]?\\s*$NUMBER\\s*(?:$RIAL_MARKER|$TOMAN_MARKER)?",
+        Pattern.CASE_INSENSITIVE
     )
 
-    // Common patterns for extracting a merchant name, e.g. "at AMAZON" or "خرید از دیجیکالا"
+    // 3) Amount sitting next to a debit/credit keyword. Two explicit patterns so
+    //    the amount is always capture group 1 regardless of keyword/number order
+    //    (e.g. "واریز ۵۰۰۰۰۰" or "۵۰۰۰۰۰ خرید شد").
+    private val anchoredKwThenNum = Pattern.compile(
+        "(?:${debitOrCreditPattern()})\\D{0,15}?$NUMBER",
+        Pattern.CASE_INSENSITIVE
+    )
+    private val anchoredNumThenKw = Pattern.compile(
+        "$NUMBER\\s*(?:${debitOrCreditPattern()})",
+        Pattern.CASE_INSENSITIVE
+    )
+
+    // Bare-number fallback: only used when no labelled/anchored amount exists.
+    private val bareAmount = Pattern.compile(NUMBER)
+
+    // Common patterns for extracting a merchant name, e.g. "at AMAZON" or "خرید از دیجیکالا".
     private val merchantPattern = Pattern.compile(
-        "(?:at|to|از)\\s+([\\p{L}\\p{N} &._-]{3,40})",
+        "(?:at|to|از|خرید از|پرداخت به|در)\\s+([\\p{L}\\p{N} &._-]{3,40})",
         Pattern.CASE_INSENSITIVE
     )
 
@@ -62,21 +98,78 @@ object SmsParser {
         return ParseResult(amount, type, merchant)
     }
 
+    private fun normalizeDigits(s: String): String =
+        s.map { ch -> if (ch in '۰'..'۹') (ch - '۰' + '0') else ch }.joinToString("")
+
+    private fun toDouble(raw: String?): Double? {
+        if (raw == null) return null
+        return normalizeDigits(raw.replace(",", "")).toDoubleOrNull()
+    }
+
+    /**
+     * Rejects numbers that are clearly not transaction amounts:
+     *  - 16-digit card numbers (optionally space-separated),
+     *  - any number with more than 14 significant digits (card/reference numbers).
+     */
+    private fun looksLikeCardNumber(raw: String): Boolean {
+        val digits = normalizeDigits(raw).replace(",", "").replace(" ", "")
+        return digits.length == 16 || digits.length > 14
+    }
+
     private fun extractAmount(message: String): Double? {
-        val matcher = amountPattern.matcher(message)
-        if (matcher.find()) {
-            val rial = matcher.group(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
-            // Bank SMS amounts are in Rial; convert to Toman (Rial / 10).
-            return rial / 10.0
+        // Prefer an explicitly-labelled amount (with a unit marker).
+        labelledAmount.matcher(message).takeIf { it.find() }?.let { m ->
+            val raw = m.group(1) ?: return@let
+            if (looksLikeCardNumber(raw)) return@let
+            val value = toDouble(raw) ?: return@let
+            val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
+            return scale(value, isRial)
         }
-        // fallback: first plausible bare number (used only if a currency marker is absent
-        // but a debit/credit keyword IS present - handled by caller's confidence check)
-        val bareMatcher = bareAmountPattern.matcher(message)
-        if (bareMatcher.find()) {
-            val rial = bareMatcher.group(1)?.replace(",", "")?.toDoubleOrNull() ?: return null
-            return rial / 10.0
+
+        // Amount introduced by "مبلغ/amount".
+        keywordAmount.matcher(message).takeIf { it.find() }?.let { m ->
+            val raw = m.group(1) ?: return@let
+            if (looksLikeCardNumber(raw)) return@let
+            val value = toDouble(raw) ?: return@let
+            val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
+            return scale(value, isRial)
+        }
+
+        // Amount next to a debit/credit keyword.
+        val anchoredMatcher = anchoredKwThenNum.matcher(message).takeIf { it.find() }
+            ?: anchoredNumThenKw.matcher(message).takeIf { it.find() }
+        if (anchoredMatcher != null) {
+            val raw = anchoredMatcher.group(1)
+            if (raw != null && !looksLikeCardNumber(raw)) {
+                val value = toDouble(raw) ?: return null
+                val isRial = anchoredMatcher.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
+                return scale(value, isRial)
+            }
+        }
+
+        // Last resort: a bare number, but only when a transaction keyword exists
+        // so we don't pick up OTPs / promo codes. We assume Toman for bare numbers
+        // since Rial amounts are almost always labelled.
+        if (debitKeywords.any { message.lowercase().contains(it) } ||
+            creditKeywords.any { message.lowercase().contains(it) }) {
+            bareAmount.matcher(message).takeIf { it.find() }?.let { m ->
+                val raw = m.group(1) ?: return null
+                if (looksLikeCardNumber(raw)) return null
+                return toDouble(raw)
+            }
         }
         return null
+    }
+
+    /**
+     * Scales [value] (the raw matched number) to Toman.
+     * - If the matched text explicitly says Rial, divide by 10.
+     * - Otherwise assume the number is already in Toman (most Iranian SMS label
+     *   the amount in Toman, e.g. "۱۲۰۰۰۰ تومان").
+     */
+    private fun scale(value: Double, isRial: Boolean): Double? {
+        if (value <= 0) return null
+        return if (isRial) value / 10.0 else value
     }
 
     /**
@@ -86,7 +179,10 @@ object SmsParser {
     fun looksLikeTransaction(message: String): Boolean {
         val lower = message.lowercase()
         val hasKeyword = (debitKeywords + creditKeywords).any { lower.contains(it) }
-        val hasAmount = amountPattern.matcher(message).find()
+        val hasAmount = labelledAmount.matcher(message).find() ||
+            keywordAmount.matcher(message).find() ||
+            anchoredKwThenNum.matcher(message).find() ||
+            anchoredNumThenKw.matcher(message).find()
         return hasKeyword && hasAmount
     }
 }
