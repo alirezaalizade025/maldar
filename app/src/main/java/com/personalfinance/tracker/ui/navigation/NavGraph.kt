@@ -83,13 +83,14 @@ fun NavGraph(
             TopAppBar(
                 title = { Text(AppStrings.appName) },
                 actions = {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
                         DropdownMenuItem(
                             text = { Text(AppStrings.menuUpdates, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; runCheck(auto = false) }
@@ -114,6 +115,7 @@ fun NavGraph(
                             text = { Text(AppStrings.about, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = { menuExpanded = false; showAbout = true }
                         )
+                    }
                     }
                 }
             )
