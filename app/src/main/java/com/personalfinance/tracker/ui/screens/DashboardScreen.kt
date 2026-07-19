@@ -37,8 +37,6 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
     var monthIncome by remember { mutableStateOf(0.0) }
     var monthExpense by remember { mutableStateOf(0.0) }
     var monthLoanPaid by remember { mutableStateOf(0.0) }
-    var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
-    var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
     var totalBalance by remember { mutableStateOf(0.0) }
@@ -46,8 +44,6 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
         monthLoanPaid = viewModel.loanPaymentsThisMonth()
-        trend = viewModel.monthlyHistory(6)
-        balanceTrend = viewModel.balanceHistory(6)
         totalBalance = viewModel.totalAccountBalance()
     }
 
@@ -73,54 +69,6 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(AppStrings.onboardingTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(AppStrings.onboardingBody, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-        }
-
-        item {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                tonalElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth().clickable { onGoToReports() }
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
-                        Text(AppStrings.more, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
-                        Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    } else {
-                        MonthTrendGraph(data = trend, balanceLine = balanceTrend)
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(10.dp).background(Emerald, RoundedCornerShape(3.dp)))
-                                Spacer(Modifier.width(6.dp))
-                                Text(AppStrings.reportIncome, style = MaterialTheme.typography.labelSmall)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(10.dp).background(Coral, RoundedCornerShape(3.dp)))
-                                Spacer(Modifier.width(6.dp))
-                                Text(AppStrings.reportExpense, style = MaterialTheme.typography.labelSmall)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(10.dp).background(Color(0xFF5A5F66), RoundedCornerShape(3.dp)))
-                                Spacer(Modifier.width(6.dp))
-                                Text(AppStrings.net, style = MaterialTheme.typography.labelSmall)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(10.dp).background(Color(0xFF2B6CB0), RoundedCornerShape(3.dp)))
-                                Spacer(Modifier.width(6.dp))
-                                Text(AppStrings.balanceTrend, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
                     }
                 }
             }
