@@ -60,6 +60,7 @@ class BankNotificationListenerService : NotificationListenerService() {
             sender = matched.senderId,
             parsedAmount = parsed.amount,
             parsedType = parsed.type,
+            parsedBalance = parsed.balanceAfter,
             timestampMillis = System.currentTimeMillis(),
             bankAccountId = matched.bankAccountId,
             status = PendingStatus.PENDING

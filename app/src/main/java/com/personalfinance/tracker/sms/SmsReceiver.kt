@@ -57,6 +57,7 @@ class SmsReceiver : BroadcastReceiver() {
             sender = sender,
             parsedAmount = parsed.amount,
             parsedType = parsed.type,
+            parsedBalance = parsed.balanceAfter,
             timestampMillis = System.currentTimeMillis(),
             bankAccountId = matched.bankAccountId,
             status = PendingStatus.PENDING

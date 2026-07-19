@@ -25,7 +25,10 @@ object SmsInboxReader {
                 val address = cursor.getString(addrIdx) ?: continue
                 if (senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) {
                     val body = cursor.getString(bodyIdx)
-                    return Result(body, SmsParser.parse(body).amount)
+                    // Prefer the remaining balance (مانده) for the account balance;
+                    // fall back to the transaction amount if no balance is present.
+                    val parsed = SmsParser.parse(body)
+                    return Result(body, parsed.balanceAfter ?: parsed.amount)
                 }
             }
         }

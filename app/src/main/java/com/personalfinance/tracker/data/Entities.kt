@@ -52,6 +52,7 @@ data class PendingSmsEntity(
     val sender: String,
     val parsedAmount: Double?,
     val parsedType: TxType?,
+    val parsedBalance: Double? = null,
     val timestampMillis: Long,
     val bankAccountId: Long?,
     val status: PendingStatus = PendingStatus.PENDING

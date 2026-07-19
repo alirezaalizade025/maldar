@@ -121,7 +121,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 TransactionEntity(
                     amount = finalAmount, type = type, category = category, note = note,
                     dateMillis = pending.timestampMillis, bankAccountId = pending.bankAccountId,
-                    source = TxSource.SMS, rawSms = pending.rawMessage
+                    source = TxSource.SMS, rawSms = pending.rawMessage,
+                    balanceAfter = pending.parsedBalance
                 )
             )
             repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED, parsedType = type, parsedAmount = finalAmount))
