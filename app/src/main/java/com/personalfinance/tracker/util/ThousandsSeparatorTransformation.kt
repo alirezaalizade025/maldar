@@ -60,8 +60,8 @@ fun sanitizeNumberInput(input: String): String {
     var seenDot = false
     for (c in input) {
         val normalized = when {
-            c in '۰'..'۹' -> (c - '۰' + '0')
-            c in '٠'..'٩' -> (c - '٠' + '0')
+            c in '۰'..'۹' -> ((c.code - '۰'.code) + '0'.code).toChar()
+            c in '٠'..'٩' -> ((c.code - '٠'.code) + '0'.code).toChar()
             c.isDigit() -> c
             c == '.' -> if (seenDot) null else { seenDot = true; c }
             else -> null
