@@ -22,12 +22,6 @@ import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
-import com.personalfinance.tracker.util.AppStrings
-import com.personalfinance.tracker.util.JalaliCalendar
-import com.personalfinance.tracker.util.Money
-import com.personalfinance.tracker.util.Settings
-import com.personalfinance.tracker.util.SmsInboxReader
-import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 /**
  * "Unchecked SMS" review: shows bank inbox SMS received after the last check
