@@ -227,7 +227,7 @@ object Money {
     // can still emit ASCII 0-9 on some devices).
     private fun String.toPersianDigits(): String {
         val map = arrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
-        return map { if (it.isDigit()) map[it.digitToInt()] else it }
+        return map { if (it.isDigit()) map[it.digitToInt()] else it }.joinToString("")
     }
 
     fun format(amount: Double): String {

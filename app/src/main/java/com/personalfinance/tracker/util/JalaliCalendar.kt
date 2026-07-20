@@ -12,7 +12,7 @@ object JalaliCalendar {
     // ASCII digits -> Persian digits so dates/times render in the Farsi font.
     private fun Int.toPersian(): String {
         val map = arrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
-        return this.toString().map { if (it.isDigit()) map[it.digitToInt()] else it }
+        return this.toString().map { if (it.isDigit()) map[it.digitToInt()] else it }.joinToString("")
     }
 
     private val persianMonths = listOf(
