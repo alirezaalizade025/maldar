@@ -9,6 +9,12 @@ import java.util.Locale
  */
 object JalaliCalendar {
 
+    // ASCII digits -> Persian digits so dates/times render in the Farsi font.
+    private fun Int.toPersian(): String {
+        val map = arrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
+        return this.toString().map { if (it.isDigit()) map[it.digitToInt()] else it }
+    }
+
     private val persianMonths = listOf(
         "فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور",
         "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"
@@ -97,14 +103,14 @@ object JalaliCalendar {
         while (off > 0) { m++; if (m > 12) { m = 1; y++ }; off-- }
         while (off < 0) { m--; if (m < 1) { m = 12; y-- }; off++ }
         m = m.coerceIn(1, 12)
-        return "${persianMonths[m - 1]} $y"
+        return "${persianMonths[m - 1]} ${y.toPersian()}"
     }
 
     // e.g. "۱۲ تیر ۱۴۰۳"
     fun formatDate(millis: Long): String {
         val cal = Calendar.getInstance().apply { timeInMillis = millis }
         val j = fromGregorian(cal)
-        return "${j.day} ${persianMonths[j.month - 1]} ${j.year}"
+        return "${j.day.toPersian()} ${persianMonths[j.month - 1]} ${j.year.toPersian()}"
     }
 
     // e.g. "۱۲ تیر ۱۴۰۳، ۱۴:۳۰"
@@ -113,7 +119,7 @@ object JalaliCalendar {
         val j = fromGregorian(cal)
         val hh = cal.get(Calendar.HOUR_OF_DAY)
         val mm = cal.get(Calendar.MINUTE)
-        return "${j.day} ${persianMonths[j.month - 1]} ${j.year}، ${"%02d:%02d".format(hh, mm)}"
+        return "${j.day.toPersian()} ${persianMonths[j.month - 1]} ${j.year.toPersian()}، ${hh.toPersian()}:${mm.toPersian()}"
     }
 
     /**

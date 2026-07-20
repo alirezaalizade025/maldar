@@ -222,12 +222,20 @@ object AppStrings {
 object Money {
     val faLocale = Locale("fa", "IR")
 
+    // ASCII digits -> Persian digits, so numbers always render in the Farsi font
+    // (String.format with the fa-IR locale only sets the grouping separator and
+    // can still emit ASCII 0-9 on some devices).
+    private fun String.toPersianDigits(): String {
+        val map = arrayOf('۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹')
+        return map { if (it.isDigit()) map[it.digitToInt()] else it }
+    }
+
     fun format(amount: Double): String {
-        return "%,.0f".format(faLocale, amount)
+        return "%,.0f".format(faLocale, amount).toPersianDigits()
     }
 
     fun format2(amount: Double): String {
         // Displayed amounts are whole Toman; drop the fractional part everywhere.
-        return "%,.0f".format(faLocale, kotlin.math.round(amount))
+        return "%,.0f".format(faLocale, kotlin.math.round(amount)).toPersianDigits()
     }
 }

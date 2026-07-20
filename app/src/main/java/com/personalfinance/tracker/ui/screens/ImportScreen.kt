@@ -53,8 +53,8 @@ fun ImportScreen(
         if (initialUri != null) readUri(Uri.parse(initialUri))
     }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { readUri(it) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) readUri(uri) else message = AppStrings.importFailed.format("")
     }
 
     Column(
@@ -76,7 +76,7 @@ fun ImportScreen(
         Button(
             modifier = Modifier.fillMaxWidth(),
             enabled = !busy,
-            onClick = { picker.launch(arrayOf("application/json", "application/octet-stream", "*/*")) }
+            onClick = { picker.launch("*/*") }
         ) { Text(AppStrings.importChooseFile) }
 
         message?.let {

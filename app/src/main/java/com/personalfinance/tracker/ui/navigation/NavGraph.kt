@@ -3,8 +3,10 @@ package com.personalfinance.tracker.ui.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
@@ -39,6 +41,32 @@ private val bottomItems = listOf(
     NavItem("reports", AppStrings.navReports, Icons.Filled.Assessment),
     NavItem("bank_accounts", AppStrings.navAccounts, Icons.Filled.AccountBalance),
 )
+
+// Wraps an overlay screen (export/import/settings/crash log) in an opaque,
+// full-screen surface with a top bar + close button so it always has a visible
+// background and can be dismissed.
+@Composable
+private fun FullScreenSheet(title: String, onClose: () -> Unit, content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text(title) },
+                navigationIcon = {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = AppStrings.back)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+            Box(Modifier.fillMaxSize()) { content() }
+        }
+    }
+}
 
 @Composable
 fun NavGraph(
@@ -193,13 +221,13 @@ fun NavGraph(
     UpdateDialog(info = updateInfo, onDismiss = { updateInfo = null })
     if (showUpToDate) UpToDateDialog(onDismiss = { showUpToDate = false })
     if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
-    if (showCrashLog) CrashLogScreen(onClose = { showCrashLog = false })
-    if (showExport) ExportScreen(viewModel, onClose = { showExport = false })
+    if (showCrashLog) FullScreenSheet(AppStrings.crashLog, { showCrashLog = false }) { CrashLogScreen(onClose = { showCrashLog = false }) }
+    if (showExport) FullScreenSheet(AppStrings.exportData, { showExport = false }) { ExportScreen(viewModel, onClose = { showExport = false }) }
     showImport?.let { uri ->
-        ImportScreen(viewModel, initialUri = uri, onClose = { showImport = null })
+        FullScreenSheet(AppStrings.importData, { showImport = null }) { ImportScreen(viewModel, initialUri = uri, onClose = { showImport = null }) }
     }
     if (showSettings) {
-        SettingsScreen(onClose = { showSettings = false })
+        FullScreenSheet(AppStrings.settings, { showSettings = false }) { SettingsScreen(onClose = { showSettings = false }) }
     }
     if (showAbout) {
         AlertDialog(
