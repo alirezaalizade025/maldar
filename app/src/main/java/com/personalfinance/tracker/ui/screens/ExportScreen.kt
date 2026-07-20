@@ -1,6 +1,9 @@
 package com.personalfinance.tracker.ui.screens
 
+import android.content.ContentValues
 import android.content.Intent
+import android.os.Build
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -34,6 +37,39 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, AppStrings.sendExport))
+    }
+
+    // Write the backup directly to the device's Downloads folder (no share sheet),
+    // so the user gets a local file they can open, copy, or send later.
+    fun saveToDevice(content: String, mime: String, displayName: String) {
+        val resolver = context.contentResolver
+        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, displayName)
+                put(MediaStore.Downloads.MIME_TYPE, mime)
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val coll = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            val inserted = resolver.insert(coll, values)
+                ?: throw Exception("cannot create file in Downloads")
+            resolver.openOutputStream(inserted)?.use { it.write(content.toByteArray()) }
+                ?: throw Exception("cannot write file")
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(inserted, values, null, null)
+            inserted
+        } else {
+            @Suppress("DEPRECATION")
+            val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val file = File(dir, displayName)
+            file.writeText(content)
+        }
+        // On pre-Q we already wrote the file; just confirm it exists.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !File(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS),
+                displayName
+            ).exists()
+        ) throw Exception("cannot write file")
     }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -72,6 +108,43 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                 }
             }
         ) { Text(AppStrings.exportJson) }
+
+        HorizontalDivider()
+        Text(AppStrings.saveToDevice, style = MaterialTheme.typography.titleMedium)
+
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy,
+            onClick = {
+                scope.launch {
+                    busy = true
+                    runCatching {
+                        val bundle = viewModel.exportAll()
+                        saveToDevice(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                            "text/csv", "maldar-export.csv")
+                        message = AppStrings.savedToDownloads
+                    }.onFailure { message = it.message }
+                    busy = false
+                }
+            }
+        ) { Text("${AppStrings.exportCsv} → ${AppStrings.saveToDevice}") }
+
+        OutlinedButton(
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !busy,
+            onClick = {
+                scope.launch {
+                    busy = true
+                    runCatching {
+                        val bundle = viewModel.exportAll()
+                        saveToDevice(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                            "application/json", "maldar-export.json")
+                        message = AppStrings.savedToDownloads
+                    }.onFailure { message = it.message }
+                    busy = false
+                }
+            }
+        ) { Text("${AppStrings.exportJson} → ${AppStrings.saveToDevice}") }
 
         message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Spacer(Modifier.height(20.dp))

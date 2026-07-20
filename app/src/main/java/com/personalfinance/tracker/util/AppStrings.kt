@@ -184,6 +184,8 @@ object AppStrings {
     val exportCsv = "خروجی CSV"
     val exportJson = "خروجی JSON"
     val sendExport = "اشتراک‌گذاری فایل پشتیبان"
+    val saveToDevice = "ذخیره در حافظه دستگاه"
+    val savedToDownloads = "فایل پشتیبان در پوشهٔ Downloads ذخیره شد"
     val importData = "بازیابی از فایل"
     val importHint = "یک فایل پشتیبان (JSON) انتخاب کنید تا داده‌ها بازیابی شوند. داده‌های فعلی جایگزین می‌شوند."
     val importChooseFile = "انتخاب فایل پشتیبان"
