@@ -20,6 +20,7 @@ import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
@@ -73,7 +74,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loansSummaryMonths, style = MaterialTheme.typography.labelSmall)
-                        Text(AppStrings.monthsFormat.format(totalMonthsRemaining), fontWeight = FontWeight.Bold)
+                        Text(AppStrings.monthsFormat.fa(totalMonthsRemaining), fontWeight = FontWeight.Bold)
                     }
                 }
             }

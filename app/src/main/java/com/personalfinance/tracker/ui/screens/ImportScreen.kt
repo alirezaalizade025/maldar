@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.DataExport
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
@@ -40,7 +41,7 @@ fun ImportScreen(
                 viewModel.importBundle(bundle)
                 message = AppStrings.importSuccess
             }.onFailure {
-                message = if (it is Exception) AppStrings.importFailed.format(it.message ?: "")
+                message = if (it is Exception) AppStrings.importFailed.fa(it.message ?: "")
                 else AppStrings.importInvalid
             }
             busy = false
@@ -54,7 +55,7 @@ fun ImportScreen(
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) readUri(uri) else message = AppStrings.importFailed.format("")
+        if (uri != null) readUri(uri) else message = AppStrings.importFailed.fa("")
     }
 
     Column(

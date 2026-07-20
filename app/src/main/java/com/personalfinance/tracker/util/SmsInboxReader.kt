@@ -115,4 +115,15 @@ object SmsInboxReader {
     fun findSmsByDate(context: Context, senderIds: List<String>, dateMillis: Long): SmsMessage? {
         return allSmsForSenders(context, senderIds).firstOrNull { it.dateMillis == dateMillis }
     }
+
+    /**
+     * Returns inbox SMS from the given senders whose date is strictly after
+     * [sinceMillis] (i.e. messages not yet reviewed in a previous "check"),
+     * newest first. Passing [sinceMillis] <= 0 (never checked) returns an empty
+     * list so the "unchecked SMS" screen starts empty until a check is performed.
+     */
+    fun uncheckedSince(context: Context, senderIds: List<String>, sinceMillis: Long): List<SmsMessage> {
+        if (sinceMillis <= 0L) return emptyList()
+        return allSmsForSenders(context, senderIds).filter { it.dateMillis > sinceMillis }
+    }
 }

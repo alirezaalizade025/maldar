@@ -10,12 +10,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.LayoutDirection
 import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.util.Digits
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.worker.DailyReminderScheduler
-import java.util.Locale
 
 @Composable
 private fun TimePickerDialog(
@@ -55,7 +57,9 @@ fun SettingsScreen(onClose: () -> Unit) {
                 TextButton(onClick = { showTimePicker = false }) { Text(AppStrings.cancel) }
             }
         ) {
-            TimePicker(state = state)
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                TimePicker(state = state)
+            }
         }
     }
 
@@ -87,7 +91,7 @@ fun SettingsScreen(onClose: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(AppStrings.dailyReminderTime, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "%02d:00".format(Locale("fa", "IR"), hour),
+                            Digits.toPersian("%02d:00".format(java.util.Locale.US, hour)),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary

@@ -144,8 +144,8 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     androidx.compose.material3.SnackbarHost(hostState = snackbarHostState)
 
     if (showAddAccount) {
-        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senders ->
-            viewModel.addBankAccount(bank, label, last4, bal) { accountId ->
+        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, bal, senders ->
+            viewModel.addBankAccount(bank, label, bal) { accountId ->
                 senders.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
             }
             showAddAccount = false
@@ -153,19 +153,18 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     }
 
     showEditAccount?.let { acc ->
-        EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, last4, bal ->
-            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, accountLast4 = last4, balance = bal))
+        EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, bal ->
+            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, balance = bal))
             showEditAccount = null
         })
     }
 }
 
 @Composable
-private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit, onAdd: (String, String, String, Double, List<String>) -> Unit) {
+private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit, onAdd: (String, String, Double, List<String>) -> Unit) {
     var bankName by remember { mutableStateOf("") }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
-    var last4 by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -198,7 +197,6 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
-                OutlinedTextField(value = last4, onValueChange = { last4 = sanitizeNumberInput(it).take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = sanitizeNumberInput(it) },
@@ -276,7 +274,7 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                     bankNameError = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onAdd(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.address })
+                    onAdd(bankName, finalLabel, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.address })
                 }
             }) { Text(AppStrings.add) }
         },
@@ -291,12 +289,11 @@ private fun EditAccountDialog(
     context: android.content.Context,
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Double) -> Unit
+    onSave: (String, String, Double) -> Unit
 ) {
     var bankName by remember { mutableStateOf(account.bankName) }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf(account.accountLabel) }
-    var last4 by remember { mutableStateOf(account.accountLast4) }
     var balance by remember { mutableStateOf(account.balance.toString()) }
 
     val accountSenders = allSenders.filter { it.bankAccountId == account.id }
@@ -326,7 +323,6 @@ private fun EditAccountDialog(
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
-                OutlinedTextField(value = last4, onValueChange = { last4 = sanitizeNumberInput(it).take(4) }, label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") })
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = sanitizeNumberInput(it) },
@@ -400,7 +396,7 @@ private fun EditAccountDialog(
                     bankNameError = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onSave(bankName, finalLabel, last4, balance.toDoubleOrNull() ?: 0.0)
+                    onSave(bankName, finalLabel, balance.toDoubleOrNull() ?: 0.0)
                 }
             }) { Text(AppStrings.save) }
         },

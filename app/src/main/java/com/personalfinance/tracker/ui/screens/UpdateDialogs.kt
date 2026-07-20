@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.UpdateChecker
 
 @Composable
@@ -18,7 +19,7 @@ fun UpdateDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.updateAvailable) },
-        text = { Text(AppStrings.updateAvailableBody.format(info.version)) },
+        text = { Text(AppStrings.updateAvailableBody.fa(info.version)) },
         confirmButton = {
             TextButton(onClick = {
                 info.downloadUrl?.let { url ->
@@ -41,7 +42,7 @@ fun UpToDateDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.upToDate) },
-        text = { Text(AppStrings.upToDateBody.format(UpdateChecker.CURRENT_VERSION_NAME)) },
+        text = { Text(AppStrings.upToDateBody.fa(UpdateChecker.CURRENT_VERSION_NAME)) },
         confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

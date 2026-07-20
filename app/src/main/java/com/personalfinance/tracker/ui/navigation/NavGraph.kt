@@ -83,8 +83,9 @@ fun NavGraph(
     var showFailed by remember { mutableStateOf(false) }
     var showCrashLog by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
-    var showImport by remember { mutableStateOf<String?>(null) }
+    var showImport by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showCheckSms by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
@@ -138,7 +139,11 @@ fun NavGraph(
                         )
                         DropdownMenuItem(
                             text = { Text(AppStrings.importData, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showImport = null }
+                            onClick = { menuExpanded = false; showImport = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(AppStrings.checkSms, color = MaterialTheme.colorScheme.onSurface) },
+                            onClick = { menuExpanded = false; showCheckSms = true }
                         )
                         DropdownMenuItem(
                             text = { Text(AppStrings.settings, color = MaterialTheme.colorScheme.onSurface) },
@@ -223,11 +228,23 @@ fun NavGraph(
     if (showFailed) CheckFailedDialog(onDismiss = { showFailed = false })
     if (showCrashLog) FullScreenSheet(AppStrings.crashLog, { showCrashLog = false }) { CrashLogScreen(onClose = { showCrashLog = false }) }
     if (showExport) FullScreenSheet(AppStrings.exportData, { showExport = false }) { ExportScreen(viewModel, onClose = { showExport = false }) }
-    showImport?.let { uri ->
-        FullScreenSheet(AppStrings.importData, { showImport = null }) { ImportScreen(viewModel, initialUri = uri, onClose = { showImport = null }) }
+    if (showImport) {
+        FullScreenSheet(AppStrings.importData, { showImport = false }) { ImportScreen(viewModel, initialUri = null, onClose = { showImport = false }) }
     }
     if (showSettings) {
         FullScreenSheet(AppStrings.settings, { showSettings = false }) { SettingsScreen(onClose = { showSettings = false }) }
+    }
+    if (showCheckSms) {
+        FullScreenSheet(AppStrings.checkSms, { showCheckSms = false }) {
+            SmsCheckScreen(
+                viewModel = viewModel,
+                onBack = { showCheckSms = false },
+                onConfirmSms = { accountId, smsDateMillis ->
+                    showCheckSms = false
+                    navController.navigate("add_transaction?accountId=${accountId ?: 0L}&smsDate=$smsDateMillis")
+                }
+            )
+        }
     }
     if (showAbout) {
         AlertDialog(

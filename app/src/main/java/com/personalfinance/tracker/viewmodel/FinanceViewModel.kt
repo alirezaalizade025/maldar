@@ -38,10 +38,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         repo.getCategoriesByType(TxType.INCOME).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ---- Bank accounts ----
-    fun addBankAccount(bankName: String, label: String, last4: String, openingBalance: Double, onCreated: (Long) -> Unit = {}) {
+    fun addBankAccount(bankName: String, label: String, openingBalance: Double, onCreated: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val id = repo.addBankAccount(
-                BankAccountEntity(bankName = bankName, accountLabel = label, accountLast4 = last4, balance = openingBalance)
+                BankAccountEntity(bankName = bankName, accountLabel = label, accountLast4 = "", balance = openingBalance)
             )
             onCreated(id)
         }

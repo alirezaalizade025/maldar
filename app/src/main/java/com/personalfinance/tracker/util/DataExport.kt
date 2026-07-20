@@ -34,9 +34,9 @@ object DataExport {
         }
         appendLine()
         appendLine("--- Bank Accounts ---")
-        appendLine("id,bankName,label,last4,balance")
+        appendLine("id,bankName,label,balance")
         accounts.forEach { a ->
-            appendLine(listOf(a.id, csvCell(a.bankName), csvCell(a.accountLabel), csvCell(a.accountLast4), formatNum(a.balance)).joinToString(","))
+            appendLine(listOf(a.id, csvCell(a.bankName), csvCell(a.accountLabel), formatNum(a.balance)).joinToString(","))
         }
         appendLine()
         appendLine("--- Loans ---")
@@ -79,7 +79,7 @@ object DataExport {
         put("bankAccounts", JSONArray(accounts.map {
             JSONObject().apply {
                 put("id", it.id); put("bankName", it.bankName); put("accountLabel", it.accountLabel)
-                put("accountLast4", it.accountLast4); put("balance", it.balance)
+                put("balance", it.balance)
             }
         }))
         put("loans", JSONArray(loans.map {

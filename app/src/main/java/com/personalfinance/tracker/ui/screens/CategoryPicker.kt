@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import com.personalfinance.tracker.data.CategoryEntity
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 /**
@@ -111,7 +112,7 @@ private fun ManageCategoriesDialog(
                                 scope.launch {
                                     val res = viewModel.deleteCategorySafe(cat)
                                     resultMessage = if (res.reassignedCount > 0)
-                                        AppStrings.categoryDeletedReassigned.format(res.reassignedCount)
+                                        AppStrings.categoryDeletedReassigned.fa(res.reassignedCount)
                                     else
                                         AppStrings.categoryDeleted
                                 }

@@ -194,6 +194,14 @@ object AppStrings {
     val importFailed = "بازیابی انجام نشد: %s"
     val importInvalid = "فایل پشتیبان معتبر نیست."
 
+    // Unchecked SMS review
+    val checkSms = "بررسی پیامک‌های جدید"
+    val noSmsCheckedYet = "هنوز بررسی انجام نشده است. پس از اولین بررسی، پیامک‌های جدید اینجا نمایش داده می‌شوند."
+    val noUncheckedSms = "پیامک جدیدی برای بررسی نیست."
+    val finishSmsCheck = "اتمام بررسی و ثبت زمان"
+    val reject = "رد"
+    val confirm = "تایید"
+
     // Updates
     val menuUpdates = "بررسی به‌روزرسانی"
     val updateAvailable = "نسخه جدید موجود است"

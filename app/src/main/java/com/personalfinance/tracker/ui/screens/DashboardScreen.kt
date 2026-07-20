@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
@@ -108,7 +109,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
                             Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(AppStrings.reviewedSms.format(reviewed.size), style = MaterialTheme.typography.titleMedium)
+                            Text(AppStrings.reviewedSms.fa(reviewed.size), style = MaterialTheme.typography.titleMedium)
                             Text(if (expanded) AppStrings.collapse else AppStrings.expand, style = MaterialTheme.typography.labelSmall)
                         }
                         if (expanded) {
@@ -175,7 +176,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(AppStrings.transactionCount.format(transactions.size), style = MaterialTheme.typography.labelSmall)
+                        Text(AppStrings.transactionCount.fa(transactions.size), style = MaterialTheme.typography.labelSmall)
                         Text(Money.format2(allIncome) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
