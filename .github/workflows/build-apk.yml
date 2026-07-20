@@ -30,6 +30,24 @@ jobs:
         with:
           gradle-version: 8.7
 
+      # Recreate the STABLE release keystore from a base64 GitHub secret so every
+      # build is signed identically (required for in-place updates to install).
+      # Generate it once with:
+      #   keytool -genkeypair -v -keystore maldar-release.jks -alias maldar \
+      #     -keyalg RSA -keysize 2048 -validity 10000 -noprompt \
+      #     -dname "CN=Maldar" -storepass maldar123 -keypass maldar123
+      #   base64 -i maldar-release.jks | pbcopy   # paste into RELEASE_KEYSTORE_BASE64 secret
+      - name: Restore release keystore
+        if: ${{ env.RELEASE_KEYSTORE_BASE64 != '' }}
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > app/keystore/maldar-release.jks
+          echo "RELEASE_STORE_FILE=$(pwd)/app/keystore/maldar-release.jks" >> "$GITHUB_ENV"
+          echo "RELEASE_STORE_PASSWORD=maldar123" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_ALIAS=maldar" >> "$GITHUB_ENV"
+          echo "RELEASE_KEY_PASSWORD=maldar123" >> "$GITHUB_ENV"
+
       # Build the release APK with R8 code shrinking + resource shrinking so
       # only the code/resources actually used are packaged (unused parts are
       # stripped). Tests and other unused tasks are skipped for a lean build.

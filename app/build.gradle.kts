@@ -4,14 +4,14 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Semantic versioning driven by conventional commit prefixes, computed from the
-// commits since the LAST release tag (so a MINOR bump resets PATCH to 0):
-//   - commits starting with "feat" since last tag bump MINOR (0.X.0)
-//   - commits starting with "fix"  since last tag bump PATCH (0.0.X)
-// The base version is taken from the most recent "vX.Y[.Z]" tag; the new
-// version is that base plus the feat/fix deltas. versionCode is monotonic:
-// the base tag's code (parsed from a ".cN" suffix when present) plus the
-// number of commits since the tag.
+// Versioning strategy (robust against stray/lower tags):
+//   - versionName: highest semantic tag (by VERSION, not creation date) plus
+//     feat/fix deltas since that tag.
+//   - versionCode: STRICTLY MONOTONIC and tag-independent. It is derived from the
+//     total commit count on the history leading to HEAD, so every new build has
+//     a higher versionCode than every previous build — this is what makes
+//     in-place updates ("App not installed") impossible due to a version
+//     regression. A fixed BASE_OFFSET keeps it above any legacy hand-set code.
 fun git(vararg args: String): String {
     return try {
         val process = Runtime.getRuntime().exec(arrayOf("git", *args))
@@ -23,14 +23,19 @@ fun git(vararg args: String): String {
     }
 }
 
-// Last release tag by creation date, restricted to conventional "vX.Y[.Z]"
-// tags (ignores legacy timestamp/whole-number tags). Falls back to empty when
-// none exist.
-val lastTag: String = git("for-each-ref", "--sort=-creatordate",
-        "--format=%(refname:short)", "refs/tags")
+// All conventional "vX.Y[.Z]" tags, sorted by their numeric version (highest
+// first), NOT by creation date. This ignores stray low tags created after a
+// higher release line (e.g. a v0.46.0 made after v1.1).
+val semanticTags: List<String> = git("tag", "--list", "v*.*.*")
     .lineSequence()
-    .firstOrNull { it.matches(Regex("""v\d+\.\d+(\.\d+)?""")) }
-    .orEmpty()
+    .filter { it.matches(Regex("""v\d+\.\d+\.\d+""")) }
+    .sortedByDescending { tag ->
+        val p = tag.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+        (p.getOrElse(0) { 0 } shl 16) + (p.getOrElse(1) { 0 } shl 8) + p.getOrElse(2) { 0 }
+    }
+    .toList()
+
+val lastTag: String = semanticTags.firstOrNull().orEmpty()
 
 // Subjects of commits since the last tag (whole history when untagged).
 val sinceRange = if (lastTag.isNotBlank()) "$lastTag..HEAD" else "HEAD"
@@ -43,7 +48,7 @@ fun gitCommitPrefixCount(log: String, prefix: String): Int {
 val featDelta = gitCommitPrefixCount(gitLog, "feat")
 val fixDelta = gitCommitPrefixCount(gitLog, "fix")
 
-// Base version components parsed from the last tag (default 0.0.0).
+// Base version components parsed from the highest semantic tag (default 0.0.0).
 val baseParts = lastTag.removePrefix("v")
     .split(".")
     .mapNotNull { it.toIntOrNull() }
@@ -56,11 +61,13 @@ val newMinor = baseMinor + featDelta
 val newPatch = if (featDelta > 0) 0 else basePatch + fixDelta
 val versionNameValue = "$baseMajor.$newMinor.$newPatch"
 
-// Monotonic versionCode: base code (from ".cN" suffix) + commits since tag.
-val baseCode = lastTag.substringAfterLast(".c", "")
-    .toIntOrNull() ?: (baseMajor * 10000 + baseMinor * 100 + basePatch)
-val commitsSinceTag = git("rev-list", "--count", sinceRange).trim().toIntOrNull() ?: 0
-val versionCodeValue = (baseCode + commitsSinceTag).coerceAtLeast(1)
+// Monotonic versionCode: total commits on the path to HEAD + a base offset that
+// exceeds any legacy hand-assigned code (legacy releases topped out below 11000).
+// Because the commit count only grows, versionCode is always strictly increasing
+// across builds, so updates never fail with a lower versionCode.
+val BASE_OFFSET = 20000
+val totalCommits = git("rev-list", "--count", "HEAD").trim().toIntOrNull() ?: 0
+val versionCodeValue = (BASE_OFFSET + totalCommits).coerceAtLeast(1)
 
 android {
     namespace = "com.personalfinance.tracker"
@@ -83,11 +90,27 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Sign the release build with the auto-generated debug keystore so
-            // the resulting APK is installable on Android. (An unsigned APK
-            // cannot be installed.) Replace with a real release keystore before
-            // publishing to the Play Store.
-            signingConfig = signingConfigs.getByName("debug")
+            // Sign with a STABLE release keystore so updates install over a
+            // previously installed build (Android requires the same signing
+            // cert for in-place updates). CI provides the key via RELEASE_*
+            // env vars (decoded from a GitHub secret); local dev falls back to
+            // the debug keystore so builds still work without the secret.
+            signingConfig = if (System.getenv("RELEASE_STORE_FILE") != null)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
+        }
+    }
+
+    // Release signing config populated from environment (set in CI). The keystore
+    // is created from the RELEASE_KEYSTORE_BASE64 secret so it is identical on
+    // every run — this is what makes updates installable.
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("RELEASE_STORE_FILE") ?: "app/keystore/maldar-release.jks")
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "maldar123"
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "maldar"
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "maldar123"
         }
     }
 

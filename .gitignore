@@ -1,0 +1,3 @@
+
+# Release signing keystore (never commit; provided via CI secret)
+app/keystore/maldar-release.jks
