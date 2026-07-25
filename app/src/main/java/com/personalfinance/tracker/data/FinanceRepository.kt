@@ -25,8 +25,16 @@ class FinanceRepository(private val db: AppDatabase) {
     // Inserts a transaction and, when it is linked to a bank account, records the
     // account's remaining balance right after it (balanceAfter) on the transaction
     // itself, and updates the account's current remained.
+    // For CARD_TO_CARD transactions, the balance is not affected.
+    // If balanceAfter is provided, it is used; otherwise it is calculated.
     suspend fun addTransaction(tx: TransactionEntity) {
-        if (tx.bankAccountId != null) {
+        // CARD_TO_CARD transactions don't affect account balance
+        if (tx.type == TxType.CARD_TO_CARD) {
+            db.transactionDao().insert(tx)
+            return
+        }
+        
+        if (tx.bankAccountId != null && tx.balanceAfter == null) {
             val account = db.bankAccountDao().getById(tx.bankAccountId)
             if (account != null) {
                 val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
@@ -35,12 +43,20 @@ class FinanceRepository(private val db: AppDatabase) {
                 db.transactionDao().insert(tx.copy(balanceAfter = remained))
                 return
             }
+        } else if (tx.bankAccountId != null && tx.balanceAfter != null) {
+            // Use provided balanceAfter and update account
+            db.bankAccountDao().update(db.bankAccountDao().getById(tx.bankAccountId)!!.copy(balance = tx.balanceAfter))
+            db.transactionDao().insert(tx)
+            return
         }
         db.transactionDao().insert(tx)
     }
 
     suspend fun deleteTransaction(tx: TransactionEntity) {
         db.transactionDao().delete(tx)
+        // CARD_TO_CARD transactions don't affect account balance, so no revert needed
+        if (tx.type == TxType.CARD_TO_CARD) return
+        
         if (tx.bankAccountId != null) {
             val account = db.bankAccountDao().getById(tx.bankAccountId)
             if (account != null) {

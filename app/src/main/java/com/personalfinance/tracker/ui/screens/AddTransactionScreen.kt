@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
@@ -44,6 +45,7 @@ fun AddTransactionScreen(
     var rialMode by remember { mutableStateOf(false) }
     var selectedLoanId by remember { mutableStateOf<Long?>(null) }
     var loanMenuExpanded by remember { mutableStateOf(false) }
+    var remainderText by remember { mutableStateOf("") }
     var savedCount by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -79,10 +81,18 @@ fun AddTransactionScreen(
         Text(AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium)
 
         SingleChoiceSegmented(
-            options = listOf(AppStrings.expense, AppStrings.income),
-            selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
+            options = listOf(AppStrings.expense, AppStrings.income, AppStrings.cardToCard),
+            selectedIndex = when(type) {
+                TxType.EXPENSE -> 0
+                TxType.INCOME -> 1
+                TxType.CARD_TO_CARD -> 2
+            },
             onSelected = {
-                type = if (it == 0) TxType.EXPENSE else TxType.INCOME
+                type = when(it) {
+                    0 -> TxType.EXPENSE
+                    1 -> TxType.INCOME
+                    else -> TxType.CARD_TO_CARD
+                }
                 category = "" // let CategoryPicker re-default to the first category of the new type
             }
         )
@@ -154,6 +164,22 @@ fun AddTransactionScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Show remainder field when account is selected
+        if (selectedAccountId != null) {
+            OutlinedTextField(
+                value = remainderText,
+                onValueChange = { remainderText = sanitizeNumberInput(it) },
+                label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
+                visualTransformation = ThousandsSeparatorTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                AppStrings.balanceAfter + ": " + (accounts.firstOrNull { it.id == selectedAccountId }?.balance?.let { Money.format2(it) } ?: "—") + " " + AppStrings.moneyUnit,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+
         val saveInteraction = remember { MutableInteractionSource() }
         val pressed by saveInteraction.collectIsPressedAsState()
         val saveScale by animateFloatAsState(
@@ -166,10 +192,30 @@ fun AddTransactionScreen(
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
                     val stored = if (rialMode) amount / 10.0 else amount
-                    viewModel.addTransaction(stored, type, category, note, selectedAccountId, loanId = selectedLoanId)
+                    
+                    // Calculate or use manual remainder
+                    val remainder = if (remainderText.isNotBlank()) {
+                        remainderText.toDoubleOrNull()?.let { if (rialMode) it / 10.0 else it }
+                    } else {
+                        // Auto-calculate: current balance +/- transaction amount
+                        if (selectedAccountId != null) {
+                            val account = accounts.firstOrNull { it.id == selectedAccountId }
+                            account?.let {
+                                when (type) {
+                                    TxType.INCOME -> it.balance + stored
+                                    TxType.EXPENSE -> (it.balance - stored).coerceAtLeast(0.0)
+                                    TxType.CARD_TO_CARD -> it.balance // No change for card-to-card
+                                }
+                            }
+                        } else {
+                            null
+                        }
+                    }
+                    
+                    viewModel.addTransaction(stored, type, category, note, selectedAccountId, loanId = selectedLoanId, balanceAfter = remainder)
                     confirmationMessage = AppStrings.saved
                     savedCount++
-                    amountText = ""; note = ""; selectedLoanId = null
+                    amountText = ""; note = ""; remainderText = ""; selectedLoanId = null
                 } else {
                     confirmationMessage = AppStrings.invalidAmount
                 }

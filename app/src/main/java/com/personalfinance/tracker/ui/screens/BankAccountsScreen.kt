@@ -76,6 +76,27 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
             }
         }
 
+        // Show total remainder of all accounts at the top
+        if (accounts.isNotEmpty()) {
+            item {
+                val totalBalance = accounts.sumOf { it.balance }
+                AppCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(AppStrings.total, style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            Money.format2(totalBalance) + " " + AppStrings.moneyUnit,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+        }
+
         if (accounts.isEmpty()) {
             item { Text(AppStrings.noAccounts, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
         }

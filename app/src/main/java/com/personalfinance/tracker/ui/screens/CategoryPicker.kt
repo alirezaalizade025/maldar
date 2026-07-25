@@ -1,6 +1,8 @@
 package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -88,41 +90,50 @@ private fun ManageCategoriesDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (type == TxType.EXPENSE) AppStrings.manageExpenseCategories else AppStrings.manageIncomeCategories) },
         text = {
-            Column {
-                LazyColumnLike(categories) { cat ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (renaming?.id == cat.id) {
-                            OutlinedTextField(
-                                value = renameText, onValueChange = { renameText = it },
-                                modifier = Modifier.weight(1f), singleLine = true
-                            )
-                            TextButton(onClick = {
-                                if (renameText.isNotBlank()) viewModel.renameCategory(cat, renameText)
-                                renaming = null
-                            }) { Text("Save") }
-                        } else {
-                            Text(cat.name, modifier = Modifier.weight(1f).padding(top = 12.dp))
-                            IconButton(onClick = { renaming = cat; renameText = cat.name }) {
-                                Icon(Icons.Filled.Edit, contentDescription = "Rename")
-                            }
-                            IconButton(onClick = {
-                                scope.launch {
-                                    val res = viewModel.deleteCategorySafe(cat)
-                                    resultMessage = if (res.reassignedCount > 0)
-                                        AppStrings.categoryDeletedReassigned.fa(res.reassignedCount)
-                                    else
-                                        AppStrings.categoryDeleted
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Scrollable list of categories
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 300.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    LazyColumnLike(categories) { cat ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            if (renaming?.id == cat.id) {
+                                OutlinedTextField(
+                                    value = renameText, onValueChange = { renameText = it },
+                                    modifier = Modifier.weight(1f), singleLine = true
+                                )
+                                TextButton(onClick = {
+                                    if (renameText.isNotBlank()) viewModel.renameCategory(cat, renameText)
+                                    renaming = null
+                                }) { Text("Save") }
+                            } else {
+                                Text(cat.name, modifier = Modifier.weight(1f).padding(top = 12.dp))
+                                IconButton(onClick = { renaming = cat; renameText = cat.name }) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Rename")
                                 }
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        val res = viewModel.deleteCategorySafe(cat)
+                                        resultMessage = if (res.reassignedCount > 0)
+                                            AppStrings.categoryDeletedReassigned.fa(res.reassignedCount)
+                                        else
+                                            AppStrings.categoryDeleted
+                                    }
+                                }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                // Add button always visible at bottom
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newName, onValueChange = { newName = it },

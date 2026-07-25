@@ -3,7 +3,7 @@ package com.personalfinance.tracker.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-enum class TxType { INCOME, EXPENSE }
+enum class TxType { INCOME, EXPENSE, CARD_TO_CARD }
 enum class TxSource { MANUAL, SMS }
 enum class PendingStatus { PENDING, CONFIRMED, REJECTED, CHECKED }
 

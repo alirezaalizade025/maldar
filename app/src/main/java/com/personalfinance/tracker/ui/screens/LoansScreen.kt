@@ -23,6 +23,7 @@ import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
@@ -35,14 +36,16 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
+    var showMonthlySchedule by remember { mutableStateOf(false) }
 
     val total = loans.sumOf { it.remainingAmount }
     // Amount whose pay-day has already passed this Jalali month (due so far).
     val jNow = JalaliCalendar.fromGregorian(Calendar.getInstance())
     val dueSoFar = loans.filter { !it.isPaid && it.payDayOfMonth <= jNow.day }
         .sumOf { it.remainingAmount }
-    val remainNext = (total - dueSoFar).coerceAtLeast(0.0)
-    val totalMonthsRemaining = loans.filter { !it.isPaid }.sumOf { viewModel.monthsRemaining(it) }
+    // Amount due for remainder of current month (after today)
+    val dueThisMonth = loans.filter { !it.isPaid && it.payDayOfMonth > jNow.day }
+        .sumOf { it.remainingAmount }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -70,13 +73,35 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(remainNext) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(AppStrings.loansSummaryMonths, style = MaterialTheme.typography.labelSmall)
-                        Text(AppStrings.monthsFormat.fa(totalMonthsRemaining), fontWeight = FontWeight.Bold)
+                        Text(Money.format2(dueThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                     }
                 }
+            }
+        }
+
+        // Monthly schedule section
+        item {
+            AppCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showMonthlySchedule = !showMonthlySchedule }
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(AppStrings.loanProjection, fontWeight = FontWeight.Medium)
+                        Text(if (showMonthlySchedule) "▼" else "▶", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        if (showMonthlySchedule) {
+            item {
+                MonthlyScheduleView(loans = loans, viewModel = viewModel)
             }
         }
 
@@ -137,6 +162,42 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 }
 
 @Composable
+private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewModel) {
+    // Find the longest loan to determine max months to display
+    val maxMonths = loans.filter { !it.isPaid }.maxOfOrNull { viewModel.monthsRemaining(it) } ?: 0
+    
+    Column(Modifier.fillMaxWidth()) {
+        repeat(maxMonths.coerceAtMost(24)) { monthIndex ->
+            val monthNum = monthIndex + 1
+            var monthTotal = 0.0
+            val monthLoans = mutableListOf<String>()
+            
+            loans.filter { !it.isPaid }.forEach { loan ->
+                if (monthNum <= viewModel.monthsRemaining(loan)) {
+                    val payment = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
+                    monthTotal += payment
+                    monthLoans.add("${loan.name}: " + Money.format2(payment) + " " + AppStrings.moneyUnit)
+                }
+            }
+            
+            if (monthTotal > 0) {
+                AppCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            "ماه $monthNum: " + Money.format2(monthTotal) + " " + AppStrings.moneyUnit,
+                            fontWeight = FontWeight.Bold
+                        )
+                        monthLoans.forEach { loan ->
+                            Text("  - $loan", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun PayLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onPay: (Double) -> Unit) {
     var amountText by remember { mutableStateOf(loan.remainingAmount.toString()) }
     AlertDialog(
@@ -145,7 +206,7 @@ private fun PayLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onPay: (Doubl
         text = {
             OutlinedTextField(
                 value = amountText,
-                onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' } },
+                onValueChange = { amountText = sanitizeNumberInput(it) },
                 label = { Text(AppStrings.loanPaymentAmount) },
                 visualTransformation = ThousandsSeparatorTransformation()
             )
@@ -251,24 +312,24 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(AppStrings.loanName) })
                 OutlinedTextField(
                     value = principal,
-                    onValueChange = { principal = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { principal = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.principal) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
                 OutlinedTextField(
                     value = installment,
-                    onValueChange = { installment = it.filter { c -> c.isDigit() || c == '.' } },
+                    onValueChange = { installment = sanitizeNumberInput(it) },
                     label = { Text(AppStrings.loanInstallment) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
                 OutlinedTextField(
                     value = totalMonths,
-                    onValueChange = { totalMonths = it.filter { c -> c.isDigit() } },
+                    onValueChange = { totalMonths = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
                     label = { Text(AppStrings.loanTotalMonths) }
                 )
                 OutlinedTextField(
                     value = payDay,
-                    onValueChange = { payDay = it.filter { c -> c.isDigit() } },
+                    onValueChange = { payDay = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
                     label = { Text(AppStrings.payDayOfMonth) }
                 )
                 Text(AppStrings.remindDaysBefore, style = MaterialTheme.typography.labelSmall)

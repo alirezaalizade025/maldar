@@ -58,12 +58,13 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     fun deleteSmsSender(sender: SmsSenderEntity) = viewModelScope.launch { repo.deleteSmsSender(sender) }
 
     // ---- Transactions ----
-    fun addTransaction(amount: Double, type: TxType, category: String, note: String, bankAccountId: Long?, dateMillis: Long = System.currentTimeMillis(), loanId: Long? = null) {
+    fun addTransaction(amount: Double, type: TxType, category: String, note: String, bankAccountId: Long?, dateMillis: Long = System.currentTimeMillis(), loanId: Long? = null, balanceAfter: Double? = null) {
         viewModelScope.launch {
             repo.addTransaction(
                 TransactionEntity(
                     amount = amount, type = type, category = category, note = note,
-                    dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loanId
+                    dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loanId,
+                    balanceAfter = balanceAfter
                 )
             )
         }

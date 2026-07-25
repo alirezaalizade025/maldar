@@ -206,16 +206,47 @@ object SmsParser {
 
     /**
      * Extracts the REMAINING BALANCE (مانده/موجودی ...) as Toman.
+     * Prioritizes balance keywords in the last 1-2 lines of the message,
+     * then falls back to searching the entire message.
      */
     private fun extractBalance(message: String): Double? {
-        val m = balanceAmount.matcher(message)
-        if (m.find()) {
-            val raw = m.group(2) ?: return null
-            if (looksLikeCardNumber(raw)) return null
-            val value = toDouble(raw) ?: return null
-            val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
-                unitAfter(message, m.end(2))
-            return scale(value, isRial)
+        // Split into lines and prioritize the last 1-2 lines
+        val lines = message.split("\n")
+        val searchTexts = listOf(
+            // Last 1-2 lines combined
+            lines.takeLast(2).joinToString("\n"),
+            // Full message as fallback
+            message
+        )
+
+        for (searchText in searchTexts) {
+            val m = balanceAmount.matcher(searchText)
+            if (m.find()) {
+                val raw = m.group(2) ?: continue
+                if (looksLikeCardNumber(raw)) continue
+                val value = toDouble(raw) ?: continue
+                val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
+                    unitAfter(searchText, m.end(2))
+                val scaled = scale(value, isRial)
+                if (scaled != null) return scaled
+            }
+        }
+
+        // If no balance keyword found, try to extract any number from the last 1-2 lines
+        // that looks like a balance (large number)
+        val lastLines = lines.takeLast(2).joinToString("\n")
+        val m = bareAmount.matcher(lastLines)
+        while (m.find()) {
+            val raw = m.group(2) ?: continue
+            if (looksLikeCardNumber(raw)) continue
+            val value = toDouble(raw) ?: continue
+            // Only consider numbers that are reasonably large (likely a balance)
+            if (value >= 1000.0) {
+                val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
+                    unitAfter(lastLines, m.end(2))
+                val scaled = scale(value, isRial)
+                if (scaled != null) return scaled
+            }
         }
         return null
     }
