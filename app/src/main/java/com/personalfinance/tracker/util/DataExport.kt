@@ -179,6 +179,131 @@ object DataExport {
         )
     }
 
+    /**
+     * Parses a CSV backup produced by [toCsv] back into a [FinanceRepository.ExportBundle].
+     * Throws [Exception] if the content is not a valid backup.
+     */
+    @Throws(Exception::class)
+    fun fromCsv(csv: String): FinanceRepository.ExportBundle {
+        val lines = csv.lines()
+        var currentSection = ""
+        val rows = mutableMapOf<String, MutableList<List<String>>>()
+        
+        for (line in lines) {
+            val trimmed = line.trim()
+            when {
+                trimmed.startsWith("---") -> {
+                    currentSection = trimmed.trim('-').trim()
+                    rows[currentSection] = mutableListOf()
+                }
+                trimmed.isNotEmpty() && currentSection.isNotEmpty() && !trimmed.startsWith("id,") -> {
+                    rows[currentSection]?.add(parseCsvLine(trimmed))
+                }
+            }
+        }
+
+        val transactions = (rows["Transactions"] ?: emptyList()).map { fields ->
+            require(fields.size >= 10) { "Invalid transaction row" }
+            TransactionEntity(
+                id = fields[0].toLongOrNull() ?: 0L,
+                type = try { enumValueOf<TxType>(fields[1]) } catch (e: Exception) { TxType.EXPENSE },
+                amount = fields[2].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
+                category = fields[3].removeSurrounding("\""),
+                note = fields[4].removeSurrounding("\""),
+                dateMillis = fields[5].toLongOrNull() ?: 0L,
+                bankAccountId = if (fields[6].isEmpty()) null else fields[6].toLongOrNull(),
+                loanId = if (fields[7].isEmpty()) null else fields[7].toLongOrNull(),
+                source = try { enumValueOf<TxSource>(fields[8]) } catch (e: Exception) { TxSource.MANUAL },
+                rawSms = null,
+                balanceAfter = if (fields[9].isEmpty()) null else fields[9].removeSurrounding("\"").replace(",", "").toDoubleOrNull()
+            )
+        }
+
+        val accounts = (rows["Bank Accounts"] ?: emptyList()).map { fields ->
+            require(fields.size >= 4) { "Invalid account row" }
+            BankAccountEntity(
+                id = fields[0].toLongOrNull() ?: 0L,
+                bankName = fields[1].removeSurrounding("\""),
+                accountLabel = fields[2].removeSurrounding("\""),
+                accountLast4 = "",
+                balance = fields[3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0
+            )
+        }
+
+        val loans = (rows["Loans"] ?: emptyList()).map { fields ->
+            require(fields.size >= 9) { "Invalid loan row" }
+            LoanEntity(
+                id = fields[0].toLongOrNull() ?: 0L,
+                name = fields[1].removeSurrounding("\""),
+                principal = fields[2].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
+                remainingAmount = fields[3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
+                dueDateMillis = fields[4].toLongOrNull() ?: 0L,
+                payDayOfMonth = fields[5].toIntOrNull() ?: 1,
+                installment = 0.0,
+                totalMonths = 0,
+                reminderDaysBefore = fields[6].toIntOrNull() ?: 3,
+                notes = fields[7].removeSurrounding("\""),
+                isPaid = fields[8].toBoolean()
+            )
+        }
+
+        val smsSenders = (rows["SMS Senders"] ?: emptyList()).map { fields ->
+            require(fields.size >= 4) { "Invalid SMS sender row" }
+            SmsSenderEntity(
+                id = fields[0].toLongOrNull() ?: 0L,
+                senderId = fields[1].removeSurrounding("\""),
+                bankAccountId = fields[2].toLongOrNull() ?: 0L,
+                label = fields[3].removeSurrounding("\"")
+            )
+        }
+
+        val categories = (rows["Categories"] ?: emptyList()).map { fields ->
+            require(fields.size >= 3) { "Invalid category row" }
+            CategoryEntity(
+                id = fields[0].toLongOrNull() ?: 0L,
+                name = fields[1].removeSurrounding("\""),
+                type = try { enumValueOf<TxType>(fields[2]) } catch (e: Exception) { TxType.EXPENSE }
+            )
+        }
+
+        return FinanceRepository.ExportBundle(
+            transactions = transactions,
+            accounts = accounts,
+            loans = loans,
+            categories = categories,
+            smsSenders = smsSenders
+        )
+    }
+
+    private fun parseCsvLine(line: String): List<String> {
+        val fields = mutableListOf<String>()
+        var current = StringBuilder()
+        var insideQuotes = false
+        var i = 0
+        
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                c == '"' -> {
+                    if (insideQuotes && i + 1 < line.length && line[i + 1] == '"') {
+                        current.append('"')
+                        i++
+                    } else {
+                        insideQuotes = !insideQuotes
+                    }
+                }
+                c == ',' && !insideQuotes -> {
+                    fields.add(current.toString())
+                    current = StringBuilder()
+                }
+                else -> current.append(c)
+            }
+            i++
+        }
+        fields.add(current.toString())
+        return fields
+    }
+
     private fun csvCell(value: String): String {
         return if (value.contains(',') || value.contains('"') || value.contains('\n')) {
             "\"" + value.replace("\"", "\"\"") + "\""

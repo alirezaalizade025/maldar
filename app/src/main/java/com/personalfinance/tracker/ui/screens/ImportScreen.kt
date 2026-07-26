@@ -37,7 +37,13 @@ fun ImportScreen(
                 val content = context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.use(BufferedReader::readText)
                     ?: throw Exception("cannot read file")
-                val bundle = DataExport.fromJson(content)
+                
+                // Auto-detect format: JSON starts with '{', otherwise treat as CSV
+                val bundle = if (content.trim().startsWith("{")) {
+                    DataExport.fromJson(content)
+                } else {
+                    DataExport.fromCsv(content)
+                }
                 viewModel.importBundle(bundle)
                 message = AppStrings.importSuccess
             }.onFailure {
