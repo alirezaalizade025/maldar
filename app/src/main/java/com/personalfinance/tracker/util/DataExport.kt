@@ -196,14 +196,20 @@ object DataExport {
                     currentSection = trimmed.trim('-').trim()
                     rows[currentSection] = mutableListOf()
                 }
-                trimmed.isNotEmpty() && currentSection.isNotEmpty() && !trimmed.startsWith("id,") -> {
+                trimmed.isEmpty() || currentSection.isEmpty() -> {
+                    // Skip empty lines or lines before any section
+                }
+                isHeaderLine(trimmed) -> {
+                    // Skip header lines (id, type, amount, ...)
+                }
+                else -> {
                     rows[currentSection]?.add(parseCsvLine(trimmed))
                 }
             }
         }
 
         val transactions = (rows["Transactions"] ?: emptyList()).map { fields ->
-            require(fields.size >= 10) { "Invalid transaction row" }
+            if (fields.size < 10) throw Exception("Invalid transaction row: expected 10 fields, got ${fields.size}")
             TransactionEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 type = try { enumValueOf<TxType>(fields[1]) } catch (e: Exception) { TxType.EXPENSE },
@@ -220,7 +226,7 @@ object DataExport {
         }
 
         val accounts = (rows["Bank Accounts"] ?: emptyList()).map { fields ->
-            require(fields.size >= 4) { "Invalid account row" }
+            if (fields.size < 4) throw Exception("Invalid account row: expected 4 fields, got ${fields.size}")
             BankAccountEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 bankName = fields[1].removeSurrounding("\""),
@@ -231,7 +237,7 @@ object DataExport {
         }
 
         val loans = (rows["Loans"] ?: emptyList()).map { fields ->
-            require(fields.size >= 9) { "Invalid loan row" }
+            if (fields.size < 9) throw Exception("Invalid loan row: expected 9 fields, got ${fields.size}")
             LoanEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 name = fields[1].removeSurrounding("\""),
@@ -302,6 +308,16 @@ object DataExport {
         }
         fields.add(current.toString())
         return fields
+    }
+
+    private fun isHeaderLine(line: String): Boolean {
+        // Check if line starts with common header keywords
+        return line.startsWith("id,") || 
+               line.contains("id,type,") ||
+               line.startsWith("type,") ||
+               line.startsWith("bankName,") ||
+               line.startsWith("name,") ||
+               line.startsWith("senderId,")
     }
 
     private fun csvCell(value: String): String {
