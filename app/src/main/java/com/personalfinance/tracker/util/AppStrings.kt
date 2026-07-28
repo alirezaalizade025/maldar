@@ -112,7 +112,7 @@ object AppStrings {
     val loans = "وام‌ها"
     val loansSummaryTotal = "مجموع وام‌ها"
     val loansSummaryDue = "سررسید تا امروز این ماه"
-    val loansSummaryRemain = "مانده ماه"
+    val loansSummaryRemain = "مانده کل"
     val loansSummaryMonths = "تعداد ماه باقی‌مانده"
     val monthsFormat = "%d ماه"
     val loanInstallment = "قسط ماهانه"

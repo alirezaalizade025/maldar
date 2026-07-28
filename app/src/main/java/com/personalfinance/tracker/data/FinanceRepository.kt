@@ -68,6 +68,11 @@ class FinanceRepository(private val db: AppDatabase) {
     }
 
     suspend fun updateTransaction(tx: TransactionEntity) {
+        if (tx.bankAccountId != null && tx.balanceAfter != null) {
+            db.bankAccountDao().getById(tx.bankAccountId)?.let { account ->
+                db.bankAccountDao().update(account.copy(balance = tx.balanceAfter))
+            }
+        }
         db.transactionDao().update(tx)
     }
 

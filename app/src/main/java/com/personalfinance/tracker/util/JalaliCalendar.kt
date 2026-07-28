@@ -2,6 +2,7 @@ package com.personalfinance.tracker.util
 
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Minimal Gregorian <-> Jalali (Persian/Shamsi) conversion. No external dependency.
@@ -111,6 +112,29 @@ object JalaliCalendar {
         val cal = Calendar.getInstance().apply { timeInMillis = millis }
         val j = fromGregorian(cal)
         return "${j.day.toPersian()} ${persianMonths[j.month - 1]} ${j.year.toPersian()}"
+    }
+
+    /**
+     * Whole-calendar-day distance between now and [targetMillis].
+     *
+     * This compares local day-start boundaries (00:00) instead of raw millis,
+     * so the value doesn't look "one day less" because of partial-day truncation.
+     */
+    fun daysUntil(targetMillis: Long): Long {
+        val todayStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val targetStart = Calendar.getInstance().apply {
+            timeInMillis = targetMillis
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        return TimeUnit.MILLISECONDS.toDays(targetStart - todayStart)
     }
 
     // e.g. "۱۲ تیر ۱۴۰۳، ۱۴:۳۰"

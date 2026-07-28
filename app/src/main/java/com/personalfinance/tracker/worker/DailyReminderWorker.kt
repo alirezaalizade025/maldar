@@ -2,7 +2,9 @@ package com.personalfinance.tracker.worker
 
 import android.content.Context
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.personalfinance.tracker.notification.NotificationHelper
@@ -24,7 +26,6 @@ class DailyReminderWorker(
         if (!Settings.dailyReminderEnabled) return Result.success()
         NotificationHelper.ensureChannels(applicationContext)
         NotificationHelper.notifyDailyReminder(applicationContext)
-        DailyReminderScheduler.scheduleNext(applicationContext)
         return Result.success()
     }
 
@@ -55,12 +56,12 @@ object DailyReminderScheduler {
             return
         }
         val delay = DailyReminderWorker.delayUntilHour(Settings.dailyReminderHour)
-        val request = OneTimeWorkRequestBuilder<DailyReminderWorker>()
+        val request = PeriodicWorkRequestBuilder<DailyReminderWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
             .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            androidx.work.ExistingWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.UPDATE,
             request
         )
     }

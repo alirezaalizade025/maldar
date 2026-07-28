@@ -116,22 +116,30 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     // ---- Pending SMS confirmation ----
     // Confirmed/rejected SMS are kept (status = CHECKED) so the user retains a
     // review history instead of the record vanishing.
-    fun confirmPendingSms(pending: PendingSmsEntity, finalAmount: Double, type: TxType, category: String, note: String) {
+    fun confirmPendingSms(
+        pending: PendingSmsEntity,
+        finalAmount: Double,
+        type: TxType,
+        category: String,
+        note: String,
+        finalBalanceAfter: Double? = null
+    ) {
         viewModelScope.launch {
+            val chosenBalanceAfter = finalBalanceAfter ?: pending.parsedBalance
             repo.addTransaction(
                 TransactionEntity(
                     amount = finalAmount, type = type, category = category, note = note,
                     dateMillis = pending.timestampMillis, bankAccountId = pending.bankAccountId,
                     source = TxSource.SMS, rawSms = pending.rawMessage,
-                    balanceAfter = pending.parsedBalance
+                    balanceAfter = chosenBalanceAfter
                 )
             )
             // When the SMS states the remaining balance (مانده), trust it as the
             // account's balance after this transaction, overriding the recomputed
             // delta so the account stays in sync with the bank.
-            if (pending.bankAccountId != null && pending.parsedBalance != null) {
+            if (pending.bankAccountId != null && chosenBalanceAfter != null) {
                 val account = repo.getBankAccount(pending.bankAccountId)
-                account?.let { repo.updateBankAccount(it.copy(balance = pending.parsedBalance)) }
+                account?.let { repo.updateBankAccount(it.copy(balance = chosenBalanceAfter)) }
             }
             repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED, parsedType = type, parsedAmount = finalAmount))
         }
@@ -166,6 +174,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         }
     }
     fun markLoanPaid(loan: LoanEntity) = viewModelScope.launch { repo.updateLoan(loan.copy(isPaid = true, remainingAmount = 0.0)) }
+    fun updateLoan(loan: LoanEntity) = viewModelScope.launch { repo.updateLoan(loan) }
     fun deleteLoan(loan: LoanEntity) = viewModelScope.launch { repo.deleteLoan(loan) }
 
     // Remaining months until payoff, derived from the installment so it drops

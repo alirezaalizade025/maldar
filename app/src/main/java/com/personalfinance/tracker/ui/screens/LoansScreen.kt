@@ -36,16 +36,20 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     var showAdd by remember { mutableStateOf(false) }
     var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
+    var editingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var showMonthlySchedule by remember { mutableStateOf(false) }
 
-    val total = loans.sumOf { it.remainingAmount }
+    val activeLoans = loans.filter { !it.isPaid }
+    val total = activeLoans.sumOf { it.principal }
+    val totalRemaining = activeLoans.sumOf { it.remainingAmount }
+    fun monthlyDue(loan: LoanEntity): Double {
+        val installment = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
+        return installment.coerceAtMost(loan.remainingAmount)
+    }
     // Amount whose pay-day has already passed this Jalali month (due so far).
     val jNow = JalaliCalendar.fromGregorian(Calendar.getInstance())
-    val dueSoFar = loans.filter { !it.isPaid && it.payDayOfMonth <= jNow.day }
-        .sumOf { it.remainingAmount }
-    // Amount due for remainder of current month (after today)
-    val dueThisMonth = loans.filter { !it.isPaid && it.payDayOfMonth > jNow.day }
-        .sumOf { it.remainingAmount }
+    val dueSoFar = activeLoans.filter { it.payDayOfMonth <= jNow.day }
+        .sumOf { monthlyDue(it) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -73,7 +77,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(dueThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                        Text(Money.format2(totalRemaining) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                     }
                 }
             }
@@ -110,7 +114,8 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         }
 
         items(loans) { loan ->
-            val daysLeft = ((loan.dueDateMillis - System.currentTimeMillis()) / 86_400_000L)
+            val nextDueMillis = if (loan.isPaid) loan.dueDateMillis else JalaliCalendar.nextDueDateMillis(loan.payDayOfMonth)
+            val daysLeft = JalaliCalendar.daysUntil(nextDueMillis)
             AppCard(
                 modifier = Modifier.fillMaxWidth().clickable { selectedLoan = loan }) {
                 Column(Modifier.padding(14.dp)) {
@@ -120,7 +125,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                             Text(AppStrings.paid, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                         }
                     }
-                    Text(AppStrings.due + ": " + JalaliCalendar.formatDate(loan.dueDateMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
+                    Text(AppStrings.due + ": " + JalaliCalendar.formatDate(nextDueMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
                     Text(AppStrings.loanPayDay + ": " + loan.payDayOfMonth, style = MaterialTheme.typography.labelSmall)
                     if (loan.installment > 0.0) {
@@ -135,6 +140,8 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                             Button(onClick = { showPayLoan = loan }) { Text(AppStrings.payLoan) }
                             Spacer(Modifier.width(8.dp))
                         }
+                        OutlinedButton(onClick = { editingLoan = loan }) { Text(AppStrings.edit) }
+                        Spacer(Modifier.width(8.dp))
                         OutlinedButton(onClick = { viewModel.deleteLoan(loan) }) { Text(AppStrings.delete) }
                     }
                 }
@@ -153,12 +160,113 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         LoanDetailDialog(loan = selectedLoan!!, viewModel = viewModel, onDismiss = { selectedLoan = null })
     }
 
+    if (editingLoan != null) {
+        EditLoanDialog(
+            loan = editingLoan!!,
+            onDismiss = { editingLoan = null },
+            onSave = { updated ->
+                viewModel.updateLoan(updated)
+                editingLoan = null
+            }
+        )
+    }
+
     if (showAdd) {
         AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, reminderDays, notes ->
             viewModel.addLoan(name, principal, payDay, installment, totalMonths, reminderDays, notes)
             showAdd = false
         })
     }
+}
+
+@Composable
+private fun EditLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onSave: (LoanEntity) -> Unit) {
+    var name by remember(loan.id) { mutableStateOf(loan.name) }
+    var remainingText by remember(loan.id) { mutableStateOf(loan.remainingAmount.toString()) }
+    var payDayText by remember(loan.id) { mutableStateOf(loan.payDayOfMonth.toString()) }
+    var installmentText by remember(loan.id) { mutableStateOf(if (loan.installment > 0.0) loan.installment.toString() else "") }
+    var totalMonthsText by remember(loan.id) { mutableStateOf(if (loan.totalMonths > 0) loan.totalMonths.toString() else "") }
+    var reminderDays by remember(loan.id) { mutableStateOf(loan.reminderDaysBefore) }
+    var notes by remember(loan.id) { mutableStateOf(loan.notes) }
+    val reminderOptions = listOf(7, 3, 1)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(AppStrings.edit + " " + AppStrings.loans) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(AppStrings.loanName) })
+                OutlinedTextField(
+                    value = remainingText,
+                    onValueChange = { remainingText = sanitizeNumberInput(it) },
+                    label = { Text(AppStrings.remainder + " (" + AppStrings.moneyUnit + ")") },
+                    visualTransformation = ThousandsSeparatorTransformation()
+                )
+                OutlinedTextField(
+                    value = payDayText,
+                    onValueChange = { payDayText = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
+                    label = { Text(AppStrings.payDayOfMonth) }
+                )
+                OutlinedTextField(
+                    value = installmentText,
+                    onValueChange = { installmentText = sanitizeNumberInput(it) },
+                    label = { Text(AppStrings.loanInstallment) },
+                    visualTransformation = ThousandsSeparatorTransformation()
+                )
+                OutlinedTextField(
+                    value = totalMonthsText,
+                    onValueChange = { totalMonthsText = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
+                    label = { Text(AppStrings.loanTotalMonths) }
+                )
+                Text(AppStrings.remindDaysBefore, style = MaterialTheme.typography.labelSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    reminderOptions.forEach { days ->
+                        FilterChip(
+                            selected = reminderDays == days,
+                            onClick = { reminderDays = days },
+                            label = {
+                                Text(
+                                    when (days) {
+                                        7 -> AppStrings.remind7Days
+                                        1 -> AppStrings.remind1Day
+                                        else -> AppStrings.remind3Days
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text(AppStrings.notesOptional) })
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val remaining = remainingText.toDoubleOrNull()
+                val payDay = payDayText.toIntOrNull()
+                val installment = installmentText.toDoubleOrNull() ?: 0.0
+                val months = totalMonthsText.toIntOrNull() ?: loan.totalMonths
+                if (name.isNotBlank() && remaining != null && payDay != null && payDay in 1..31) {
+                    val updatedRemaining = remaining.coerceAtLeast(0.0)
+                    val isPaid = updatedRemaining <= 0.0
+                    val nextDue = if (isPaid) loan.dueDateMillis else JalaliCalendar.nextDueDateMillis(payDay)
+                    onSave(
+                        loan.copy(
+                            name = name,
+                            remainingAmount = updatedRemaining,
+                            payDayOfMonth = payDay,
+                            dueDateMillis = nextDue,
+                            installment = installment,
+                            totalMonths = months,
+                            reminderDaysBefore = reminderDays,
+                            notes = notes,
+                            isPaid = isPaid
+                        )
+                    )
+                }
+            }) { Text(AppStrings.save) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+    )
 }
 
 @Composable

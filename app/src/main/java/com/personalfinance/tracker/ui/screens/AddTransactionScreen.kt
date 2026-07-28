@@ -46,6 +46,7 @@ fun AddTransactionScreen(
     var selectedLoanId by remember { mutableStateOf<Long?>(null) }
     var loanMenuExpanded by remember { mutableStateOf(false) }
     var remainderText by remember { mutableStateOf("") }
+    var transactionDateMillis by remember { mutableStateOf<Long?>(null) }
     var savedCount by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -58,6 +59,8 @@ fun AddTransactionScreen(
                 if (it.amount != null) amountText = it.amount.toLong().toString()
                 it.type?.let { t -> type = t }
                 selectedAccountId = accountId
+                if (it.balanceAfter != null) remainderText = it.balanceAfter.toLong().toString()
+                transactionDateMillis = it.dateMillis
                 note = it.body
             }
         }
@@ -212,10 +215,19 @@ fun AddTransactionScreen(
                         }
                     }
                     
-                    viewModel.addTransaction(stored, type, category, note, selectedAccountId, loanId = selectedLoanId, balanceAfter = remainder)
+                    viewModel.addTransaction(
+                        amount = stored,
+                        type = type,
+                        category = category,
+                        note = note,
+                        bankAccountId = selectedAccountId,
+                        dateMillis = transactionDateMillis ?: System.currentTimeMillis(),
+                        loanId = selectedLoanId,
+                        balanceAfter = remainder
+                    )
                     confirmationMessage = AppStrings.saved
                     savedCount++
-                    amountText = ""; note = ""; remainderText = ""; selectedLoanId = null
+                    amountText = ""; note = ""; remainderText = ""; selectedLoanId = null; transactionDateMillis = null
                 } else {
                     confirmationMessage = AppStrings.invalidAmount
                 }

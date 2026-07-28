@@ -23,19 +23,20 @@ class SmsReceiver : BroadcastReceiver() {
         // Concatenate multi-part SMS
         val sender = messages[0].originatingAddress ?: return
         val fullBody = messages.joinToString(separator = "") { it.messageBody ?: "" }
+        val smsTimestamp = messages.maxOfOrNull { it.timestampMillis } ?: System.currentTimeMillis()
 
         // Do DB work off the main thread; goAsync() keeps the receiver alive long enough.
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                handleIncomingSms(context, sender, fullBody)
+                handleIncomingSms(context, sender, fullBody, smsTimestamp)
             } finally {
                 pendingResult.finish()
             }
         }
     }
 
-    private suspend fun handleIncomingSms(context: Context, sender: String, body: String) {
+    private suspend fun handleIncomingSms(context: Context, sender: String, body: String, timestampMillis: Long) {
         val db = AppDatabase.getInstance(context)
         val watchedSenders = db.smsSenderDao().getAllOnce()
 
@@ -58,7 +59,7 @@ class SmsReceiver : BroadcastReceiver() {
             parsedAmount = parsed.amount,
             parsedType = parsed.type,
             parsedBalance = parsed.balanceAfter,
-            timestampMillis = System.currentTimeMillis(),
+            timestampMillis = timestampMillis,
             bankAccountId = matched.bankAccountId,
             status = PendingStatus.PENDING
         )

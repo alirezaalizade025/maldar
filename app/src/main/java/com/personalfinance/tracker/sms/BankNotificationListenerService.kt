@@ -34,15 +34,16 @@ class BankNotificationListenerService : NotificationListenerService() {
         val body = "$title\n$text\n$bigText".trim()
 
         if (body.isBlank()) return
+        val postedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
 
         CoroutineScope(Dispatchers.IO).launch {
-            runCatching { handleNotification(this@BankNotificationListenerService, sbn.packageName, body) }
+            runCatching { handleNotification(this@BankNotificationListenerService, sbn.packageName, body, postedAt) }
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) = Unit
 
-    private suspend fun handleNotification(context: Context, packageName: String, body: String) {
+    private suspend fun handleNotification(context: Context, packageName: String, body: String, timestampMillis: Long) {
         val db = AppDatabase.getInstance(context)
         val watchedSenders = db.smsSenderDao().getAllOnce()
 
@@ -61,7 +62,7 @@ class BankNotificationListenerService : NotificationListenerService() {
             parsedAmount = parsed.amount,
             parsedType = parsed.type,
             parsedBalance = parsed.balanceAfter,
-            timestampMillis = System.currentTimeMillis(),
+            timestampMillis = timestampMillis,
             bankAccountId = matched.bankAccountId,
             status = PendingStatus.PENDING
         )

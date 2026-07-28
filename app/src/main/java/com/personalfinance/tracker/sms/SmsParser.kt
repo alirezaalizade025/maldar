@@ -5,9 +5,10 @@ import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 /**
- * Parser for Iranian bank SMS. Bank SMS amounts are expressed in either Rial or
- * Toman; the parser detects the unit from the surrounding text and normalizes
- * everything to Toman before returning.
+ * Parser for Iranian bank SMS.
+ *
+ * In this app, incoming bank SMS amounts are treated as Rial and are always
+ * sanitized to Toman via division by 10 before being returned.
  *
  * A typical Iranian transaction SMS contains TWO numbers:
  *   - the transaction amount (the "diff"): preceded by برداشت/واریز/خرید/مبلغ or a +/- sign
@@ -133,7 +134,7 @@ object SmsParser {
         return digits.length == 16 || digits.length > 14
     }
 
-    private data class AmountResult(val value: Double, val isRial: Boolean, val sign: Int)
+    private data class AmountResult(val value: Double, val sign: Int)
 
     /**
      * Extracts the TRANSACTION amount (the diff). It deliberately ignores numbers
@@ -161,7 +162,7 @@ object SmsParser {
                 "-" -> -1
                 else -> 0
             }
-            return AmountResult(scale(value, isRial) ?: return null, isRial, sign)
+            return AmountResult(scale(value) ?: return null, sign)
         }
 
         // 1) مبلغ/amount/مقدار ... number
@@ -198,7 +199,7 @@ object SmsParser {
                     "-" -> -1
                     else -> 0
                 }
-                return AmountResult(scale(value, isRial) ?: continue, isRial, sign)
+                return AmountResult(scale(value) ?: continue, sign)
             }
         }
         return null
@@ -227,7 +228,7 @@ object SmsParser {
                 val value = toDouble(raw) ?: continue
                 val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
                     unitAfter(searchText, m.end(2))
-                val scaled = scale(value, isRial)
+                val scaled = scale(value)
                 if (scaled != null) return scaled
             }
         }
@@ -244,22 +245,17 @@ object SmsParser {
             if (value >= 1000.0) {
                 val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
                     unitAfter(lastLines, m.end(2))
-                val scaled = scale(value, isRial)
+                val scaled = scale(value)
                 if (scaled != null) return scaled
             }
         }
         return null
     }
 
-    /**
-     * Scales [value] (the raw matched number) to Toman.
-     * - If the matched text explicitly says Rial, divide by 10.
-     * - Otherwise assume the number is already in Toman (most Iranian SMS label
-     *   the amount in Toman, e.g. "۱۲۰۰۰۰ تومان").
-     */
-    private fun scale(value: Double, isRial: Boolean): Double? {
+    // Sanitizes all incoming SMS numbers from Rial to Toman.
+    private fun scale(value: Double): Double? {
         if (value <= 0) return null
-        return if (isRial) value / 10.0 else value
+        return value / 10.0
     }
 
     // True if a Rial marker appears in the few characters following [index].

@@ -258,6 +258,7 @@ private fun EditTransactionDialog(
     var note by remember { mutableStateOf(tx.note) }
     var selectedAccountId by remember { mutableStateOf(tx.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
+    var remainderText by remember { mutableStateOf(tx.balanceAfter?.toString() ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
@@ -307,14 +308,30 @@ private fun EditTransactionDialog(
                     }
                 }
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
+                if (selectedAccountId != null) {
+                    OutlinedTextField(
+                        value = remainderText,
+                        onValueChange = { remainderText = sanitizeNumberInput(it) },
+                        label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
+                        visualTransformation = ThousandsSeparatorTransformation()
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
+                val remainder = remainderText.toDoubleOrNull()
                 if (amount != null && amount > 0 && category.isNotBlank()) {
                     viewModel.updateTransaction(
-                        tx.copy(amount = amount, type = type, category = category, note = note, bankAccountId = selectedAccountId)
+                        tx.copy(
+                            amount = amount,
+                            type = type,
+                            category = category,
+                            note = note,
+                            bankAccountId = selectedAccountId,
+                            balanceAfter = if (selectedAccountId != null) remainder else null
+                        )
                     )
                     onDismiss()
                 }
@@ -343,6 +360,7 @@ private fun SmsConfirmDialog(
     var note by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(pending.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
+    var remainderText by remember { mutableStateOf(pending.parsedBalance?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -388,13 +406,29 @@ private fun SmsConfirmDialog(
                     }
                 }
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
+                if (selectedAccountId != null) {
+                    OutlinedTextField(
+                        value = remainderText,
+                        onValueChange = { remainderText = sanitizeNumberInput(it) },
+                        label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
+                        visualTransformation = ThousandsSeparatorTransformation()
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
-                    viewModel.confirmPendingSms(pending, amount, type, category.ifBlank { fallbackCategory }, note)
+                    val remainder = remainderText.toDoubleOrNull()
+                    viewModel.confirmPendingSms(
+                        pending = pending.copy(bankAccountId = selectedAccountId),
+                        finalAmount = amount,
+                        type = type,
+                        category = category.ifBlank { fallbackCategory },
+                        note = note,
+                        finalBalanceAfter = if (selectedAccountId != null) remainder else null
+                    )
                     onDismiss()
                 }
             }) { Text(AppStrings.save) }

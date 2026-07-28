@@ -15,6 +15,7 @@ import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
+import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -60,8 +61,8 @@ fun SmsConfirmationScreen(viewModel: FinanceViewModel) {
     }
 
     editing?.let { p ->
-        ConfirmDialog(viewModel = viewModel, pending = p, onDismiss = { editing = null }, onConfirm = { amount, type, category, note ->
-            viewModel.confirmPendingSms(p, amount, type, category, note)
+        ConfirmDialog(viewModel = viewModel, pending = p, onDismiss = { editing = null }, onConfirm = { amount, type, category, note, remainder ->
+            viewModel.confirmPendingSms(p, amount, type, category, note, remainder)
             editing = null
         })
     }
@@ -72,7 +73,7 @@ private fun ConfirmDialog(
     viewModel: FinanceViewModel,
     pending: PendingSmsEntity,
     onDismiss: () -> Unit,
-    onConfirm: (Double, TxType, String, String) -> Unit
+    onConfirm: (Double, TxType, String, String, Double?) -> Unit
 ) {
     var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
     var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
@@ -81,6 +82,7 @@ private fun ConfirmDialog(
     val fallbackCategory = if (type == TxType.EXPENSE) "سایر" else "سایر"
     var category by remember { mutableStateOf(fallbackCategory) }
     var note by remember { mutableStateOf("") }
+    var remainderText by remember { mutableStateOf(pending.parsedBalance?.toString() ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -108,13 +110,19 @@ private fun ConfirmDialog(
                     value = note, onValueChange = { note = it },
                     label = { Text(AppStrings.noteOptional) }
                 )
+                OutlinedTextField(
+                    value = remainderText,
+                    onValueChange = { remainderText = sanitizeNumberInput(it) },
+                    label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
+                    visualTransformation = ThousandsSeparatorTransformation()
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
-                    onConfirm(amount, type, category.ifBlank { fallbackCategory }, note)
+                    onConfirm(amount, type, category.ifBlank { fallbackCategory }, note, remainderText.toDoubleOrNull())
                 }
             }) { Text(AppStrings.save) }
         },

@@ -73,7 +73,8 @@ object SmsInboxReader {
         val body: String,
         val dateMillis: Long,
         val amount: Double?,   // in Toman (parsed)
-        val type: com.personalfinance.tracker.data.TxType?
+        val type: com.personalfinance.tracker.data.TxType?,
+        val balanceAfter: Double? // parsed remained/balance, in Toman
     )
 
     /**
@@ -101,7 +102,7 @@ object SmsInboxReader {
                 val body = cursor.getString(bodyIdx) ?: continue
                 val date = cursor.getLong(dateIdx)
                 val parsed = SmsParser.parse(body)
-                out.add(SmsMessage(address, body, date, parsed.amount, parsed.type))
+                out.add(SmsMessage(address, body, date, parsed.amount, parsed.type, parsed.balanceAfter))
             }
         }
         return out
