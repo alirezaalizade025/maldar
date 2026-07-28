@@ -1,6 +1,7 @@
 package com.personalfinance.tracker.util
 
 import java.util.Locale
+import java.math.BigDecimal
 
 /**
  * Persian (Farsi) is the app language. All user-facing strings live here so the
@@ -16,6 +17,7 @@ object AppStrings {
     val navLoans = "وام‌ها"
     val navReports = "گزارش‌ها"
     val navAccounts = "حساب‌ها"
+    val navAssets = "دارایی"
 
     // Dashboard
     val overview = "نمای کلی"
@@ -98,6 +100,7 @@ object AppStrings {
     val senderHint = "شناسه فرستنده را دقیقاً همان‌طور که در پیام‌رسان نمایش داده می‌شود وارد کنید (مثل BPIR، ۳۰۰۰۷۳۲۷۳)."
     val showSms = "نمایش پیامک‌ها"
     val accountActions = "عملیات حساب"
+    val installmentRemainingThisMonth = "مانده قسط این ماه"
     val smsList = "پیامک‌های حساب"
     val noSmsForAccount = "پیامکی از فرستندگان این حساب یافت نشد."
     val noSendersForAccount = "برای این حساب فرستنده پیامکی تنظیم نشده است."
@@ -224,6 +227,19 @@ object AppStrings {
     val dailyReminderTime = "ساعت یادآوری"
     val dailyReminderOff = "خاموش"
     val dailyReminderOn = "روشن"
+
+    val financialAssets = "دارایی‌های مالی"
+    val assetsHint = "وزن را به گرم وارد کنید. قیمت طلای ۱۸ عیار ایران و نقره ۹۹۹ از BRS دریافت می‌شود."
+    val gold18 = "طلای ۱۸ عیار"
+    val silver999 = "نقره ۹۹۹"
+    val weightGrams = "وزن (گرم)"
+    val pricePerGram = "قیمت هر گرم"
+    val assetValue = "ارزش دارایی"
+    val assetsTotal = "ارزش کل طلا و نقره"
+    val lastPriceUpdate = "آخرین به‌روزرسانی"
+    val brsApiKey = "کلید رایگان BRS API"
+    val saveAndRefresh = "ذخیره و دریافت قیمت"
+    val assetPriceFailed = "دریافت قیمت انجام نشد"
 }
 
 /**
@@ -250,4 +266,8 @@ object Money {
         // Displayed amounts are whole Toman; drop the fractional part everywhere.
         return "%,.0f".format(faLocale, kotlin.math.round(amount)).toPersianDigits()
     }
+
+    /** Plain editable representation that never uses scientific notation. */
+    fun input(amount: Double): String =
+        BigDecimal.valueOf(amount).stripTrailingZeros().toPlainString()
 }

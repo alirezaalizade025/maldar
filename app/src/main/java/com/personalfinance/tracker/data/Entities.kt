@@ -6,6 +6,13 @@ import androidx.room.PrimaryKey
 enum class TxType { INCOME, EXPENSE, CARD_TO_CARD }
 enum class TxSource { MANUAL, SMS }
 enum class PendingStatus { PENDING, CONFIRMED, REJECTED, CHECKED }
+enum class AssetType { GOLD_18K, SILVER_999 }
+
+@Entity(tableName = "financial_assets")
+data class FinancialAssetEntity(
+    @PrimaryKey val type: AssetType,
+    val quantityGrams: Double = 0.0
+)
 
 @Entity(tableName = "bank_accounts")
 data class BankAccountEntity(

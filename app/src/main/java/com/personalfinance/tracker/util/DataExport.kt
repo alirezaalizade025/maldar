@@ -19,33 +19,35 @@ object DataExport {
         accounts: List<BankAccountEntity>,
         loans: List<LoanEntity>,
         categories: List<CategoryEntity>,
-        smsSenders: List<SmsSenderEntity> = emptyList()
+        smsSenders: List<SmsSenderEntity> = emptyList(),
+        financialAssets: List<FinancialAssetEntity> = emptyList()
     ): String = buildString {
         appendLine("--- Transactions ---")
-        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter")
+        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms")
         transactions.forEach { t ->
             appendLine(
                 listOf(
                     t.id, t.type, formatNum(t.amount), csvCell(t.category),
                     csvCell(t.note), t.dateMillis, t.bankAccountId ?: "", t.loanId ?: "", t.source,
-                    t.balanceAfter?.let { formatNum(it) } ?: ""
+                    t.balanceAfter?.let { formatNum(it) } ?: "", csvCell(t.rawSms ?: "")
                 ).joinToString(",")
             )
         }
         appendLine()
         appendLine("--- Bank Accounts ---")
-        appendLine("id,bankName,label,balance")
+        appendLine("id,bankName,label,accountLast4,balance")
         accounts.forEach { a ->
-            appendLine(listOf(a.id, csvCell(a.bankName), csvCell(a.accountLabel), formatNum(a.balance)).joinToString(","))
+            appendLine(listOf(a.id, csvCell(a.bankName), csvCell(a.accountLabel), csvCell(a.accountLast4), formatNum(a.balance)).joinToString(","))
         }
         appendLine()
         appendLine("--- Loans ---")
-        appendLine("id,name,principal,remaining,dueDateMillis,payDay,reminderDays,notes,paid")
+        appendLine("id,name,principal,remaining,dueDateMillis,payDay,installment,totalMonths,reminderDays,notes,paid")
         loans.forEach { l ->
             appendLine(
                 listOf(
                     l.id, csvCell(l.name), formatNum(l.principal), formatNum(l.remainingAmount),
-                    l.dueDateMillis, l.payDayOfMonth, l.reminderDaysBefore, csvCell(l.notes), l.isPaid
+                    l.dueDateMillis, l.payDayOfMonth, formatNum(l.installment), l.totalMonths,
+                    l.reminderDaysBefore, csvCell(l.notes), l.isPaid
                 ).joinToString(",")
             )
         }
@@ -59,6 +61,10 @@ object DataExport {
         appendLine("--- Categories ---")
         appendLine("id,name,type")
         categories.forEach { c -> appendLine(listOf(c.id, csvCell(c.name), c.type).joinToString(",")) }
+        appendLine()
+        appendLine("--- Financial Assets ---")
+        appendLine("type,quantityGrams")
+        financialAssets.forEach { a -> appendLine("${a.type},${formatNum(a.quantityGrams)}") }
     }
 
     fun toJson(
@@ -66,7 +72,8 @@ object DataExport {
         accounts: List<BankAccountEntity>,
         loans: List<LoanEntity>,
         categories: List<CategoryEntity>,
-        smsSenders: List<SmsSenderEntity> = emptyList()
+        smsSenders: List<SmsSenderEntity> = emptyList(),
+        financialAssets: List<FinancialAssetEntity> = emptyList()
     ): String = JSONObject().apply {
         put("transactions", JSONArray(transactions.map {
             JSONObject().apply {
@@ -79,7 +86,7 @@ object DataExport {
         put("bankAccounts", JSONArray(accounts.map {
             JSONObject().apply {
                 put("id", it.id); put("bankName", it.bankName); put("accountLabel", it.accountLabel)
-                put("balance", it.balance)
+                put("accountLast4", it.accountLast4); put("balance", it.balance)
             }
         }))
         put("loans", JSONArray(loans.map {
@@ -87,6 +94,7 @@ object DataExport {
                 put("id", it.id); put("name", it.name); put("principal", it.principal)
                 put("remainingAmount", it.remainingAmount); put("dueDateMillis", it.dueDateMillis)
                 put("payDayOfMonth", it.payDayOfMonth); put("reminderDaysBefore", it.reminderDaysBefore)
+                put("installment", it.installment); put("totalMonths", it.totalMonths)
                 put("notes", it.notes); put("isPaid", it.isPaid)
             }
         }))
@@ -98,6 +106,9 @@ object DataExport {
         }))
         put("categories", JSONArray(categories.map {
             JSONObject().apply { put("id", it.id); put("name", it.name); put("type", it.type.name) }
+        }))
+        put("financialAssets", JSONArray(financialAssets.map {
+            JSONObject().apply { put("type", it.type.name); put("quantityGrams", it.quantityGrams) }
         }))
     }.toString(2)
 
@@ -170,12 +181,20 @@ object DataExport {
                 type = enumValueOf<TxType>(o.optString("type", "EXPENSE"))
             )
         }
+        val financialAssets = (0 until arr("financialAssets").length()).map { i ->
+            val o = arr("financialAssets").getJSONObject(i)
+            FinancialAssetEntity(
+                type = enumValueOf<AssetType>(o.optString("type", "GOLD_18K")),
+                quantityGrams = o.optDouble("quantityGrams", 0.0)
+            )
+        }
         return FinanceRepository.ExportBundle(
             transactions = transactions,
             accounts = accounts,
             loans = loans,
             categories = categories,
-            smsSenders = smsSenders
+            smsSenders = smsSenders,
+            financialAssets = financialAssets
         )
     }
 
@@ -209,7 +228,7 @@ object DataExport {
         }
 
         val transactions = (rows["Transactions"] ?: emptyList()).map { fields ->
-            if (fields.size < 10) throw Exception("Invalid transaction row: expected 10 fields, got ${fields.size}")
+            if (fields.size < 7) throw Exception("Invalid transaction row: expected at least 7 fields, got ${fields.size}")
             TransactionEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 type = try { enumValueOf<TxType>(fields[1]) } catch (e: Exception) { TxType.EXPENSE },
@@ -218,26 +237,29 @@ object DataExport {
                 note = fields[4].removeSurrounding("\""),
                 dateMillis = fields[5].toLongOrNull() ?: 0L,
                 bankAccountId = if (fields[6].isEmpty()) null else fields[6].toLongOrNull(),
-                loanId = if (fields[7].isEmpty()) null else fields[7].toLongOrNull(),
-                source = try { enumValueOf<TxSource>(fields[8]) } catch (e: Exception) { TxSource.MANUAL },
-                rawSms = null,
-                balanceAfter = if (fields[9].isEmpty()) null else fields[9].removeSurrounding("\"").replace(",", "").toDoubleOrNull()
+                loanId = fields.getOrNull(7)?.takeIf { it.isNotEmpty() }?.toLongOrNull(),
+                source = try { enumValueOf<TxSource>(fields.getOrNull(8) ?: "MANUAL") } catch (e: Exception) { TxSource.MANUAL },
+                balanceAfter = fields.getOrNull(9)?.takeIf { it.isNotEmpty() }
+                    ?.removeSurrounding("\"")?.replace(",", "")?.toDoubleOrNull(),
+                rawSms = fields.getOrNull(10)?.takeIf { it.isNotEmpty() }?.removeSurrounding("\"")
             )
         }
 
         val accounts = (rows["Bank Accounts"] ?: emptyList()).map { fields ->
-            if (fields.size < 4) throw Exception("Invalid account row: expected 4 fields, got ${fields.size}")
+            if (fields.size < 4) throw Exception("Invalid account row: expected at least 4 fields, got ${fields.size}")
+            val hasLast4 = fields.size >= 5
             BankAccountEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 bankName = fields[1].removeSurrounding("\""),
                 accountLabel = fields[2].removeSurrounding("\""),
-                accountLast4 = "",
-                balance = fields[3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0
+                accountLast4 = if (hasLast4) fields[3].removeSurrounding("\"") else "",
+                balance = fields[if (hasLast4) 4 else 3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0
             )
         }
 
         val loans = (rows["Loans"] ?: emptyList()).map { fields ->
-            if (fields.size < 9) throw Exception("Invalid loan row: expected 9 fields, got ${fields.size}")
+            if (fields.size < 9) throw Exception("Invalid loan row: expected at least 9 fields, got ${fields.size}")
+            val hasNewLoanFields = fields.size >= 11
             LoanEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 name = fields[1].removeSurrounding("\""),
@@ -245,11 +267,11 @@ object DataExport {
                 remainingAmount = fields[3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
                 dueDateMillis = fields[4].toLongOrNull() ?: 0L,
                 payDayOfMonth = fields[5].toIntOrNull() ?: 1,
-                installment = 0.0,
-                totalMonths = 0,
-                reminderDaysBefore = fields[6].toIntOrNull() ?: 3,
-                notes = fields[7].removeSurrounding("\""),
-                isPaid = fields[8].toBoolean()
+                installment = if (hasNewLoanFields) fields[6].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0 else 0.0,
+                totalMonths = if (hasNewLoanFields) fields[7].toIntOrNull() ?: 0 else 0,
+                reminderDaysBefore = fields[if (hasNewLoanFields) 8 else 6].toIntOrNull() ?: 3,
+                notes = fields[if (hasNewLoanFields) 9 else 7].removeSurrounding("\""),
+                isPaid = fields[if (hasNewLoanFields) 10 else 8].toBoolean()
             )
         }
 
@@ -271,13 +293,21 @@ object DataExport {
                 type = try { enumValueOf<TxType>(fields[2]) } catch (e: Exception) { TxType.EXPENSE }
             )
         }
+        val financialAssets = (rows["Financial Assets"] ?: emptyList()).map { fields ->
+            require(fields.size >= 2) { "Invalid financial asset row" }
+            FinancialAssetEntity(
+                type = enumValueOf<AssetType>(fields[0]),
+                quantityGrams = fields[1].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0
+            )
+        }
 
         return FinanceRepository.ExportBundle(
             transactions = transactions,
             accounts = accounts,
             loans = loans,
             categories = categories,
-            smsSenders = smsSenders
+            smsSenders = smsSenders,
+            financialAssets = financialAssets
         )
     }
 
@@ -326,5 +356,7 @@ object DataExport {
         } else value
     }
 
-    private fun formatNum(v: Double): String = "%,.2f".format(java.util.Locale.US, v)
+    // Machine-readable CSV numbers: no grouping commas and no exponent notation.
+    private fun formatNum(v: Double): String =
+        java.math.BigDecimal.valueOf(v).stripTrailingZeros().toPlainString()
 }

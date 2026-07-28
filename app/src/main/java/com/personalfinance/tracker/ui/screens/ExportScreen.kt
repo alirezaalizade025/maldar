@@ -85,7 +85,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        share(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                        share(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders, bundle.financialAssets),
                             "text/csv", "maldar-export.csv")
                     }.onFailure { message = it.message }
                     busy = false
@@ -101,7 +101,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        share(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                        share(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders, bundle.financialAssets),
                             "application/json", "maldar-export.json")
                     }.onFailure { message = it.message }
                     busy = false
@@ -120,7 +120,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        saveToDevice(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                        saveToDevice(DataExport.toCsv(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders, bundle.financialAssets),
                             "text/csv", "maldar-export.csv")
                         message = AppStrings.savedToDownloads
                     }.onFailure { message = it.message }
@@ -137,7 +137,7 @@ fun ExportScreen(viewModel: FinanceViewModel, onClose: () -> Unit) {
                     busy = true
                     runCatching {
                         val bundle = viewModel.exportAll()
-                        saveToDevice(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders),
+                        saveToDevice(DataExport.toJson(bundle.transactions, bundle.accounts, bundle.loans, bundle.categories, bundle.smsSenders, bundle.financialAssets),
                             "application/json", "maldar-export.json")
                         message = AppStrings.savedToDownloads
                     }.onFailure { message = it.message }

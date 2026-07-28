@@ -9,6 +9,9 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun deleteBankAccount(account: BankAccountEntity) = db.bankAccountDao().delete(account)
     suspend fun getBankAccount(id: Long) = db.bankAccountDao().getById(id)
 
+    fun getFinancialAssets() = db.financialAssetDao().getAll()
+    suspend fun saveFinancialAsset(asset: FinancialAssetEntity) = db.financialAssetDao().upsert(asset)
+
     // SMS senders (dynamic list of numbers/ids to watch)
     fun getSmsSenders() = db.smsSenderDao().getAll()
     suspend fun getSmsSendersOnce() = db.smsSenderDao().getAllOnce()
@@ -68,11 +71,8 @@ class FinanceRepository(private val db: AppDatabase) {
     }
 
     suspend fun updateTransaction(tx: TransactionEntity) {
-        if (tx.bankAccountId != null && tx.balanceAfter != null) {
-            db.bankAccountDao().getById(tx.bankAccountId)?.let { account ->
-                db.bankAccountDao().update(account.copy(balance = tx.balanceAfter))
-            }
-        }
+        // balanceAfter is a historical snapshot belonging only to this transaction.
+        // Editing it must never rewrite the account's current live balance.
         db.transactionDao().update(tx)
     }
 
@@ -147,7 +147,8 @@ class FinanceRepository(private val db: AppDatabase) {
             accounts = db.bankAccountDao().getAllOnce(),
             loans = db.loanDao().getAllOnce(),
             categories = db.categoryDao().getAllOnce(),
-            smsSenders = db.smsSenderDao().getAllOnce()
+            smsSenders = db.smsSenderDao().getAllOnce(),
+            financialAssets = db.financialAssetDao().getAllOnce()
         )
     }
 
@@ -160,6 +161,7 @@ class FinanceRepository(private val db: AppDatabase) {
         bundle.categories.forEach { db.categoryDao().insert(it) }
         bundle.loans.forEach { db.loanDao().insert(it) }
         bundle.transactions.forEach { db.transactionDao().insert(it) }
+        bundle.financialAssets.forEach { db.financialAssetDao().upsert(it) }
     }
 
     // Wipes every table so an imported backup fully replaces current data.
@@ -169,6 +171,7 @@ class FinanceRepository(private val db: AppDatabase) {
         db.smsSenderDao().deleteAll()
         db.categoryDao().deleteAll()
         db.bankAccountDao().deleteAll()
+        db.financialAssetDao().deleteAll()
     }
 
     data class ExportBundle(
@@ -176,6 +179,7 @@ class FinanceRepository(private val db: AppDatabase) {
         val accounts: List<BankAccountEntity>,
         val loans: List<LoanEntity>,
         val categories: List<CategoryEntity>,
-        val smsSenders: List<SmsSenderEntity> = emptyList()
+        val smsSenders: List<SmsSenderEntity> = emptyList(),
+        val financialAssets: List<FinancialAssetEntity> = emptyList()
     )
 }

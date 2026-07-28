@@ -4,6 +4,21 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 @Dao
+interface FinancialAssetDao {
+    @Query("SELECT * FROM financial_assets ORDER BY type")
+    fun getAll(): Flow<List<FinancialAssetEntity>>
+
+    @Query("SELECT * FROM financial_assets ORDER BY type")
+    suspend fun getAllOnce(): List<FinancialAssetEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(asset: FinancialAssetEntity)
+
+    @Query("DELETE FROM financial_assets")
+    suspend fun deleteAll()
+}
+
+@Dao
 interface BankAccountDao {
     @Query("SELECT * FROM bank_accounts ORDER BY id DESC")
     fun getAll(): Flow<List<BankAccountEntity>>

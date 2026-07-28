@@ -26,11 +26,15 @@ import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
+import com.personalfinance.tracker.util.JalaliCalendar
 
 @Composable
 fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController? = null) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val senders by viewModel.smsSenders.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
+    val loans by viewModel.loans.collectAsState()
+    val currentMonthRange = remember { JalaliCalendar.jalaliMonthRange(java.util.Calendar.getInstance(), 0) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -107,6 +111,31 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                     Column {
                         Text(acc.accountLabel, fontWeight = FontWeight.Medium)
                         Text(acc.bankName, style = MaterialTheme.typography.labelSmall)
+                        val linkedLoanIds = transactions.asSequence()
+                            .filter { it.bankAccountId == acc.id && it.loanId != null }
+                            .mapNotNull { it.loanId }.toSet()
+                        val linkedLoans = loans.filter { it.id in linkedLoanIds && !it.isPaid }
+                        val paidThisMonth = transactions.filter {
+                            it.bankAccountId == acc.id && it.loanId != null &&
+                                it.dateMillis in currentMonthRange.first..currentMonthRange.second
+                        }.sumOf { it.amount }
+                        val installmentDue = linkedLoans.sumOf {
+                            (if (it.installment > 0.0) it.installment else it.remainingAmount)
+                                .coerceAtMost(it.remainingAmount)
+                        }
+                        Text(
+                            "${AppStrings.loansSummaryRemain}: ${Money.format2(linkedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            "${AppStrings.loanPaidThisMonth}: ${Money.format2(paidThisMonth)} ${AppStrings.moneyUnit}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            "${AppStrings.installmentRemainingThisMonth}: ${Money.format2((installmentDue - paidThisMonth).coerceAtLeast(0.0))} ${AppStrings.moneyUnit}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
@@ -315,7 +344,7 @@ private fun EditAccountDialog(
     var bankName by remember { mutableStateOf(account.bankName) }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf(account.accountLabel) }
-    var balance by remember { mutableStateOf(account.balance.toString()) }
+    var balance by remember { mutableStateOf(Money.input(account.balance)) }
 
     val accountSenders = allSenders.filter { it.bankAccountId == account.id }
     var senderQuery by remember { mutableStateOf("") }

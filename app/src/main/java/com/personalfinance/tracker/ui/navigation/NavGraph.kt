@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,7 @@ private val bottomItems = listOf(
     NavItem("loans", AppStrings.navLoans, Icons.Filled.Payments),
     NavItem("reports", AppStrings.navReports, Icons.Filled.Assessment),
     NavItem("bank_accounts", AppStrings.navAccounts, Icons.Filled.AccountBalance),
+    NavItem("financial_assets", AppStrings.navAssets, Icons.Filled.Savings),
 )
 
 // Wraps an overlay screen (export/import/settings/crash log) in an opaque,
@@ -208,6 +210,7 @@ fun NavGraph(
             composable("bank_accounts") { BankAccountsScreen(viewModel, navController = navController) }
             composable("loans") { LoansScreen(viewModel) }
             composable("reports") { ReportsScreen(viewModel) }
+            composable("financial_assets") { FinancialAssetsScreen(viewModel) }
             composable("account_sms/{accountId}") { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId")?.toLongOrNull() ?: 0L
                 val account = viewModel.bankAccounts.value.firstOrNull { it.id == accountId }

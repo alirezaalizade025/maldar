@@ -58,7 +58,7 @@ fun SettingsScreen(onClose: () -> Unit) {
                 TextButton(onClick = { showTimePicker = false }) { Text(AppStrings.cancel) }
             }
         ) {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 TimePicker(state = state)
             }
         }

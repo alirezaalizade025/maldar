@@ -31,6 +31,15 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     val loans: StateFlow<List<LoanEntity>> =
         repo.getLoans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val financialAssets: StateFlow<List<FinancialAssetEntity>> =
+        repo.getFinancialAssets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun saveFinancialAsset(type: AssetType, quantityGrams: Double) {
+        viewModelScope.launch {
+            repo.saveFinancialAsset(FinancialAssetEntity(type, quantityGrams.coerceAtLeast(0.0)))
+        }
+    }
+
     val expenseCategories: StateFlow<List<CategoryEntity>> =
         repo.getCategoriesByType(TxType.EXPENSE).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -91,11 +100,11 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     // Records a loan repayment as a transaction linked to the loan, and reduces the
     // loan's remaining balance by the paid amount.
-    fun payLoan(loan: LoanEntity, amount: Double, dateMillis: Long = System.currentTimeMillis()) {
+    fun payLoan(loan: LoanEntity, amount: Double, bankAccountId: Long? = null, dateMillis: Long = System.currentTimeMillis()) {
         viewModelScope.launch {
             val tx = TransactionEntity(
                 amount = amount, type = TxType.EXPENSE, category = "وام", note = loan.name,
-                dateMillis = dateMillis, bankAccountId = null, source = TxSource.MANUAL, loanId = loan.id
+                dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loan.id
             )
             repo.addTransaction(tx)
             val remaining = (loan.remainingAmount - amount).coerceAtLeast(0.0)

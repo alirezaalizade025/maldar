@@ -56,7 +56,14 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    JalaliCalendar.formatDate(System.currentTimeMillis()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            }
         }
 
         // First-launch onboarding: guide the user when the app is completely empty.
@@ -252,13 +259,13 @@ private fun EditTransactionDialog(
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit
 ) {
-    var amountText by remember { mutableStateOf(tx.amount.toString()) }
+    var amountText by remember { mutableStateOf(Money.input(tx.amount)) }
     var type by remember { mutableStateOf(tx.type) }
     var category by remember { mutableStateOf(tx.category) }
     var note by remember { mutableStateOf(tx.note) }
     var selectedAccountId by remember { mutableStateOf(tx.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
-    var remainderText by remember { mutableStateOf(tx.balanceAfter?.toString() ?: "") }
+    var remainderText by remember { mutableStateOf(tx.balanceAfter?.let(Money::input) ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
@@ -351,7 +358,7 @@ private fun SmsConfirmDialog(
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit
 ) {
-    var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
+    var amountText by remember { mutableStateOf(pending.parsedAmount?.let(Money::input) ?: "") }
     var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
     // Default to a generic category so Save never silently no-ops when the
     // categories table is empty (e.g. after a DB reset left it un-seeded).
@@ -360,7 +367,7 @@ private fun SmsConfirmDialog(
     var note by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf(pending.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
-    var remainderText by remember { mutableStateOf(pending.parsedBalance?.toString() ?: "") }
+    var remainderText by remember { mutableStateOf(pending.parsedBalance?.let(Money::input) ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

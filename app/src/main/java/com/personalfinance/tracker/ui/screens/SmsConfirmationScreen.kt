@@ -75,14 +75,14 @@ private fun ConfirmDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double, TxType, String, String, Double?) -> Unit
 ) {
-    var amountText by remember { mutableStateOf(pending.parsedAmount?.toString() ?: "") }
+    var amountText by remember { mutableStateOf(pending.parsedAmount?.let(Money::input) ?: "") }
     var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
     // Default to the first matching category; if none exist (e.g. the categories
     // table is empty) fall back to the generic "سایر" so Save never silently no-ops.
     val fallbackCategory = if (type == TxType.EXPENSE) "سایر" else "سایر"
     var category by remember { mutableStateOf(fallbackCategory) }
     var note by remember { mutableStateOf("") }
-    var remainderText by remember { mutableStateOf(pending.parsedBalance?.toString() ?: "") }
+    var remainderText by remember { mutableStateOf(pending.parsedBalance?.let(Money::input) ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -51,9 +51,18 @@ class JalaliCalendarTest {
 
     @Test
     fun currentDate_roundTrip_matchesReference() {
-        // Guard against the year-offset regression: 2026-07-18 -> 1405/04/26.
+        // Guard against the year-offset regression: 2026-07-18 -> 1405/04/27.
         val j = JalaliCalendar.fromGregorian(GregorianCalendar(2026, 6, 18))
-        assertEquals(1405, j.year); assertEquals(4, j.month); assertEquals(26, j.day)
+        assertEquals(1405, j.year); assertEquals(4, j.month); assertEquals(27, j.day)
+    }
+
+    @Test
+    fun mordadSix2026_isNotOneDayBehind() {
+        // 28 July 2026 is 6 Mordad 1405 in Iran.
+        val j = JalaliCalendar.fromGregorian(GregorianCalendar(2026, 6, 28))
+        assertEquals(1405, j.year)
+        assertEquals(5, j.month)
+        assertEquals(6, j.day)
     }
 
     @Test
@@ -82,5 +91,15 @@ class JalaliCalendarTest {
     fun monthRange_startBeforeEnd() {
         val (start, end) = JalaliCalendar.jalaliMonthRange(Calendar.getInstance(), 0)
         assertTrue(start <= end)
+    }
+
+    @Test
+    fun jalaliMonthRange_startsOnFirstOfJalaliMonth() {
+        val base = GregorianCalendar(2026, 6, 28)
+        val (start, end) = JalaliCalendar.jalaliMonthRange(base, 0)
+        val startJ = JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = start })
+        val endJ = JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = end })
+        assertEquals(1, startJ.day)
+        assertEquals(startJ.month, endJ.month)
     }
 }

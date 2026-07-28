@@ -7,6 +7,7 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.migration.Migration
 import java.io.File
 
 class Converters {
@@ -24,6 +25,10 @@ class Converters {
     fun fromPendingStatus(value: PendingStatus): String = value.name
     @TypeConverter
     fun toPendingStatus(value: String): PendingStatus = PendingStatus.valueOf(value)
+    @TypeConverter
+    fun fromAssetType(value: AssetType): String = value.name
+    @TypeConverter
+    fun toAssetType(value: String): AssetType = AssetType.valueOf(value)
 }
 
 @Database(
@@ -33,9 +38,10 @@ class Converters {
         TransactionEntity::class,
         PendingSmsEntity::class,
         LoanEntity::class,
-        CategoryEntity::class
+        CategoryEntity::class,
+        FinancialAssetEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -46,11 +52,20 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingSmsDao(): PendingSmsDao
     abstract fun loanDao(): LoanDao
     abstract fun categoryDao(): CategoryDao
+    abstract fun financialAssetDao(): FinancialAssetDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
         private const val DB_NAME = "maldar.db"
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS financial_assets " +
+                        "(type TEXT NOT NULL, quantityGrams REAL NOT NULL, PRIMARY KEY(type))"
+                )
+            }
+        }
 
         private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
         private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
@@ -65,6 +80,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // requiring a hand-written migration. Fine for this use case; revisit if you
                 // need to preserve data across every future update.
                 .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_7_8)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)
