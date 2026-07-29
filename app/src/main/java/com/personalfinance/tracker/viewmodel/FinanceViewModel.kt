@@ -34,10 +34,23 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     val financialAssets: StateFlow<List<FinancialAssetEntity>> =
         repo.getFinancialAssets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val stockAssets: StateFlow<List<StockAssetEntity>> =
+        repo.getStockAssets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     fun saveFinancialAsset(type: AssetType, quantityGrams: Double) {
         viewModelScope.launch {
             repo.saveFinancialAsset(FinancialAssetEntity(type, quantityGrams.coerceAtLeast(0.0)))
         }
+    }
+
+    suspend fun saveStockAsset(asset: StockAssetEntity) {
+        require(asset.quantity > 0.0) { "Stock quantity must be positive." }
+        require(asset.buyPriceToman > 0.0) { "Stock buy price must be positive." }
+        repo.saveStockAsset(asset)
+    }
+
+    fun deleteStockAsset(asset: StockAssetEntity) {
+        viewModelScope.launch { repo.deleteStockAsset(asset) }
     }
 
     val expenseCategories: StateFlow<List<CategoryEntity>> =

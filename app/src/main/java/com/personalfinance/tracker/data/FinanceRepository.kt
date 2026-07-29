@@ -13,6 +13,9 @@ class FinanceRepository(private val db: AppDatabase) {
 
     fun getFinancialAssets() = db.financialAssetDao().getAll()
     suspend fun saveFinancialAsset(asset: FinancialAssetEntity) = db.financialAssetDao().upsert(asset)
+    fun getStockAssets() = db.stockAssetDao().getAll()
+    suspend fun saveStockAsset(asset: StockAssetEntity) = db.stockAssetDao().upsert(asset)
+    suspend fun deleteStockAsset(asset: StockAssetEntity) = db.stockAssetDao().delete(asset)
 
     // SMS senders (dynamic list of numbers/ids to watch)
     fun getSmsSenders() = db.smsSenderDao().getAll()
@@ -148,7 +151,8 @@ class FinanceRepository(private val db: AppDatabase) {
             loans = db.loanDao().getAllOnce(),
             categories = db.categoryDao().getAllOnce(),
             smsSenders = db.smsSenderDao().getAllOnce(),
-            financialAssets = db.financialAssetDao().getAllOnce()
+            financialAssets = db.financialAssetDao().getAllOnce(),
+            stockAssets = db.stockAssetDao().getAllOnce()
         )
     }
 
@@ -165,6 +169,7 @@ class FinanceRepository(private val db: AppDatabase) {
             bundle.loans.forEach { db.loanDao().insert(it) }
             bundle.transactions.forEach { db.transactionDao().insert(it) }
             bundle.financialAssets.forEach { db.financialAssetDao().upsert(it) }
+            bundle.stockAssets.forEach { db.stockAssetDao().upsert(it) }
         }
     }
 
@@ -176,6 +181,7 @@ class FinanceRepository(private val db: AppDatabase) {
         db.categoryDao().deleteAll()
         db.bankAccountDao().deleteAll()
         db.financialAssetDao().deleteAll()
+        db.stockAssetDao().deleteAll()
     }
 
     data class ExportBundle(
@@ -184,6 +190,7 @@ class FinanceRepository(private val db: AppDatabase) {
         val loans: List<LoanEntity>,
         val categories: List<CategoryEntity>,
         val smsSenders: List<SmsSenderEntity> = emptyList(),
-        val financialAssets: List<FinancialAssetEntity> = emptyList()
+        val financialAssets: List<FinancialAssetEntity> = emptyList(),
+        val stockAssets: List<StockAssetEntity> = emptyList()
     )
 }

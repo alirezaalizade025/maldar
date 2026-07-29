@@ -14,6 +14,19 @@ data class FinancialAssetEntity(
     val quantityGrams: Double = 0.0
 )
 
+@Entity(tableName = "stock_assets")
+data class StockAssetEntity(
+    @PrimaryKey val instrumentCode: String,
+    val symbol: String,
+    val name: String,
+    val quantity: Double,
+    // User-entered average purchase price per share. All app money is Toman.
+    val buyPriceToman: Double,
+    // TSETMC publishes Rial; the service converts it to Toman before persistence.
+    val lastPriceToman: Double? = null,
+    val lastPriceUpdatedAt: Long? = null
+)
+
 @Entity(tableName = "bank_accounts")
 data class BankAccountEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

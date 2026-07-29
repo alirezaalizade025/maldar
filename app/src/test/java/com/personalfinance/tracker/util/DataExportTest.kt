@@ -33,13 +33,29 @@ class DataExportTest {
             bankAccountId = 3,
             notes = "توضیح\nوام"
         )
+        val stock = StockAssetEntity(
+            instrumentCode = "2400322364771558",
+            symbol = "شستا",
+            name = "سرمایه گذاری تامین اجتماعی",
+            quantity = 12_345.0,
+            buyPriceToman = 210.5,
+            lastPriceToman = 229.3,
+            lastPriceUpdatedAt = 999L
+        )
 
-        val csv = DataExport.toCsv(listOf(tx), listOf(account), listOf(loan), emptyList())
+        val csv = DataExport.toCsv(
+            listOf(tx),
+            listOf(account),
+            listOf(loan),
+            emptyList(),
+            stockAssets = listOf(stock)
+        )
         val restored = DataExport.fromCsv(csv)
 
         assertEquals(tx, restored.transactions.single())
         assertEquals(account, restored.accounts.single())
         assertEquals(loan, restored.loans.single())
+        assertEquals(stock, restored.stockAssets.single())
     }
 
     @Test
@@ -54,5 +70,29 @@ class DataExportTest {
         assertEquals(1_234_567.0, restored.amount, 0.0)
         assertEquals(9_876_543.0, restored.balanceAfter ?: 0.0, 0.0)
         assertTrue(restored.rawSms == null)
+    }
+
+    @Test
+    fun json_roundTrip_preservesStockAssetDetails() {
+        val stock = StockAssetEntity(
+            instrumentCode = "2400322364771558",
+            symbol = "شستا",
+            name = "سرمایه گذاری تامین اجتماعی",
+            quantity = 1000.0,
+            buyPriceToman = 200.0,
+            lastPriceToman = 229.3,
+            lastPriceUpdatedAt = 123456L
+        )
+
+        val json = DataExport.toJson(
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            emptyList(),
+            stockAssets = listOf(stock)
+        )
+        val restored = DataExport.fromJson(json)
+
+        assertEquals(stock, restored.stockAssets.single())
     }
 }

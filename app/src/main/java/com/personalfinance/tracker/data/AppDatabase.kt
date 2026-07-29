@@ -39,9 +39,10 @@ class Converters {
         PendingSmsEntity::class,
         LoanEntity::class,
         CategoryEntity::class,
-        FinancialAssetEntity::class
+        FinancialAssetEntity::class,
+        StockAssetEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -53,6 +54,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun loanDao(): LoanDao
     abstract fun categoryDao(): CategoryDao
     abstract fun financialAssetDao(): FinancialAssetDao
+    abstract fun stockAssetDao(): StockAssetDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -71,6 +73,21 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE loans ADD COLUMN bankAccountId INTEGER")
             }
         }
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS stock_assets (" +
+                        "instrumentCode TEXT NOT NULL, " +
+                        "symbol TEXT NOT NULL, " +
+                        "name TEXT NOT NULL, " +
+                        "quantity REAL NOT NULL, " +
+                        "buyPriceToman REAL NOT NULL, " +
+                        "lastPriceToman REAL, " +
+                        "lastPriceUpdatedAt INTEGER, " +
+                        "PRIMARY KEY(instrumentCode))"
+                )
+            }
+        }
 
         private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
         private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
@@ -81,11 +98,10 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DB_NAME
             )
-                // Personal, sideloaded app - a schema bump just resets local data rather than
-                // requiring a hand-written migration. Fine for this use case; revisit if you
-                // need to preserve data across every future update.
+                // Known schema upgrades use explicit migrations. The destructive
+                // fallback only covers unsupported legacy versions or corrupt data.
                 .fallbackToDestructiveMigration()
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

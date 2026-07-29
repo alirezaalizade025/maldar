@@ -20,7 +20,8 @@ object DataExport {
         loans: List<LoanEntity>,
         categories: List<CategoryEntity>,
         smsSenders: List<SmsSenderEntity> = emptyList(),
-        financialAssets: List<FinancialAssetEntity> = emptyList()
+        financialAssets: List<FinancialAssetEntity> = emptyList(),
+        stockAssets: List<StockAssetEntity> = emptyList()
     ): String = buildString {
         appendLine("--- Transactions ---")
         appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms")
@@ -65,6 +66,22 @@ object DataExport {
         appendLine("--- Financial Assets ---")
         appendLine("type,quantityGrams")
         financialAssets.forEach { a -> appendLine("${a.type},${formatNum(a.quantityGrams)}") }
+        appendLine()
+        appendLine("--- Stock Assets ---")
+        appendLine("instrumentCode,symbol,name,quantity,buyPriceToman,lastPriceToman,lastPriceUpdatedAt")
+        stockAssets.forEach { stock ->
+            appendLine(
+                listOf(
+                    csvCell(stock.instrumentCode),
+                    csvCell(stock.symbol),
+                    csvCell(stock.name),
+                    formatNum(stock.quantity),
+                    formatNum(stock.buyPriceToman),
+                    stock.lastPriceToman?.let(::formatNum) ?: "",
+                    stock.lastPriceUpdatedAt ?: ""
+                ).joinToString(",")
+            )
+        }
     }
 
     fun toJson(
@@ -73,7 +90,8 @@ object DataExport {
         loans: List<LoanEntity>,
         categories: List<CategoryEntity>,
         smsSenders: List<SmsSenderEntity> = emptyList(),
-        financialAssets: List<FinancialAssetEntity> = emptyList()
+        financialAssets: List<FinancialAssetEntity> = emptyList(),
+        stockAssets: List<StockAssetEntity> = emptyList()
     ): String = JSONObject().apply {
         put("transactions", JSONArray(transactions.map {
             JSONObject().apply {
@@ -116,6 +134,17 @@ object DataExport {
         }))
         put("financialAssets", JSONArray(financialAssets.map {
             JSONObject().apply { put("type", it.type.name); put("quantityGrams", it.quantityGrams) }
+        }))
+        put("stockAssets", JSONArray(stockAssets.map {
+            JSONObject().apply {
+                put("instrumentCode", it.instrumentCode)
+                put("symbol", it.symbol)
+                put("name", it.name)
+                put("quantity", it.quantity)
+                put("buyPriceToman", it.buyPriceToman)
+                put("lastPriceToman", it.lastPriceToman)
+                put("lastPriceUpdatedAt", it.lastPriceUpdatedAt)
+            }
         }))
     }.toString(2)
 
@@ -196,13 +225,26 @@ object DataExport {
                 quantityGrams = o.optDouble("quantityGrams", 0.0)
             )
         }
+        val stockAssets = (0 until arr("stockAssets").length()).map { i ->
+            val o = arr("stockAssets").getJSONObject(i)
+            StockAssetEntity(
+                instrumentCode = o.optString("instrumentCode", ""),
+                symbol = o.optString("symbol", ""),
+                name = o.optString("name", ""),
+                quantity = o.optDouble("quantity", 0.0),
+                buyPriceToman = o.optDouble("buyPriceToman", 0.0),
+                lastPriceToman = if (o.isNull("lastPriceToman")) null else o.optDouble("lastPriceToman"),
+                lastPriceUpdatedAt = if (o.isNull("lastPriceUpdatedAt")) null else o.optLong("lastPriceUpdatedAt")
+            )
+        }
         return FinanceRepository.ExportBundle(
             transactions = transactions,
             accounts = accounts,
             loans = loans,
             categories = categories,
             smsSenders = smsSenders,
-            financialAssets = financialAssets
+            financialAssets = financialAssets,
+            stockAssets = stockAssets
         )
     }
 
@@ -236,7 +278,15 @@ object DataExport {
                 }
             }
         }
-        val knownSections = setOf("Transactions", "Bank Accounts", "Loans", "SMS Senders", "Categories", "Financial Assets")
+        val knownSections = setOf(
+            "Transactions",
+            "Bank Accounts",
+            "Loans",
+            "SMS Senders",
+            "Categories",
+            "Financial Assets",
+            "Stock Assets"
+        )
         require(rows.keys.any { it in knownSections }) { "No supported CSV sections were found" }
 
         val transactionWidth = headers["Transactions"]?.size ?: 11
@@ -334,6 +384,21 @@ object DataExport {
                 quantityGrams = fields[1].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0
             )
         }
+        val stockWidth = headers["Stock Assets"]?.size ?: 7
+        val stockAssets = (rows["Stock Assets"] ?: emptyList()).map { rawFields ->
+            val fields = normalizeLegacyGroupedNumbers(rawFields, stockWidth, setOf(3, 4, 5))
+            require(fields.size >= 5) { "Invalid stock asset row" }
+            StockAssetEntity(
+                instrumentCode = fields[0].removeSurrounding("\""),
+                symbol = fields[1].removeSurrounding("\""),
+                name = fields[2].removeSurrounding("\""),
+                quantity = fields[3].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
+                buyPriceToman = fields[4].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0,
+                lastPriceToman = fields.getOrNull(5)?.takeIf { it.isNotEmpty() }
+                    ?.removeSurrounding("\"")?.replace(",", "")?.toDoubleOrNull(),
+                lastPriceUpdatedAt = fields.getOrNull(6)?.takeIf { it.isNotEmpty() }?.toLongOrNull()
+            )
+        }
 
         return FinanceRepository.ExportBundle(
             transactions = transactions,
@@ -341,7 +406,8 @@ object DataExport {
             loans = loans,
             categories = categories,
             smsSenders = smsSenders,
-            financialAssets = financialAssets
+            financialAssets = financialAssets,
+            stockAssets = stockAssets
         )
     }
 
@@ -445,7 +511,8 @@ object DataExport {
                line.startsWith("type,") ||
                line.startsWith("bankName,") ||
                line.startsWith("name,") ||
-               line.startsWith("senderId,")
+               line.startsWith("senderId,") ||
+               line.startsWith("instrumentCode,")
     }
 
     private fun csvCell(value: String): String {

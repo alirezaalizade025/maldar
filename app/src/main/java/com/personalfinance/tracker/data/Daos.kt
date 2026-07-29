@@ -19,6 +19,24 @@ interface FinancialAssetDao {
 }
 
 @Dao
+interface StockAssetDao {
+    @Query("SELECT * FROM stock_assets ORDER BY symbol")
+    fun getAll(): Flow<List<StockAssetEntity>>
+
+    @Query("SELECT * FROM stock_assets ORDER BY symbol")
+    suspend fun getAllOnce(): List<StockAssetEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(asset: StockAssetEntity)
+
+    @Delete
+    suspend fun delete(asset: StockAssetEntity)
+
+    @Query("DELETE FROM stock_assets")
+    suspend fun deleteAll()
+}
+
+@Dao
 interface BankAccountDao {
     @Query("SELECT * FROM bank_accounts ORDER BY id DESC")
     fun getAll(): Flow<List<BankAccountEntity>>
