@@ -20,6 +20,7 @@ import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.Digits
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
@@ -62,7 +63,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                                 accounts.forEach { acc ->
                                     val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
                                     if (accSenders.isNotEmpty()) {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders)
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
                                         if (res.amount != null) {
                                             viewModel.updateBankAccount(acc.copy(balance = res.amount))
                                             updated++
@@ -111,20 +112,32 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                     Column {
                         Text(acc.accountLabel, fontWeight = FontWeight.Medium)
                         Text(acc.bankName, style = MaterialTheme.typography.labelSmall)
-                        val linkedLoanIds = transactions.asSequence()
-                            .filter { it.bankAccountId == acc.id && it.loanId != null }
-                            .mapNotNull { it.loanId }.toSet()
-                        val linkedLoans = loans.filter { it.id in linkedLoanIds && !it.isPaid }
+                        if (acc.accountLast4.isNotBlank()) {
+                            Text(
+                                "${AppStrings.cardEnding}: •••• ${acc.accountLast4}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                        val attachedLoans = loans.filter { it.bankAccountId == acc.id }
+                        val activeAttachedLoans = attachedLoans.filter { !it.isPaid }
                         val paidThisMonth = transactions.filter {
                             it.bankAccountId == acc.id && it.loanId != null &&
                                 it.dateMillis in currentMonthRange.first..currentMonthRange.second
                         }.sumOf { it.amount }
-                        val installmentDue = linkedLoans.sumOf {
+                        val installmentDue = activeAttachedLoans.sumOf {
                             (if (it.installment > 0.0) it.installment else it.remainingAmount)
                                 .coerceAtMost(it.remainingAmount)
                         }
                         Text(
-                            "${AppStrings.loansSummaryRemain}: ${Money.format2(linkedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
+                            "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            "${AppStrings.payableThisMonth}: ${Money.format2(installmentDue)} ${AppStrings.moneyUnit}",
                             style = MaterialTheme.typography.labelSmall
                         )
                         Text(
@@ -162,7 +175,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                                         if (accSenders.isEmpty()) { message = AppStrings.refreshFailed; return@DropdownMenuItem }
                                         refreshingId = acc.id
                                         scope.launch {
-                                            val res = SmsInboxReader.lastSmsForSenders(context, accSenders)
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
                                             if (res.amount != null) {
                                                 viewModel.updateBankAccount(acc.copy(balance = res.amount))
                                                 message = AppStrings.refreshDone
@@ -194,8 +207,8 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     androidx.compose.material3.SnackbarHost(hostState = snackbarHostState)
 
     if (showAddAccount) {
-        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, bal, senders ->
-            viewModel.addBankAccount(bank, label, bal) { accountId ->
+        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senders ->
+            viewModel.addBankAccount(bank, label, bal, last4) { accountId ->
                 senders.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
             }
             showAddAccount = false
@@ -203,24 +216,30 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     }
 
     showEditAccount?.let { acc ->
-        EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, bal ->
-            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, balance = bal))
+        EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, last4, bal ->
+            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, accountLast4 = last4, balance = bal))
             showEditAccount = null
         })
     }
 }
 
 @Composable
-private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit, onAdd: (String, String, Double, List<String>) -> Unit) {
+private fun AddAccountDialog(
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit,
+    onAdd: (String, String, String, Double, List<String>) -> Unit
+) {
     var bankName by remember { mutableStateOf("") }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
+    var accountLast4 by remember { mutableStateOf("") }
+    var last4Error by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     val allSenders by viewModel.smsSenders.collectAsState()
     val detectedSenders = remember {
-        SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
+        SmsInboxReader.recentSenders(context)
     }
     var addedSenders by remember { mutableStateOf<List<SmsInboxReader.DetectedSender>>(emptyList()) }
     var senderQuery by remember { mutableStateOf("") }
@@ -247,6 +266,19 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
+                OutlinedTextField(
+                    value = accountLast4,
+                    onValueChange = {
+                        accountLast4 = Digits.toEnglish(it).filter(Char::isDigit).take(4)
+                        last4Error = false
+                    },
+                    label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") },
+                    isError = last4Error,
+                    supportingText = {
+                        Text(if (last4Error) AppStrings.last4Invalid else AppStrings.last4Hint)
+                    },
+                    singleLine = true
+                )
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = sanitizeNumberInput(it) },
@@ -322,9 +354,11 @@ private fun AddAccountDialog(viewModel: FinanceViewModel, onDismiss: () -> Unit,
             TextButton(onClick = {
                 if (bankName.isBlank()) {
                     bankNameError = true
+                } else if (accountLast4.isNotEmpty() && accountLast4.length != 4) {
+                    last4Error = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onAdd(bankName, finalLabel, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.address })
+                    onAdd(bankName, finalLabel, accountLast4, balance.toDoubleOrNull() ?: 0.0, addedSenders.map { it.address })
                 }
             }) { Text(AppStrings.add) }
         },
@@ -339,18 +373,20 @@ private fun EditAccountDialog(
     context: android.content.Context,
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit,
-    onSave: (String, String, Double) -> Unit
+    onSave: (String, String, String, Double) -> Unit
 ) {
     var bankName by remember { mutableStateOf(account.bankName) }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf(account.accountLabel) }
     var balance by remember { mutableStateOf(Money.input(account.balance)) }
+    var accountLast4 by remember { mutableStateOf(account.accountLast4) }
+    var last4Error by remember { mutableStateOf(false) }
 
     val accountSenders = allSenders.filter { it.bankAccountId == account.id }
     var senderQuery by remember { mutableStateOf("") }
     var senderMenuExpanded by remember { mutableStateOf(false) }
     val detectedSenders = remember {
-        SmsInboxReader.recentSenders(context, exclude = allSenders.map { it.senderId }.toSet())
+        SmsInboxReader.recentSenders(context)
     }
     val filteredSenders = remember(senderQuery, detectedSenders, accountSenders) {
         detectedSenders.filter { ds ->
@@ -373,6 +409,19 @@ private fun EditAccountDialog(
                     supportingText = if (bankNameError) { { Text(AppStrings.requiredField) } } else null
                 )
                 OutlinedTextField(value = label, onValueChange = { label = it }, label = { Text(AppStrings.label + " (" + AppStrings.optional + ")") })
+                OutlinedTextField(
+                    value = accountLast4,
+                    onValueChange = {
+                        accountLast4 = Digits.toEnglish(it).filter(Char::isDigit).take(4)
+                        last4Error = false
+                    },
+                    label = { Text(AppStrings.last4 + " (" + AppStrings.optional + ")") },
+                    isError = last4Error,
+                    supportingText = {
+                        Text(if (last4Error) AppStrings.last4Invalid else AppStrings.last4Hint)
+                    },
+                    singleLine = true
+                )
                 OutlinedTextField(
                     value = balance,
                     onValueChange = { balance = sanitizeNumberInput(it) },
@@ -444,9 +493,11 @@ private fun EditAccountDialog(
             TextButton(onClick = {
                 if (bankName.isBlank()) {
                     bankNameError = true
+                } else if (accountLast4.isNotEmpty() && accountLast4.length != 4) {
+                    last4Error = true
                 } else {
                     val finalLabel = label.ifBlank { bankName }
-                    onSave(bankName, finalLabel, balance.toDoubleOrNull() ?: 0.0)
+                    onSave(bankName, finalLabel, accountLast4, balance.toDoubleOrNull() ?: 0.0)
                 }
             }) { Text(AppStrings.save) }
         },

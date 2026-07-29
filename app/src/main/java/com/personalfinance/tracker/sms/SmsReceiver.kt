@@ -39,14 +39,13 @@ class SmsReceiver : BroadcastReceiver() {
     private suspend fun handleIncomingSms(context: Context, sender: String, body: String, timestampMillis: Long) {
         val db = AppDatabase.getInstance(context)
         val watchedSenders = db.smsSenderDao().getAllOnce()
+        val accounts = db.bankAccountDao().getAllOnce()
 
         // Match sender against the user's dynamically-added list.
         // Matching is loose (contains) since banks often send from short codes or
         // varying formats like "AD-HDFCBK", "HDFCBK", or a plain phone number.
-        val matched = watchedSenders.firstOrNull { watched ->
-            sender.contains(watched.senderId, ignoreCase = true) ||
-                watched.senderId.contains(sender, ignoreCase = true)
-        } ?: return // sender not in the watched list -> ignore entirely
+        val matched = SmsAccountMatcher.match(sender, body, watchedSenders, accounts)
+            ?: return
 
         // Capture every SMS from a watched sender. We no longer pre-filter on
         // keywords/amounts here: the user reviews each one manually, so a missed

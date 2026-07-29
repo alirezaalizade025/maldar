@@ -47,10 +47,21 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         repo.getCategoriesByType(TxType.INCOME).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ---- Bank accounts ----
-    fun addBankAccount(bankName: String, label: String, openingBalance: Double, onCreated: (Long) -> Unit = {}) {
+    fun addBankAccount(
+        bankName: String,
+        label: String,
+        openingBalance: Double,
+        accountLast4: String = "",
+        onCreated: (Long) -> Unit = {}
+    ) {
         viewModelScope.launch {
             val id = repo.addBankAccount(
-                BankAccountEntity(bankName = bankName, accountLabel = label, accountLast4 = "", balance = openingBalance)
+                BankAccountEntity(
+                    bankName = bankName,
+                    accountLabel = label,
+                    accountLast4 = accountLast4,
+                    balance = openingBalance
+                )
             )
             onCreated(id)
         }
@@ -159,24 +170,44 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     fun deletePendingSms(pending: PendingSmsEntity) = viewModelScope.launch { repo.deletePendingSms(pending) }
 
     // ---- Loans ----
-    fun addLoan(name: String, principal: Double, dueDateMillis: Long, installment: Double, totalMonths: Int, reminderDaysBefore: Int, notes: String) {
+    fun addLoan(
+        name: String,
+        principal: Double,
+        dueDateMillis: Long,
+        installment: Double,
+        totalMonths: Int,
+        bankAccountId: Long?,
+        reminderDaysBefore: Int,
+        notes: String
+    ) {
         viewModelScope.launch {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
                     dueDateMillis = dueDateMillis, installment = installment, totalMonths = totalMonths,
+                    bankAccountId = bankAccountId,
                     reminderDaysBefore = reminderDaysBefore, notes = notes
                 )
             )
         }
     }
-    fun addLoan(name: String, principal: Double, payDayOfMonth: Int, installment: Double, totalMonths: Int, reminderDaysBefore: Int, notes: String) {
+    fun addLoan(
+        name: String,
+        principal: Double,
+        payDayOfMonth: Int,
+        installment: Double,
+        totalMonths: Int,
+        bankAccountId: Long?,
+        reminderDaysBefore: Int,
+        notes: String
+    ) {
         viewModelScope.launch {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
                     dueDateMillis = JalaliCalendar.nextDueDateMillis(payDayOfMonth),
                     payDayOfMonth = payDayOfMonth, installment = installment, totalMonths = totalMonths,
+                    bankAccountId = bankAccountId,
                     reminderDaysBefore = reminderDaysBefore, notes = notes
                 )
             )

@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.AssetType
@@ -19,9 +18,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
     val assets by viewModel.financialAssets.collectAsState()
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("metal_prices", 0) }
-    var apiKey by remember { mutableStateOf(prefs.getString("brs_api_key", "") ?: "") }
     var goldAmount by remember(assets) {
         mutableStateOf(assets.firstOrNull { it.type == AssetType.GOLD_18K }?.quantityGrams?.let(Money::input) ?: "")
     }
@@ -34,16 +30,17 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
     val scope = rememberCoroutineScope()
 
     fun refresh() {
-        prefs.edit().putString("brs_api_key", apiKey.trim()).apply()
         loading = true
         error = null
         scope.launch {
-            runCatching { MetalPriceService.fetch(apiKey.trim()) }
+            runCatching { MetalPriceService.fetch() }
                 .onSuccess { prices = it }
                 .onFailure { error = it.message ?: AppStrings.assetPriceFailed }
             loading = false
         }
     }
+
+    LaunchedEffect(Unit) { refresh() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -52,13 +49,6 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
         item { Text(AppStrings.financialAssets, style = MaterialTheme.typography.headlineMedium) }
         item {
             Text(AppStrings.assetsHint, style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text(AppStrings.brsApiKey) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
         }
         item {
             AssetEditor(AppStrings.gold18, goldAmount, prices?.gold18TomanPerGram) { goldAmount = it }
@@ -73,7 +63,7 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
                     viewModel.saveFinancialAsset(AssetType.SILVER_999, silverAmount.toDoubleOrNull() ?: 0.0)
                     refresh()
                 },
-                enabled = !loading && apiKey.isNotBlank(),
+                enabled = !loading,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

@@ -83,6 +83,9 @@ object AppStrings {
     val bankName = "نام بانک (مثل ملی)"
     val label = "برچسب (مثل حساب جاری)"
     val last4 = "۴ رقم آخر"
+    val last4Hint = "برای جدا کردن حساب‌هایی که فرستنده پیامک مشترک دارند"
+    val last4Invalid = "باید دقیقاً ۴ رقم باشد"
+    val cardEnding = "پایان کارت"
     val openingBalance = "موجودی اولیه (تومان)"
     val edit = "ویرایش"
     val refresh = "به‌روزرسانی از پیامک"
@@ -101,6 +104,8 @@ object AppStrings {
     val showSms = "نمایش پیامک‌ها"
     val accountActions = "عملیات حساب"
     val installmentRemainingThisMonth = "مانده قسط این ماه"
+    val attachedLoansTotal = "مجموع وام‌های متصل"
+    val payableThisMonth = "قابل پرداخت این ماه"
     val smsList = "پیامک‌های حساب"
     val noSmsForAccount = "پیامکی از فرستندگان این حساب یافت نشد."
     val noSendersForAccount = "برای این حساب فرستنده پیامکی تنظیم نشده است."
@@ -123,6 +128,7 @@ object AppStrings {
     val loanMonthsLeft = "ماه باقی‌مانده"
     val loanProjection = "نمودار پیش‌بینی باقی‌مانده"
     val loanPayDay = "روز پرداخت ماهانه"
+    val loanAccount = "حساب پرداخت اقساط"
     val loansHint = "پیش از هر سررسید به شما یادآوری می‌شود."
     val noLoans = "هنوز وامی ثبت نشده است."
     val paid = "پرداخت شد"
@@ -163,6 +169,7 @@ object AppStrings {
     val viewByPercent = "نمایش به درصد"
     val more = "بیشتر"
     val noExpenses = "امسال هزینه‌ای ثبت نشده است."
+    val totalExpenses = "مجموع هزینه‌ها"
 
     // SMS confirmation
     val confirmSms = "تایید تراکنش‌های پیامکی"
@@ -229,7 +236,7 @@ object AppStrings {
     val dailyReminderOn = "روشن"
 
     val financialAssets = "دارایی‌های مالی"
-    val assetsHint = "وزن را به گرم وارد کنید. قیمت طلای ۱۸ عیار ایران و نقره ۹۹۹ از BRS دریافت می‌شود."
+    val assetsHint = "وزن را به گرم وارد کنید. قیمت رایگان طلای ۱۸ عیار و نقره ۹۹۹ از TGJU دریافت می‌شود."
     val gold18 = "طلای ۱۸ عیار"
     val silver999 = "نقره ۹۹۹"
     val weightGrams = "وزن (گرم)"
@@ -237,7 +244,6 @@ object AppStrings {
     val assetValue = "ارزش دارایی"
     val assetsTotal = "ارزش کل طلا و نقره"
     val lastPriceUpdate = "آخرین به‌روزرسانی"
-    val brsApiKey = "کلید رایگان BRS API"
     val saveAndRefresh = "ذخیره و دریافت قیمت"
     val assetPriceFailed = "دریافت قیمت انجام نشد"
 }

@@ -41,7 +41,7 @@ class Converters {
         CategoryEntity::class,
         FinancialAssetEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -66,6 +66,11 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE loans ADD COLUMN bankAccountId INTEGER")
+            }
+        }
 
         private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
         private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
@@ -80,7 +85,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // requiring a hand-written migration. Fine for this use case; revisit if you
                 // need to preserve data across every future update.
                 .fallbackToDestructiveMigration()
-                .addMigrations(MIGRATION_7_8)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

@@ -79,6 +79,8 @@ data class LoanEntity(
     val installment: Double = 0.0,
     // Total number of installments for the loan term.
     val totalMonths: Int = 0,
+    // Account from which installments are normally paid.
+    val bankAccountId: Long? = null,
     val reminderDaysBefore: Int = 3,
     val notes: String = "",
     val isPaid: Boolean = false

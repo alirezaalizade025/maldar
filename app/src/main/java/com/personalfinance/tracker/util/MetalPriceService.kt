@@ -2,8 +2,6 @@ package com.personalfinance.tracker.util
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -13,84 +11,53 @@ data class MetalPrices(
     val updatedAt: String
 )
 
-/**
- * BRS exposes Iranian gold/currency prices and global silver spot prices.
- * The key belongs to the user and is stored locally; no credential ships in the APK.
- */
+/** Reads the public TGJU profile pages. Their displayed gram prices are in Rial. */
 object MetalPriceService {
-    suspend fun fetch(apiKey: String): MetalPrices = withContext(Dispatchers.IO) {
-        require(apiKey.isNotBlank()) { "کلید API وارد نشده است" }
-        val market = getJson("https://api.brsapi.ir/Market/Gold_Currency.php?key=${encode(apiKey)}")
-        val commodities = getJson("https://api.brsapi.ir/Market/Commodity.php?key=${encode(apiKey)}")
-        val marketRows = flatten(market)
-        val commodityRows = flatten(commodities)
+    private const val GOLD_URL = "https://www.tgju.org/profile/geram18"
+    private const val SILVER_URL = "https://www.tgju.org/profile/silver_999"
 
-        val gold = marketRows.firstOrNull {
-            val symbol = it.optString("symbol").uppercase()
-            val name = it.optString("name")
-            symbol.contains("GOLD_18") || name.contains("18") && name.contains("طلا")
-        } ?: error("قیمت طلای ۱۸ عیار در پاسخ API پیدا نشد")
-        val dollar = marketRows.firstOrNull {
-            val symbol = it.optString("symbol").uppercase()
-            symbol == "USD" || it.optString("name").contains("دلار آمریکا")
-        } ?: error("قیمت دلار در پاسخ API پیدا نشد")
-        val silver = commodityRows.firstOrNull {
-            it.optString("symbol").uppercase() == "XAGUSD" || it.optString("name").contains("نقره")
-        } ?: error("قیمت نقره در پاسخ API پیدا نشد")
-
-        fun toman(row: JSONObject): Double {
-            val value = row.optDouble("price", Double.NaN)
-            require(value.isFinite()) { "قیمت نامعتبر از API" }
-            return if (row.optString("unit").contains("ریال")) value / 10.0 else value
-        }
-
-        val goldPerGram = toman(gold)
-        val usdToman = toman(dollar)
-        val silverPerOunceUsd = silver.optDouble("price", Double.NaN)
-        require(silverPerOunceUsd.isFinite()) { "قیمت نقره نامعتبر است" }
+    suspend fun fetch(): MetalPrices = withContext(Dispatchers.IO) {
+        val goldHtml = getHtml(GOLD_URL)
+        val silverHtml = getHtml(SILVER_URL)
+        val goldRial = currentPrice(goldHtml)
+        val silverRial = currentPrice(silverHtml)
         MetalPrices(
-            gold18TomanPerGram = goldPerGram,
-            silver999TomanPerGram = silverPerOunceUsd * usdToman / 31.1034768,
-            updatedAt = gold.optString("date") + " " + gold.optString("time")
+            gold18TomanPerGram = goldRial / 10.0,
+            silver999TomanPerGram = silverRial / 10.0,
+            updatedAt = serverTime(goldHtml)
         )
     }
 
-    private fun getJson(url: String): Any {
+    internal fun currentPrice(html: String): Double {
+        val pattern = Regex(
+            """class=["'][^"']*\bprice\b[^"']*["'][^>]*data-col=["']info\.last_trade\.PDrCotVal["'][^>]*>\s*([\d,۰-۹٠-٩]+)""",
+            RegexOption.IGNORE_CASE
+        )
+        val raw = pattern.find(html)?.groupValues?.get(1)
+            ?: error("قیمت فعلی در صفحه TGJU پیدا نشد")
+        return Digits.toEnglish(raw).replace(",", "").toDoubleOrNull()
+            ?: error("قیمت TGJU نامعتبر است")
+    }
+
+    private fun serverTime(html: String): String {
+        val raw = Regex("""id=["']server-time["'][^>]*data-value=["']([^"']+)""")
+            .find(html)?.groupValues?.get(1)
+        return raw ?: JalaliCalendar.formatDateTime(System.currentTimeMillis())
+    }
+
+    private fun getHtml(url: String): String {
         val connection = URL(url).openConnection() as HttpURLConnection
         return try {
-            connection.connectTimeout = 12_000
-            connection.readTimeout = 12_000
-            connection.setRequestProperty("Accept", "application/json")
-            val body = (if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream)
-                .bufferedReader().use { it.readText() }
-            if (connection.responseCode !in 200..299) error("خطای سرویس قیمت (${connection.responseCode})")
-            val trimmed = body.trim()
-            if (trimmed.startsWith("[")) JSONArray(trimmed) else JSONObject(trimmed).also {
-                if (it.optBoolean("successful", true).not()) {
-                    error(it.optString("message_error", "سرویس قیمت پاسخ نامعتبر داد"))
-                }
-            }
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 15_000
+            connection.instanceFollowRedirects = true
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Maldar)")
+            connection.setRequestProperty("Accept", "text/html")
+            val code = connection.responseCode
+            if (code !in 200..299) error("خطای TGJU ($code)")
+            connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
         } finally {
             connection.disconnect()
         }
     }
-
-    private fun flatten(value: Any): List<JSONObject> {
-        val result = mutableListOf<JSONObject>()
-        fun visit(item: Any?) {
-            when (item) {
-                is JSONObject -> {
-                    if (item.has("price") && (item.has("symbol") || item.has("name"))) result += item
-                    val keys = item.keys()
-                    while (keys.hasNext()) visit(item.opt(keys.next()))
-                }
-                is JSONArray -> for (i in 0 until item.length()) visit(item.opt(i))
-            }
-        }
-        visit(value)
-        return result
-    }
-
-    private fun encode(value: String): String =
-        java.net.URLEncoder.encode(value, Charsets.UTF_8.name())
 }

@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                             startDestinationOverride = when (openScreen) {
                                 "confirm_sms" -> "confirm_sms_list"
                                 "loans" -> "loans"
+                                "add_transaction" -> "add_transaction"
                                 else -> null
                             },
                             importUri = importUri

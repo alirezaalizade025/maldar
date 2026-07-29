@@ -21,6 +21,7 @@ import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.util.SmsInboxReader
+import com.personalfinance.tracker.sms.SmsAccountMatcher
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 /**
@@ -48,9 +49,8 @@ fun SmsCheckScreen(
     var rejected by remember { mutableStateOf<Set<Long>>(emptySet()) }
     val visible = list.filter { !rejected.contains(it.dateMillis) }
 
-    // Map sender -> accountId for prefilling confirm.
-    fun accountFor(address: String): Long? =
-        senders.firstOrNull { s -> address.contains(s.senderId, ignoreCase = true) || s.senderId.equals(address, ignoreCase = true) }?.bankAccountId
+    fun accountFor(sms: SmsInboxReader.SmsMessage): Long? =
+        SmsAccountMatcher.match(sms.address, sms.body, senders, accounts)?.bankAccountId
 
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -83,7 +83,7 @@ fun SmsCheckScreen(
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(modifier = Modifier.weight(1f),
-                                        onClick = { onConfirmSms(accountFor(sms.address), sms.dateMillis) }) {
+                                        onClick = { onConfirmSms(accountFor(sms), sms.dateMillis) }) {
                                         Icon(Icons.Filled.Check, contentDescription = null)
                                         Spacer(Modifier.width(6.dp))
                                         Text(AppStrings.confirm)

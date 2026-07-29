@@ -46,13 +46,12 @@ class BankNotificationListenerService : NotificationListenerService() {
     private suspend fun handleNotification(context: Context, packageName: String, body: String, timestampMillis: Long) {
         val db = AppDatabase.getInstance(context)
         val watchedSenders = db.smsSenderDao().getAllOnce()
+        val accounts = db.bankAccountDao().getAllOnce()
 
         // Match either by configured sender id appearing in the text, or by the
         // originating app package if the user added a sender for that bank.
-        val matched = watchedSenders.firstOrNull { watched ->
-            body.contains(watched.senderId, ignoreCase = true) ||
-                watched.senderId.equals(packageName, ignoreCase = true)
-        } ?: return
+        val matched = SmsAccountMatcher.match(packageName, body, watchedSenders, accounts)
+            ?: return
 
         val parsed = SmsParser.parse(body)
 

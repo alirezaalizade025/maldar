@@ -12,6 +12,14 @@ object Digits {
         val s = input.toString()
         return s.map { if (it.isDigit()) fa[it.digitToInt()] else it }.joinToString("")
     }
+
+    fun toEnglish(input: Any): String = input.toString().map { c ->
+        when (c) {
+            in '۰'..'۹' -> ('0'.code + (c.code - '۰'.code)).toChar()
+            in '٠'..'٩' -> ('0'.code + (c.code - '٠'.code)).toChar()
+            else -> c
+        }
+    }.joinToString("")
 }
 
 /**

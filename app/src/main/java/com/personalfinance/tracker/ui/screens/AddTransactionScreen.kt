@@ -54,7 +54,8 @@ fun AddTransactionScreen(
     LaunchedEffect(accountId, smsDate) {
         if (accountId != null && smsDate != null) {
             val senderIds = senders.filter { it.bankAccountId == accountId }.map { it.senderId }
-            val sms = SmsInboxReader.findSmsByDate(context, senderIds, smsDate)
+            val last4 = accounts.firstOrNull { it.id == accountId }?.accountLast4.orEmpty()
+            val sms = SmsInboxReader.findSmsByDate(context, senderIds, smsDate, last4)
             sms?.let {
                 if (it.amount != null) amountText = it.amount.toLong().toString()
                 it.type?.let { t -> type = t }

@@ -41,13 +41,13 @@ object DataExport {
         }
         appendLine()
         appendLine("--- Loans ---")
-        appendLine("id,name,principal,remaining,dueDateMillis,payDay,installment,totalMonths,reminderDays,notes,paid")
+        appendLine("id,name,principal,remaining,dueDateMillis,payDay,installment,totalMonths,bankAccountId,reminderDays,notes,paid")
         loans.forEach { l ->
             appendLine(
                 listOf(
                     l.id, csvCell(l.name), formatNum(l.principal), formatNum(l.remainingAmount),
                     l.dueDateMillis, l.payDayOfMonth, formatNum(l.installment), l.totalMonths,
-                    l.reminderDaysBefore, csvCell(l.notes), l.isPaid
+                    l.bankAccountId ?: "", l.reminderDaysBefore, csvCell(l.notes), l.isPaid
                 ).joinToString(",")
             )
         }
@@ -95,6 +95,13 @@ object DataExport {
                 put("remainingAmount", it.remainingAmount); put("dueDateMillis", it.dueDateMillis)
                 put("payDayOfMonth", it.payDayOfMonth); put("reminderDaysBefore", it.reminderDaysBefore)
                 put("installment", it.installment); put("totalMonths", it.totalMonths)
+                put(
+                    "remainingMonths",
+                    if (it.installment > 0.0)
+                        kotlin.math.ceil(it.remainingAmount / it.installment).toInt()
+                    else it.totalMonths
+                )
+                put("bankAccountId", it.bankAccountId)
                 put("notes", it.notes); put("isPaid", it.isPaid)
             }
         }))
@@ -159,6 +166,7 @@ object DataExport {
                 payDayOfMonth = o.optInt("payDayOfMonth", 1),
                 installment = o.optDouble("installment", 0.0),
                 totalMonths = o.optInt("totalMonths", 0),
+                bankAccountId = if (o.isNull("bankAccountId")) null else o.optLong("bankAccountId"),
                 reminderDaysBefore = o.optInt("reminderDaysBefore", 3),
                 notes = o.optString("notes", ""),
                 isPaid = o.optBoolean("isPaid", false)
@@ -204,12 +212,14 @@ object DataExport {
      */
     @Throws(Exception::class)
     fun fromCsv(csv: String): FinanceRepository.ExportBundle {
-        val lines = csv.lines()
+        require(csv.isNotBlank()) { "CSV file is empty" }
+        val records = splitCsvRecords(csv.removePrefix("\uFEFF"))
         var currentSection = ""
         val rows = mutableMapOf<String, MutableList<List<String>>>()
-        
-        for (line in lines) {
-            val trimmed = line.trim()
+        val headers = mutableMapOf<String, List<String>>()
+
+        for (record in records) {
+            val trimmed = record.trim()
             when {
                 trimmed.startsWith("---") -> {
                     currentSection = trimmed.trim('-').trim()
@@ -219,15 +229,19 @@ object DataExport {
                     // Skip empty lines or lines before any section
                 }
                 isHeaderLine(trimmed) -> {
-                    // Skip header lines (id, type, amount, ...)
+                    headers[currentSection] = parseCsvLine(record)
                 }
                 else -> {
-                    rows[currentSection]?.add(parseCsvLine(trimmed))
+                    rows[currentSection]?.add(parseCsvLine(record))
                 }
             }
         }
+        val knownSections = setOf("Transactions", "Bank Accounts", "Loans", "SMS Senders", "Categories", "Financial Assets")
+        require(rows.keys.any { it in knownSections }) { "No supported CSV sections were found" }
 
-        val transactions = (rows["Transactions"] ?: emptyList()).map { fields ->
+        val transactionWidth = headers["Transactions"]?.size ?: 11
+        val transactions = (rows["Transactions"] ?: emptyList()).map { rawFields ->
+            val fields = normalizeLegacyGroupedNumbers(rawFields, transactionWidth, setOf(2, 9))
             if (fields.size < 7) throw Exception("Invalid transaction row: expected at least 7 fields, got ${fields.size}")
             TransactionEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
@@ -245,9 +259,11 @@ object DataExport {
             )
         }
 
-        val accounts = (rows["Bank Accounts"] ?: emptyList()).map { fields ->
+        val accountWidth = headers["Bank Accounts"]?.size ?: 5
+        val accounts = (rows["Bank Accounts"] ?: emptyList()).map { rawFields ->
+            val fields = normalizeLegacyGroupedNumbers(rawFields, accountWidth, setOf(accountWidth - 1))
             if (fields.size < 4) throw Exception("Invalid account row: expected at least 4 fields, got ${fields.size}")
-            val hasLast4 = fields.size >= 5
+            val hasLast4 = headers["Bank Accounts"]?.contains("accountLast4") == true || fields.size >= 5
             BankAccountEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 bankName = fields[1].removeSurrounding("\""),
@@ -257,9 +273,12 @@ object DataExport {
             )
         }
 
-        val loans = (rows["Loans"] ?: emptyList()).map { fields ->
+        val loanWidth = headers["Loans"]?.size ?: 12
+        val loans = (rows["Loans"] ?: emptyList()).map { rawFields ->
+            val fields = normalizeLegacyGroupedNumbers(rawFields, loanWidth, setOf(2, 3, 6))
             if (fields.size < 9) throw Exception("Invalid loan row: expected at least 9 fields, got ${fields.size}")
             val hasNewLoanFields = fields.size >= 11
+            val hasAccountField = headers["Loans"]?.contains("bankAccountId") == true || fields.size >= 12
             LoanEntity(
                 id = fields[0].toLongOrNull() ?: 0L,
                 name = fields[1].removeSurrounding("\""),
@@ -269,9 +288,22 @@ object DataExport {
                 payDayOfMonth = fields[5].toIntOrNull() ?: 1,
                 installment = if (hasNewLoanFields) fields[6].removeSurrounding("\"").replace(",", "").toDoubleOrNull() ?: 0.0 else 0.0,
                 totalMonths = if (hasNewLoanFields) fields[7].toIntOrNull() ?: 0 else 0,
-                reminderDaysBefore = fields[if (hasNewLoanFields) 8 else 6].toIntOrNull() ?: 3,
-                notes = fields[if (hasNewLoanFields) 9 else 7].removeSurrounding("\""),
-                isPaid = fields[if (hasNewLoanFields) 10 else 8].toBoolean()
+                bankAccountId = if (hasAccountField) fields[8].takeIf { it.isNotEmpty() }?.toLongOrNull() else null,
+                reminderDaysBefore = fields[when {
+                    hasAccountField -> 9
+                    hasNewLoanFields -> 8
+                    else -> 6
+                }].toIntOrNull() ?: 3,
+                notes = fields[when {
+                    hasAccountField -> 10
+                    hasNewLoanFields -> 9
+                    else -> 7
+                }],
+                isPaid = fields[when {
+                    hasAccountField -> 11
+                    hasNewLoanFields -> 10
+                    else -> 8
+                }].toBoolean()
             )
         }
 
@@ -293,7 +325,9 @@ object DataExport {
                 type = try { enumValueOf<TxType>(fields[2]) } catch (e: Exception) { TxType.EXPENSE }
             )
         }
-        val financialAssets = (rows["Financial Assets"] ?: emptyList()).map { fields ->
+        val assetWidth = headers["Financial Assets"]?.size ?: 2
+        val financialAssets = (rows["Financial Assets"] ?: emptyList()).map { rawFields ->
+            val fields = normalizeLegacyGroupedNumbers(rawFields, assetWidth, setOf(1))
             require(fields.size >= 2) { "Invalid financial asset row" }
             FinancialAssetEntity(
                 type = enumValueOf<AssetType>(fields[0]),
@@ -338,6 +372,70 @@ object DataExport {
         }
         fields.add(current.toString())
         return fields
+    }
+
+    /** Split records without breaking quoted fields that contain line breaks. */
+    private fun splitCsvRecords(csv: String): List<String> {
+        val records = mutableListOf<String>()
+        val current = StringBuilder()
+        var quoted = false
+        var i = 0
+        while (i < csv.length) {
+            val c = csv[i]
+            if (c == '"') {
+                current.append(c)
+                if (quoted && i + 1 < csv.length && csv[i + 1] == '"') {
+                    current.append('"')
+                    i++
+                } else {
+                    quoted = !quoted
+                }
+            } else if ((c == '\n' || c == '\r') && !quoted) {
+                if (current.isNotEmpty()) {
+                    records += current.toString()
+                    current.clear()
+                }
+                if (c == '\r' && i + 1 < csv.length && csv[i + 1] == '\n') i++
+            } else {
+                current.append(c)
+            }
+            i++
+        }
+        require(!quoted) { "CSV contains an unclosed quoted field" }
+        if (current.isNotEmpty()) records += current.toString()
+        return records
+    }
+
+    /**
+     * Repairs backups made by older versions that placed thousands separators in
+     * numeric CSV fields without quoting them.
+     */
+    private fun normalizeLegacyGroupedNumbers(
+        fields: List<String>,
+        expectedCount: Int,
+        expandableColumns: Set<Int>
+    ): List<String> {
+        if (fields.size <= expectedCount) return fields
+
+        fun solve(column: Int, token: Int, out: MutableList<String>): List<String>? {
+            if (column == expectedCount) return if (token == fields.size) out.toList() else null
+            val columnsLeft = expectedCount - column - 1
+            val maxTake = fields.size - token - columnsLeft
+            val takeRange = if (column in expandableColumns) maxTake downTo 1 else 1..1
+            for (take in takeRange) {
+                if (token + take > fields.size) continue
+                val value = fields.subList(token, token + take).joinToString(",")
+                if (take > 1 && value.replace(",", "").toDoubleOrNull() == null) continue
+                out += value
+                val result = solve(column + 1, token + take, out)
+                if (result != null) return result
+                out.removeAt(out.lastIndex)
+            }
+            return null
+        }
+
+        return solve(0, 0, mutableListOf())
+            ?: throw IllegalArgumentException("CSV row has ${fields.size} fields; expected $expectedCount")
     }
 
     private fun isHeaderLine(line: String): Boolean {

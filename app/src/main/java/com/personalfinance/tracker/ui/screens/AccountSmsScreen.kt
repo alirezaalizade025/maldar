@@ -41,9 +41,13 @@ fun AccountSmsScreen(
     var loading by remember { mutableStateOf(true) }
 
     // Reload the inbox whenever the account's senders change.
-    LaunchedEffect(accountSenders) {
+    LaunchedEffect(accountSenders, account.accountLast4) {
         loading = true
-        smsList = SmsInboxReader.allSmsForSenders(context, accountSenders)
+        smsList = SmsInboxReader.allSmsForSenders(
+            context,
+            accountSenders,
+            accountLast4 = account.accountLast4
+        )
         loading = false
     }
 

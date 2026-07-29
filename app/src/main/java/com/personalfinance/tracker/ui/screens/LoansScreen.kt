@@ -28,6 +28,8 @@ import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.geometry.CornerRadius
 
 @Composable
@@ -129,6 +131,14 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     Text(AppStrings.due + ": " + JalaliCalendar.formatDate(nextDueMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
                         style = MaterialTheme.typography.labelSmall)
                     Text(AppStrings.loanPayDay + ": " + loan.payDayOfMonth, style = MaterialTheme.typography.labelSmall)
+                    loan.bankAccountId?.let { accountId ->
+                        accounts.firstOrNull { it.id == accountId }?.let { account ->
+                            Text(
+                                "${AppStrings.loanAccount}: ${account.accountLabel}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
                     if (loan.installment > 0.0) {
                         Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
                         Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan), style = MaterialTheme.typography.labelSmall)
@@ -164,6 +174,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     if (editingLoan != null) {
         EditLoanDialog(
             loan = editingLoan!!,
+            accounts = accounts,
             onDismiss = { editingLoan = null },
             onSave = { updated ->
                 viewModel.updateLoan(updated)
@@ -173,15 +184,20 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     }
 
     if (showAdd) {
-        AddLoanDialog(onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, reminderDays, notes ->
-            viewModel.addLoan(name, principal, payDay, installment, totalMonths, reminderDays, notes)
+        AddLoanDialog(accounts = accounts, onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes ->
+            viewModel.addLoan(name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes)
             showAdd = false
         })
     }
 }
 
 @Composable
-private fun EditLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onSave: (LoanEntity) -> Unit) {
+private fun EditLoanDialog(
+    loan: LoanEntity,
+    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
+    onDismiss: () -> Unit,
+    onSave: (LoanEntity) -> Unit
+) {
     var name by remember(loan.id) { mutableStateOf(loan.name) }
     var remainingText by remember(loan.id) { mutableStateOf(Money.input(loan.remainingAmount)) }
     var payDayText by remember(loan.id) { mutableStateOf(loan.payDayOfMonth.toString()) }
@@ -189,13 +205,18 @@ private fun EditLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onSave: (Loa
     var totalMonthsText by remember(loan.id) { mutableStateOf(if (loan.totalMonths > 0) loan.totalMonths.toString() else "") }
     var reminderDays by remember(loan.id) { mutableStateOf(loan.reminderDaysBefore) }
     var notes by remember(loan.id) { mutableStateOf(loan.notes) }
+    var accountId by remember(loan.id) { mutableStateOf(loan.bankAccountId) }
+    var accountMenuExpanded by remember { mutableStateOf(false) }
     val reminderOptions = listOf(7, 3, 1)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.edit + " " + AppStrings.loans) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(AppStrings.loanName) })
                 OutlinedTextField(
                     value = remainingText,
@@ -218,6 +239,13 @@ private fun EditLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onSave: (Loa
                     value = totalMonthsText,
                     onValueChange = { totalMonthsText = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
                     label = { Text(AppStrings.loanTotalMonths) }
+                )
+                LoanAccountPicker(
+                    accounts = accounts,
+                    selectedAccountId = accountId,
+                    expanded = accountMenuExpanded,
+                    onExpandedChange = { accountMenuExpanded = it },
+                    onSelected = { accountId = it; accountMenuExpanded = false }
                 )
                 Text(AppStrings.remindDaysBefore, style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -258,6 +286,7 @@ private fun EditLoanDialog(loan: LoanEntity, onDismiss: () -> Unit, onSave: (Loa
                             dueDateMillis = nextDue,
                             installment = installment,
                             totalMonths = months,
+                            bankAccountId = accountId,
                             reminderDaysBefore = reminderDays,
                             notes = notes,
                             isPaid = isPaid
@@ -314,13 +343,16 @@ private fun PayLoanDialog(
     onPay: (Double, Long?) -> Unit
 ) {
     var amountText by remember { mutableStateOf(Money.input(loan.remainingAmount)) }
-    var accountId by remember { mutableStateOf<Long?>(null) }
+    var accountId by remember(loan.id) { mutableStateOf(loan.bankAccountId) }
     var accountMenuExpanded by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.payLoan + " - " + loan.name) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = sanitizeNumberInput(it) },
@@ -436,7 +468,11 @@ private fun LoanProjectionChart(projection: List<Double>) {
 }
 
 @Composable
-private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Double, Int, Int, String) -> Unit) {
+private fun AddLoanDialog(
+    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
+    onDismiss: () -> Unit,
+    onAdd: (String, Double, Int, Double, Int, Long?, Int, String) -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var principal by remember { mutableStateOf("") }
     var payDay by remember { mutableStateOf("") }
@@ -446,12 +482,17 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
     var reminderDays by remember { mutableStateOf(3) }
     val reminderOptions = listOf(7 to AppStrings.remind7Days, 3 to AppStrings.remind3Days, 1 to AppStrings.remind1Day)
     var notes by remember { mutableStateOf("") }
+    var accountId by remember { mutableStateOf<Long?>(null) }
+    var accountMenuExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.addLoan) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(AppStrings.loanName) })
                 OutlinedTextField(
                     value = principal,
@@ -475,6 +516,13 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
                     onValueChange = { payDay = sanitizeNumberInput(it).takeWhile { c -> c.isDigit() } },
                     label = { Text(AppStrings.payDayOfMonth) }
                 )
+                LoanAccountPicker(
+                    accounts = accounts,
+                    selectedAccountId = accountId,
+                    expanded = accountMenuExpanded,
+                    onExpandedChange = { accountMenuExpanded = it },
+                    onSelected = { accountId = it; accountMenuExpanded = false }
+                )
                 Text(AppStrings.remindDaysBefore, style = MaterialTheme.typography.labelSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     reminderOptions.forEach { (days, label) ->
@@ -495,10 +543,35 @@ private fun AddLoanDialog(onDismiss: () -> Unit, onAdd: (String, Double, Int, Do
                 val inst = installment.toDoubleOrNull() ?: 0.0
                 val months = totalMonths.toIntOrNull() ?: 0
                 if (name.isNotBlank() && amount != null && day != null && day in 1..31) {
-                    onAdd(name, amount, day, inst, months, reminderDays, notes)
+                    onAdd(name, amount, day, inst, months, accountId, reminderDays, notes)
                 }
             }) { Text(AppStrings.add) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
+}
+
+@Composable
+private fun LoanAccountPicker(
+    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
+    selectedAccountId: Long?,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelected: (Long?) -> Unit
+) {
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = onExpandedChange) {
+        OutlinedTextField(
+            value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.none,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(AppStrings.loanAccount) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
+            DropdownMenuItem(text = { Text(AppStrings.none) }, onClick = { onSelected(null) })
+            accounts.forEach { account ->
+                DropdownMenuItem(text = { Text(account.accountLabel) }, onClick = { onSelected(account.id) })
+            }
+        }
+    }
 }

@@ -40,16 +40,19 @@ fun SettingsScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(Settings.dailyReminderEnabled) }
     var hour by remember { mutableStateOf(Settings.dailyReminderHour) }
+    var minute by remember { mutableStateOf(Settings.dailyReminderMinute) }
     var showTimePicker by remember { mutableStateOf(false) }
 
     if (showTimePicker) {
-        val state = rememberTimePickerState(initialHour = hour, initialMinute = 0)
+        val state = rememberTimePickerState(initialHour = hour, initialMinute = minute)
         TimePickerDialog(
             onDismissRequest = { showTimePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     hour = state.hour
+                    minute = state.minute
                     Settings.dailyReminderHour = hour
+                    Settings.dailyReminderMinute = minute
                     if (enabled) DailyReminderScheduler.scheduleNext(context)
                     showTimePicker = false
                 }) { Text(AppStrings.save) }
@@ -92,7 +95,7 @@ fun SettingsScreen(onClose: () -> Unit) {
                         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(AppStrings.dailyReminderTime, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            Digits.toPersian("%02d:00".format(java.util.Locale.US, hour)),
+                            Digits.toPersian("%02d:%02d".format(java.util.Locale.US, hour, minute)),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary

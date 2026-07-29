@@ -3,6 +3,7 @@ package com.personalfinance.tracker.util
 import android.content.Context
 import android.provider.Telephony
 import com.personalfinance.tracker.sms.SmsParser
+import com.personalfinance.tracker.sms.SmsAccountMatcher
 
 /**
  * Reads the device SMS inbox to find the most recent message from one of the
@@ -13,7 +14,7 @@ object SmsInboxReader {
 
     data class Result(val body: String?, val amount: Double?)
 
-    fun lastSmsForSenders(context: Context, senderIds: List<String>): Result {
+    fun lastSmsForSenders(context: Context, senderIds: List<String>, accountLast4: String = ""): Result {
         val uri = Telephony.Sms.Inbox.CONTENT_URI
         val projection = arrayOf(Telephony.Sms.Inbox.BODY, Telephony.Sms.Inbox.ADDRESS)
         val sort = "${Telephony.Sms.Inbox.DATE} DESC"
@@ -23,8 +24,9 @@ object SmsInboxReader {
             val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.ADDRESS)
             while (cursor.moveToNext()) {
                 val address = cursor.getString(addrIdx) ?: continue
-                if (senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) {
-                    val body = cursor.getString(bodyIdx)
+                val body = cursor.getString(bodyIdx) ?: continue
+                if (senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) } &&
+                    SmsAccountMatcher.bodyMatchesLast4(body, accountLast4)) {
                     // Prefer the remaining balance (مانده) for the account balance;
                     // fall back to the transaction amount if no balance is present.
                     val parsed = SmsParser.parse(body)
@@ -82,7 +84,12 @@ object SmsInboxReader {
      * amount/type parsed. Used by the per-account "Show SMS" view so the user can
      * pick a message to reconcile against their transactions.
      */
-    fun allSmsForSenders(context: Context, senderIds: List<String>, limit: Int = 200): List<SmsMessage> {
+    fun allSmsForSenders(
+        context: Context,
+        senderIds: List<String>,
+        limit: Int = 200,
+        accountLast4: String = ""
+    ): List<SmsMessage> {
         if (senderIds.isEmpty()) return emptyList()
         val uri = Telephony.Sms.Inbox.CONTENT_URI
         val projection = arrayOf(
@@ -98,8 +105,9 @@ object SmsInboxReader {
             val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.DATE)
             while (cursor.moveToNext() && out.size < limit) {
                 val address = cursor.getString(addrIdx) ?: continue
-                if (!senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) continue
                 val body = cursor.getString(bodyIdx) ?: continue
+                if (!senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) continue
+                if (!SmsAccountMatcher.bodyMatchesLast4(body, accountLast4)) continue
                 val date = cursor.getLong(dateIdx)
                 val parsed = SmsParser.parse(body)
                 out.add(SmsMessage(address, body, date, parsed.amount, parsed.type, parsed.balanceAfter))
@@ -113,8 +121,14 @@ object SmsInboxReader {
      * (same device timestamp), or null if none. Used to re-load a selected SMS
      * when pre-filling the Add Transaction screen.
      */
-    fun findSmsByDate(context: Context, senderIds: List<String>, dateMillis: Long): SmsMessage? {
-        return allSmsForSenders(context, senderIds).firstOrNull { it.dateMillis == dateMillis }
+    fun findSmsByDate(
+        context: Context,
+        senderIds: List<String>,
+        dateMillis: Long,
+        accountLast4: String = ""
+    ): SmsMessage? {
+        return allSmsForSenders(context, senderIds, accountLast4 = accountLast4)
+            .firstOrNull { it.dateMillis == dateMillis }
     }
 
     /**

@@ -12,6 +12,7 @@ object Settings {
     private const val PREFS = "app_settings"
     private const val KEY_DAILY_ENABLED = "daily_reminder_enabled"
     private const val KEY_DAILY_HOUR = "daily_reminder_hour"
+    private const val KEY_DAILY_MINUTE = "daily_reminder_minute"
     private const val KEY_LAST_SMS_CHECK = "last_sms_check_millis"
 
     private val prefs: SharedPreferences?
@@ -24,6 +25,10 @@ object Settings {
     var dailyReminderHour: Int
         get() = prefs?.getInt(KEY_DAILY_HOUR, 21)?.coerceIn(0, 23) ?: 21
         set(value) { prefs?.edit()?.putInt(KEY_DAILY_HOUR, value.coerceIn(0, 23))?.apply() }
+
+    var dailyReminderMinute: Int
+        get() = prefs?.getInt(KEY_DAILY_MINUTE, 0)?.coerceIn(0, 59) ?: 0
+        set(value) { prefs?.edit()?.putInt(KEY_DAILY_MINUTE, value.coerceIn(0, 59))?.apply() }
 
     // Timestamp (ms) of the last time the user reviewed/checked inbox SMS. Used by
     // the "unchecked SMS" flow: only messages newer than this are shown, and an

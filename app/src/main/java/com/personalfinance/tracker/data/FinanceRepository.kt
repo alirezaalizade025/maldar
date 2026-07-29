@@ -1,5 +1,7 @@
 package com.personalfinance.tracker.data
 
+import androidx.room.withTransaction
+
 class FinanceRepository(private val db: AppDatabase) {
 
     // Bank accounts
@@ -155,13 +157,17 @@ class FinanceRepository(private val db: AppDatabase) {
     // Replaces all local data with the contents of an imported backup bundle.
     // IDs are preserved so relationships (e.g. loanId, bankAccountId) survive.
     suspend fun importBundle(bundle: ExportBundle) {
-        clearAllData()
-        bundle.accounts.forEach { db.bankAccountDao().insert(it) }
-        bundle.smsSenders.forEach { db.smsSenderDao().insert(it) }
-        bundle.categories.forEach { db.categoryDao().insert(it) }
-        bundle.loans.forEach { db.loanDao().insert(it) }
-        bundle.transactions.forEach { db.transactionDao().insert(it) }
-        bundle.financialAssets.forEach { db.financialAssetDao().upsert(it) }
+        // Import atomically: a malformed row or database error must not leave the
+        // user with an empty or half-restored database.
+        db.withTransaction {
+            clearAllData()
+            bundle.accounts.forEach { db.bankAccountDao().insert(it) }
+            bundle.smsSenders.forEach { db.smsSenderDao().insert(it) }
+            bundle.categories.forEach { db.categoryDao().insert(it) }
+            bundle.loans.forEach { db.loanDao().insert(it) }
+            bundle.transactions.forEach { db.transactionDao().insert(it) }
+            bundle.financialAssets.forEach { db.financialAssetDao().upsert(it) }
+        }
     }
 
     // Wipes every table so an imported backup fully replaces current data.
