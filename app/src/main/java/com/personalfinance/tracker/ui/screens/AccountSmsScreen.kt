@@ -56,9 +56,12 @@ fun AccountSmsScreen(
     LaunchedEffect(smsList, transactions, account.id) {
         val map = mutableMapOf<Long, Boolean>()
         smsList.forEach { sms ->
-            map[sms.dateMillis] = if (sms.amount != null) {
-                viewModel.isReconciled(account.id, sms.amount, sms.dateMillis)
-            } else false
+            map[sms.dateMillis] = viewModel.isReconciled(
+                accountId = account.id,
+                amount = sms.amount,
+                dateMillis = sms.dateMillis,
+                rawSms = sms.body
+            )
         }
         reconciled = map
     }

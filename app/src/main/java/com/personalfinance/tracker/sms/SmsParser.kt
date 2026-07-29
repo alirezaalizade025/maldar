@@ -50,7 +50,8 @@ object SmsParser {
 
     // A number, possibly with Persian/Arabic digits, thousands separators, an
     // optional decimal part, and an optional leading +/- sign. Group 1 = sign, group 2 = digits.
-    private val NUMBER = "([+-]?)(?<!\\d)([0-9۰-۹][0-9۰-۹,]*(?:\\.[0-9۰-۹]{1,3})?)(?!\\d)"
+    private val UNSIGNED_NUMBER = "[0-9۰-۹٠-٩][0-9۰-۹٠-٩,]*(?:\\.[0-9۰-۹٠-٩]{1,3})?"
+    private val NUMBER = "([+-]?)(?<!\\d)($UNSIGNED_NUMBER)(?!\\d)"
 
     // Currency / unit markers that may follow an amount.
     private val RIAL_MARKER = "(?:ریال|rls|irr|ر\\.ا|ر ا)"
@@ -63,7 +64,16 @@ object SmsParser {
         Pattern.CASE_INSENSITIVE
     )
 
-    // 2) Amount sitting next to a debit/credit keyword (برداشت ۱۲۰۰۰۰ / ۵۰۰۰۰۰ واریز شد).
+    // 2) Some banks send only a signed amount on its own line. Both prefix
+    // (-6,363,000) and suffix (44,000,000+) signs are used in real messages.
+    // Keeping this line-anchored prevents the "-19" part of a date/time from
+    // being interpreted as a transaction.
+    private val signedLineAmount = Pattern.compile(
+        "^[ \\t]*(?:([+-])[ \\t]*($UNSIGNED_NUMBER)|($UNSIGNED_NUMBER)[ \\t]*([+-]))[ \\t]*(?:$UNIT)?[ \\t]*$",
+        Pattern.CASE_INSENSITIVE or Pattern.MULTILINE
+    )
+
+    // 3) Amount sitting next to a debit/credit keyword (برداشت ۱۲۰۰۰۰ / ۵۰۰۰۰۰ واریز شد).
     private val anchoredKwThenNum = Pattern.compile(
         "(?:${debitOrCreditPattern()})\\D{0,15}?$NUMBER",
         Pattern.CASE_INSENSITIVE
@@ -73,13 +83,13 @@ object SmsParser {
         Pattern.CASE_INSENSITIVE
     )
 
-    // 3) A number immediately followed by an explicit unit marker (ریال/تومان).
+    // 4) A number immediately followed by an explicit unit marker (ریال/تومان).
     private val labelledAmount = Pattern.compile(
         "$NUMBER\\s*$UNIT",
         Pattern.CASE_INSENSITIVE
     )
 
-    // 4) The remaining balance: a number following a balance keyword.
+    // 5) The remaining balance: a number following a balance keyword.
     private val balanceAmount = Pattern.compile(
         "(?:${balanceKeywords.joinToString("|")})\\D{0,20}?$NUMBER\\s*$UNIT?",
         Pattern.CASE_INSENSITIVE
@@ -117,7 +127,13 @@ object SmsParser {
     }
 
     private fun normalizeDigits(s: String): String =
-        s.map { ch -> if (ch in '۰'..'۹') ((ch - '۰') + '0'.code).toChar() else ch }.joinToString("")
+        s.map { ch ->
+            when (ch) {
+                in '۰'..'۹' -> ((ch - '۰') + '0'.code).toChar()
+                in '٠'..'٩' -> ((ch - '٠') + '0'.code).toChar()
+                else -> ch
+            }
+        }.joinToString("")
 
     private fun toDouble(raw: String?): Double? {
         if (raw == null) return null
@@ -136,27 +152,41 @@ object SmsParser {
 
     private data class AmountResult(val value: Double, val sign: Int)
 
+    private fun isBalanceContext(message: String, index: Int): Boolean {
+        val from = (index - 48).coerceAtLeast(0)
+        val window = message.substring(from, index).lowercase()
+        return balanceKeywords.any {
+            val keyword = it.lowercase()
+            val position = window.lastIndexOf(keyword)
+            position >= 0 && window.substring(position + keyword.length).none(Char::isDigit)
+        }
+    }
+
+    private fun extractSignedLineAmount(message: String): AmountResult? {
+        val matcher = signedLineAmount.matcher(message)
+        while (matcher.find()) {
+            val raw = matcher.group(2) ?: matcher.group(3) ?: continue
+            val rawStart = if (matcher.group(2) != null) matcher.start(2) else matcher.start(3)
+            if (isBalanceContext(message, rawStart)) continue
+            if (looksLikeCardNumber(raw)) continue
+            val value = toDouble(raw) ?: continue
+            val scaled = scale(value) ?: continue
+            val signText = matcher.group(1) ?: matcher.group(4)
+            return AmountResult(scaled, if (signText == "+") 1 else -1)
+        }
+        return null
+    }
+
     /**
      * Extracts the TRANSACTION amount (the diff). It deliberately ignores numbers
      * that sit right after a balance keyword (مانده/موجودی), so the remaining
      * balance is never mistaken for the transaction amount.
      */
     private fun extractTransactionAmount(message: String): AmountResult? {
-        // True if the text just before [index] contains a balance keyword.
-        fun isBalanceContext(index: Int): Boolean {
-            val from = (index - 16).coerceAtLeast(0)
-            val window = message.substring(from, index)
-            return balanceKeywords.any { window.contains(it) }
-        }
-
-        fun build(matcher: Matcher, message: String): AmountResult? {
+        fun build(matcher: Matcher): AmountResult? {
             val raw = matcher.group(2) ?: return null
             if (looksLikeCardNumber(raw)) return null
             val value = toDouble(raw) ?: return null
-            // The unit marker may sit right after the number (anchored patterns
-            // don't capture it), so check both the match and the following text.
-            val isRial = matcher.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
-                unitAfter(message, matcher.end(2))
             val sign = when (matcher.group(1)) {
                 "+" -> 1
                 "-" -> -1
@@ -167,22 +197,26 @@ object SmsParser {
 
         // 1) مبلغ/amount/مقدار ... number
         keywordAmount.matcher(message).takeIf { it.find() }?.let { m ->
-            if (!isBalanceContext(m.start(2))) return build(m, message)
+            if (!isBalanceContext(message, m.start(2))) return build(m)
         }
 
-        // 2) debit/credit keyword ... number  (or number ... keyword)
+        // 2) A signed number occupying a complete line. This is an explicit
+        // transaction signal even when the SMS has no debit/credit keyword.
+        extractSignedLineAmount(message)?.let { return it }
+
+        // 3) debit/credit keyword ... number  (or number ... keyword)
         for (pattern in listOf(anchoredKwThenNum, anchoredNumThenKw)) {
             pattern.matcher(message).takeIf { it.find() }?.let { m ->
-                if (!isBalanceContext(m.start(2))) return build(m, message)
+                if (!isBalanceContext(message, m.start(2))) return build(m)
             }
         }
 
-        // 3) number followed by a unit marker (ریال/تومان)
+        // 4) number followed by a unit marker (ریال/تومان)
         labelledAmount.matcher(message).takeIf { it.find() }?.let { m ->
-            if (!isBalanceContext(m.start(2))) return build(m, message)
+            if (!isBalanceContext(message, m.start(2))) return build(m)
         }
 
-        // 4) Fallback: first bare number that is NOT the balance, as long as a
+        // 5) Fallback: first bare number that is NOT the balance, as long as a
         //    transaction keyword exists somewhere in the message.
         if (debitKeywords.any { message.lowercase().contains(it) } ||
             creditKeywords.any { message.lowercase().contains(it) }) {
@@ -190,10 +224,8 @@ object SmsParser {
             while (m.find()) {
                 val raw = m.group(2) ?: continue
                 if (looksLikeCardNumber(raw)) continue
-                if (isBalanceContext(m.start(2))) continue
+                if (isBalanceContext(message, m.start(2))) continue
                 val value = toDouble(raw) ?: continue
-                val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
-                    unitAfter(message, m.end(2))
                 val sign = when (m.group(1)) {
                     "+" -> 1
                     "-" -> -1
@@ -226,8 +258,6 @@ object SmsParser {
                 val raw = m.group(2) ?: continue
                 if (looksLikeCardNumber(raw)) continue
                 val value = toDouble(raw) ?: continue
-                val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
-                    unitAfter(searchText, m.end(2))
                 val scaled = scale(value)
                 if (scaled != null) return scaled
             }
@@ -243,8 +273,6 @@ object SmsParser {
             val value = toDouble(raw) ?: continue
             // Only consider numbers that are reasonably large (likely a balance)
             if (value >= 1000.0) {
-                val isRial = m.group(0).contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE)) ||
-                    unitAfter(lastLines, m.end(2))
                 val scaled = scale(value)
                 if (scaled != null) return scaled
             }
@@ -258,22 +286,13 @@ object SmsParser {
         return value / 10.0
     }
 
-    // True if a Rial marker appears in the few characters following [index].
-    // The anchored patterns don't capture the unit marker, which often sits
-    // right after the number, so we scan the following text too.
-    private fun unitAfter(message: String, index: Int): Boolean {
-        val window = message.substring(
-            index.coerceAtMost(message.length),
-            (index + 8).coerceAtMost(message.length)
-        )
-        return window.contains(Regex(RIAL_MARKER, RegexOption.IGNORE_CASE))
-    }
-
     /**
      * Quick check used by the receiver to decide whether a message is even worth
      * surfacing to the user, so random SMS (OTPs, promos) don't spam the pending list.
      */
     fun looksLikeTransaction(message: String): Boolean {
+        if (extractSignedLineAmount(message) != null) return true
+
         val lower = message.lowercase()
         val hasKeyword = (debitKeywords + creditKeywords).any { lower.contains(it) }
         val hasAmount = keywordAmount.matcher(message).find() ||

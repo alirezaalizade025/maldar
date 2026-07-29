@@ -62,6 +62,7 @@ object AppStrings {
     val none = "هیچ‌کدام"
     val save = "ذخیره"
     val saved = "ذخیره شد!"
+    val transactionSaveFailed = "ذخیره تراکنش انجام نشد. دوباره تلاش کنید."
     val invalidAmount = "مبلغ معتبر وارد کنید"
 
     // Categories

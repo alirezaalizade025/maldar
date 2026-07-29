@@ -78,26 +78,42 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     fun deleteSmsSender(sender: SmsSenderEntity) = viewModelScope.launch { repo.deleteSmsSender(sender) }
 
     // ---- Transactions ----
-    fun addTransaction(amount: Double, type: TxType, category: String, note: String, bankAccountId: Long?, dateMillis: Long = System.currentTimeMillis(), loanId: Long? = null, balanceAfter: Double? = null) {
-        viewModelScope.launch {
-            repo.addTransaction(
-                TransactionEntity(
-                    amount = amount, type = type, category = category, note = note,
-                    dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loanId,
-                    balanceAfter = balanceAfter
-                )
+    suspend fun addTransaction(
+        amount: Double,
+        type: TxType,
+        category: String,
+        note: String,
+        bankAccountId: Long?,
+        dateMillis: Long = System.currentTimeMillis(),
+        loanId: Long? = null,
+        balanceAfter: Double? = null,
+        source: TxSource = TxSource.MANUAL,
+        rawSms: String? = null
+    ): Long =
+        repo.addTransaction(
+            TransactionEntity(
+                amount = amount, type = type, category = category, note = note,
+                dateMillis = dateMillis, bankAccountId = bankAccountId, source = source, loanId = loanId,
+                balanceAfter = balanceAfter, rawSms = rawSms
             )
-        }
-    }
+        )
     fun deleteTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.deleteTransaction(tx) }
 
-    // Returns true when a transaction already exists for this account whose amount
-    // (within 1 Toman) and calendar day match the given SMS, i.e. the SMS has been
-    // reconciled. Used by the per-account SMS view to tick the checkbox.
-    suspend fun isReconciled(accountId: Long, amount: Double, dateMillis: Long): Boolean {
-        if (amount <= 0.0) return false
-        val sameDay = repo.getTransactionsByAccount(accountId).filter { sameDay(it.dateMillis, dateMillis) }
-        return sameDay.any { kotlin.math.abs(it.amount - amount) <= 1.0 }
+    // Prefer the exact original SMS and timestamp for newly saved SMS transactions.
+    // The amount/day comparison remains as a compatibility fallback for older rows.
+    suspend fun isReconciled(
+        accountId: Long,
+        amount: Double?,
+        dateMillis: Long,
+        rawSms: String
+    ): Boolean {
+        return repo.getTransactionsByAccount(accountId).any { tx ->
+            (tx.rawSms == rawSms && tx.dateMillis == dateMillis) ||
+                (amount != null &&
+                    amount > 0.0 &&
+                    sameDay(tx.dateMillis, dateMillis) &&
+                    kotlin.math.abs(tx.amount - amount) <= 1.0)
+        }
     }
 
     private fun sameDay(a: Long, b: Long): Boolean {

@@ -32,29 +32,27 @@ class FinanceRepository(private val db: AppDatabase) {
     // itself, and updates the account's current remained.
     // For CARD_TO_CARD transactions, the balance is not affected.
     // If balanceAfter is provided, it is used; otherwise it is calculated.
-    suspend fun addTransaction(tx: TransactionEntity) {
-        // CARD_TO_CARD transactions don't affect account balance
+    suspend fun addTransaction(tx: TransactionEntity): Long = db.withTransaction {
+        // CARD_TO_CARD transactions don't affect account balance.
         if (tx.type == TxType.CARD_TO_CARD) {
-            db.transactionDao().insert(tx)
-            return
+            return@withTransaction db.transactionDao().insert(tx)
         }
-        
-        if (tx.bankAccountId != null && tx.balanceAfter == null) {
-            val account = db.bankAccountDao().getById(tx.bankAccountId)
-            if (account != null) {
-                val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
-                val remained = (account.balance + delta).coerceAtLeast(0.0)
-                db.bankAccountDao().update(account.copy(balance = remained))
-                db.transactionDao().insert(tx.copy(balanceAfter = remained))
-                return
-            }
-        } else if (tx.bankAccountId != null && tx.balanceAfter != null) {
-            // Use provided balanceAfter and update account
-            db.bankAccountDao().update(db.bankAccountDao().getById(tx.bankAccountId)!!.copy(balance = tx.balanceAfter))
-            db.transactionDao().insert(tx)
-            return
+
+        val accountId = tx.bankAccountId
+        if (accountId == null) {
+            return@withTransaction db.transactionDao().insert(tx)
         }
-        db.transactionDao().insert(tx)
+
+        val account = requireNotNull(db.bankAccountDao().getById(accountId)) {
+            "The selected bank account no longer exists."
+        }
+        val remained = tx.balanceAfter ?: run {
+            val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
+            (account.balance + delta).coerceAtLeast(0.0)
+        }
+
+        db.bankAccountDao().update(account.copy(balance = remained))
+        db.transactionDao().insert(tx.copy(balanceAfter = remained))
     }
 
     suspend fun deleteTransaction(tx: TransactionEntity) {

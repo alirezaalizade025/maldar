@@ -14,13 +14,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.personalfinance.tracker.data.TxSource
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
+import com.personalfinance.tracker.util.CrashLogger
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddTransactionScreen(
@@ -47,21 +50,31 @@ fun AddTransactionScreen(
     var loanMenuExpanded by remember { mutableStateOf(false) }
     var remainderText by remember { mutableStateOf("") }
     var transactionDateMillis by remember { mutableStateOf<Long?>(null) }
+    var sourceSmsBody by remember { mutableStateOf<String?>(null) }
     var savedCount by remember { mutableStateOf(0) }
+    var isSaving by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    val smsSenderIds = remember(senders, accountId) {
+        if (accountId == null) senders.map { it.senderId }
+        else senders.filter { it.bankAccountId == accountId }.map { it.senderId }
+    }
+    val smsAccount = accounts.firstOrNull { it.id == accountId }
+    val smsAccountReady = accountId == null || smsAccount != null
+    val smsAccountLast4 = smsAccount?.accountLast4.orEmpty()
 
     // When opened from a bank SMS, pre-fill the amount/type/account/note from it.
-    LaunchedEffect(accountId, smsDate) {
-        if (accountId != null && smsDate != null) {
-            val senderIds = senders.filter { it.bankAccountId == accountId }.map { it.senderId }
-            val last4 = accounts.firstOrNull { it.id == accountId }?.accountLast4.orEmpty()
-            val sms = SmsInboxReader.findSmsByDate(context, senderIds, smsDate, last4)
+    LaunchedEffect(accountId, smsDate, smsSenderIds, smsAccountReady, smsAccountLast4) {
+        if (smsDate != null && smsSenderIds.isNotEmpty() && smsAccountReady) {
+            val sms = SmsInboxReader.findSmsByDate(context, smsSenderIds, smsDate, smsAccountLast4)
             sms?.let {
-                if (it.amount != null) amountText = it.amount.toLong().toString()
+                if (it.amount != null) amountText = Money.input(it.amount)
                 it.type?.let { t -> type = t }
                 selectedAccountId = accountId
-                if (it.balanceAfter != null) remainderText = it.balanceAfter.toLong().toString()
+                if (it.balanceAfter != null) remainderText = Money.input(it.balanceAfter)
                 transactionDateMillis = it.dateMillis
+                sourceSmsBody = it.body
                 note = it.body
             }
         }
@@ -196,46 +209,70 @@ fun AddTransactionScreen(
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
                     val stored = if (rialMode) amount / 10.0 else amount
-                    
-                    // Calculate or use manual remainder
+
+                    // Explicit/SMS balance is trusted. A blank balance is passed
+                    // as null so Room calculates it from the latest account row
+                    // inside the same atomic transaction as the insert.
                     val remainder = if (remainderText.isNotBlank()) {
                         remainderText.toDoubleOrNull()?.let { if (rialMode) it / 10.0 else it }
                     } else {
-                        // Auto-calculate: current balance +/- transaction amount
-                        if (selectedAccountId != null) {
-                            val account = accounts.firstOrNull { it.id == selectedAccountId }
-                            account?.let {
-                                when (type) {
-                                    TxType.INCOME -> it.balance + stored
-                                    TxType.EXPENSE -> (it.balance - stored).coerceAtLeast(0.0)
-                                    TxType.CARD_TO_CARD -> it.balance // No change for card-to-card
-                                }
+                        null
+                    }
+
+                    val smsBody = sourceSmsBody
+                    isSaving = true
+                    scope.launch {
+                        val result = runCatching {
+                            viewModel.addTransaction(
+                                amount = stored,
+                                type = type,
+                                category = category.ifBlank { "سایر" },
+                                note = note,
+                                bankAccountId = selectedAccountId,
+                                dateMillis = transactionDateMillis ?: System.currentTimeMillis(),
+                                loanId = selectedLoanId,
+                                balanceAfter = remainder,
+                                source = if (smsBody != null) TxSource.SMS else TxSource.MANUAL,
+                                rawSms = smsBody
+                            )
+                        }
+                        isSaving = false
+                        result.onSuccess { insertedId ->
+                            if (insertedId <= 0L) {
+                                confirmationMessage = AppStrings.transactionSaveFailed
+                                return@onSuccess
                             }
-                        } else {
-                            null
+                            confirmationMessage = AppStrings.saved
+                            savedCount++
+                            amountText = ""
+                            note = ""
+                            remainderText = ""
+                            selectedLoanId = null
+                            transactionDateMillis = null
+                            sourceSmsBody = null
+                        }.onFailure { error ->
+                            CrashLogger.log("transaction: database insert failed", error)
+                            confirmationMessage = AppStrings.transactionSaveFailed
                         }
                     }
-                    
-                    viewModel.addTransaction(
-                        amount = stored,
-                        type = type,
-                        category = category,
-                        note = note,
-                        bankAccountId = selectedAccountId,
-                        dateMillis = transactionDateMillis ?: System.currentTimeMillis(),
-                        loanId = selectedLoanId,
-                        balanceAfter = remainder
-                    )
-                    confirmationMessage = AppStrings.saved
-                    savedCount++
-                    amountText = ""; note = ""; remainderText = ""; selectedLoanId = null; transactionDateMillis = null
                 } else {
                     confirmationMessage = AppStrings.invalidAmount
                 }
             },
+            enabled = !isSaving,
             interactionSource = saveInteraction,
             modifier = Modifier.fillMaxWidth().scale(saveScale)
-        ) { Text(AppStrings.save) }
+        ) {
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text(AppStrings.save)
+            }
+        }
 
         if (onContinueToList != null) {
             if (savedCount > 0) {
