@@ -1,24 +1,33 @@
 package com.personalfinance.tracker.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.AmountText
+import com.personalfinance.tracker.ui.design.components.AppButton
+import com.personalfinance.tracker.ui.design.components.AppCard
+import com.personalfinance.tracker.ui.design.components.AppCardStyle
+import com.personalfinance.tracker.ui.design.components.EmptyState
+import com.personalfinance.tracker.ui.design.components.LoanCard
+import com.personalfinance.tracker.ui.design.components.LoanStatusTone
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -27,13 +36,16 @@ import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.geometry.CornerRadius
 
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
+    MaldarDesignTheme {
+        LoansContent(viewModel)
+    }
+}
+
+@Composable
+private fun LoansContent(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -41,6 +53,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var editingLoan by remember { mutableStateOf<LoanEntity?>(null) }
+    var deletingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var showMonthlySchedule by remember { mutableStateOf(false) }
 
     val activeLoans = loans.filter { !it.isPaid }
@@ -58,12 +71,22 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         .filter { it.loanId != null && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
         .sumOf { it.amount }
     val totalRemainingThisMonth = activeLoans.sumOf { (monthlyDue(it) - paidThisMonth(it)).coerceAtLeast(0.0) }
+    val nextLoan = activeLoans.minByOrNull { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
+    val nextLoanDueMillis = nextLoan?.let { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(
+            start = MaldarDesign.spacing.lg,
+            end = MaldarDesign.spacing.lg,
+            top = MaldarDesign.spacing.lg,
+            bottom = MaldarDesign.spacing.section
+        ),
+        verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
+    ) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(AppStrings.loans, style = MaterialTheme.typography.headlineMedium)
-                IconButton(onClick = { showAdd = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addLoan) }
+                Text(AppStrings.loans, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
             Text(
                 AppStrings.loansHint,
@@ -73,19 +96,28 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            AppCard(style = AppCardStyle.HERO, modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                    Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    AmountText(Money.format2(totalRemaining), style = MaterialTheme.typography.headlineLarge)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loansSummaryTotal, style = MaterialTheme.typography.labelSmall)
                         Text(Money.format2(total) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loanPaidThisMonthSummary, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(totalPaidThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                        Text(Money.format2(totalPaidThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaldarDesign.colors.positive)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(AppStrings.loanRemainingThisMonthSummary, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(totalRemainingThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
+                        Text(Money.format2(totalRemainingThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaldarDesign.colors.negative)
+                    }
+                    if (nextLoan != null && nextLoanDueMillis != null) {
+                        HorizontalDivider()
+                        Text(
+                            "${AppStrings.due}: ${nextLoan.name} • ${JalaliCalendar.formatDate(nextLoanDueMillis)}",
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 }
             }
@@ -94,11 +126,13 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         // Monthly schedule section
         item {
             AppCard(
+                style = AppCardStyle.OUTLINED,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showMonthlySchedule = !showMonthlySchedule }
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { showMonthlySchedule = !showMonthlySchedule },
+                contentPadding = PaddingValues(MaldarDesign.spacing.md)
             ) {
-                Column(Modifier.padding(14.dp)) {
+                Column {
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -118,58 +152,82 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         }
 
         if (loans.isEmpty()) {
-            item { Text(AppStrings.noLoans, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item {
+                EmptyState(
+                    title = AppStrings.loans,
+                    message = AppStrings.noLoans,
+                    actionLabel = AppStrings.addLoan,
+                    onAction = { showAdd = true },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MaldarDesign.spacing.section)
+                )
+            }
         }
 
         items(loans) { loan ->
             val nextDueMillis = if (loan.isPaid) loan.dueDateMillis else JalaliCalendar.nextDueDateMillis(loan.payDayOfMonth)
             val daysLeft = JalaliCalendar.daysUntil(nextDueMillis)
-            AppCard(
-                modifier = Modifier.fillMaxWidth().clickable { selectedLoan = loan }) {
-                Column(Modifier.padding(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(loan.name, fontWeight = FontWeight.Bold)
-                        if (loan.isPaid) {
-                            Text(AppStrings.paid, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                    Text(AppStrings.due + ": " + JalaliCalendar.formatDate(nextDueMillis) + if (!loan.isPaid) "  (${if (daysLeft >= 0) "$daysLeft " + AppStrings.daysLeft else AppStrings.overdue})" else "",
-                        style = MaterialTheme.typography.labelSmall)
-                    Text(AppStrings.loanPayDay + ": " + loan.payDayOfMonth, style = MaterialTheme.typography.labelSmall)
-                    loan.bankAccountId?.let { accountId ->
-                        accounts.firstOrNull { it.id == accountId }?.let { account ->
-                            Text(
-                                "${AppStrings.loanAccount}: ${account.accountLabel}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                    if (loan.installment > 0.0) {
-                        Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
-                        Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan, isPaidThisMonth(loan)), style = MaterialTheme.typography.labelSmall)
-                    }
-                    Text(
-                        if (isPaidThisMonth(loan)) AppStrings.loanInstallmentPaidThisMonth else AppStrings.loanNotPaidThisMonth,
-                        color = if (isPaidThisMonth(loan)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
-                    if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(10.dp))
-                    Row {
-                        if (!loan.isPaid) {
-                            Button(onClick = { showPayLoan = loan }) { Text(AppStrings.payLoan) }
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        OutlinedButton(onClick = { editingLoan = loan }) { Text(AppStrings.edit) }
-                        Spacer(Modifier.width(8.dp))
-                        OutlinedButton(onClick = { viewModel.deleteLoan(loan) }) { Text(AppStrings.delete) }
-                    }
-                }
+            val paidThisMonth = isPaidThisMonth(loan)
+            val monthsLeft = viewModel.monthsRemaining(loan, paidThisMonth)
+            val progress = if (loan.principal > 0.0) {
+                ((loan.principal - loan.remainingAmount) / loan.principal).toFloat().coerceIn(0f, 1f)
+            } else if (loan.isPaid) 1f else 0f
+            val status = when {
+                loan.isPaid -> AppStrings.paid
+                daysLeft < 0 -> AppStrings.overdue
+                daysLeft <= loan.reminderDaysBefore -> AppStrings.loanDueSoon
+                paidThisMonth -> AppStrings.loanInstallmentPaidThisMonth
+                else -> AppStrings.loanNotPaidThisMonth
             }
+            val statusTone = when {
+                loan.isPaid || paidThisMonth -> LoanStatusTone.POSITIVE
+                daysLeft < 0 -> LoanStatusTone.NEGATIVE
+                daysLeft <= loan.reminderDaysBefore -> LoanStatusTone.WARNING
+                else -> LoanStatusTone.NEUTRAL
+            }
+            LoanCard(
+                title = loan.name,
+                remainingAmount = Money.format2(loan.remainingAmount),
+                remainingLabel = AppStrings.loansSummaryRemain,
+                originalAmount = "${AppStrings.principal}: ${Money.format2(loan.principal)} ${AppStrings.moneyUnit}",
+                progress = progress,
+                progressDescription = "${Money.format(progress.toDouble() * 100)} ${AppStrings.loanPaymentProgress}",
+                nextDueDate = if (loan.isPaid) null else {
+                    "${AppStrings.due}: ${JalaliCalendar.formatDate(nextDueMillis)} • ${if (daysLeft >= 0) "$daysLeft ${AppStrings.daysLeft}" else AppStrings.overdue}"
+                },
+                remainingInstallments = loan.installment.takeIf { it > 0.0 }?.let {
+                    "${AppStrings.loanMonthsLeft}: $monthsLeft • ${AppStrings.loanInstallment}: ${Money.format2(it)} ${AppStrings.moneyUnit}"
+                },
+                status = status,
+                statusTone = statusTone,
+                linkedAccount = loan.bankAccountId?.let { accountId ->
+                    accounts.firstOrNull { it.id == accountId }?.let { "${AppStrings.loanAccount}: ${it.accountLabel}" }
+                },
+                notes = loan.notes,
+                paid = loan.isPaid,
+                onOpenDetails = { selectedLoan = loan },
+                onPay = if (loan.isPaid) null else ({ showPayLoan = loan }),
+                onEdit = { editingLoan = loan },
+                onReminder = { editingLoan = loan },
+                onDelete = { deletingLoan = loan },
+                detailsDescription = AppStrings.loanDetails,
+                paymentLabel = AppStrings.payLoan,
+                editDescription = AppStrings.edit,
+                reminderDescription = AppStrings.loanReminderSettings,
+                deleteDescription = AppStrings.delete,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
-        item { Spacer(Modifier.height(40.dp)) }
+        if (loans.isNotEmpty()) {
+            item {
+                AppButton(
+                    text = AppStrings.addLoan,
+                    onClick = { showAdd = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) }
+                )
+            }
+        }
     }
 
     if (showPayLoan != null) {
@@ -198,6 +256,24 @@ fun LoansScreen(viewModel: FinanceViewModel) {
             viewModel.addLoan(name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes)
             showAdd = false
         })
+    }
+
+    deletingLoan?.let { loan ->
+        AlertDialog(
+            onDismissRequest = { deletingLoan = null },
+            title = { Text(AppStrings.deleteLoanConfirmTitle) },
+            text = { Text(AppStrings.deleteLoanConfirmBody) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteLoan(loan)
+                        deletingLoan = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(AppStrings.delete) }
+            },
+            dismissButton = { TextButton(onClick = { deletingLoan = null }) { Text(AppStrings.cancel) } }
+        )
     }
 }
 
@@ -425,7 +501,10 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
         onDismissRequest = onDismiss,
         title = { Text(loan.name) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                 if (loan.installment > 0.0) {
                     Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
@@ -453,6 +532,7 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
 private fun LoanProjectionChart(projection: List<Double>) {
     if (projection.size < 2) return
     val maxVal = projection.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    val chartColor = MaterialTheme.colorScheme.primary
     Canvas(modifier = Modifier.fillMaxWidth().height(90.dp)) {
         val sidePad = 8.dp.toPx()
         val groupW = (size.width - sidePad * 2) / projection.size
@@ -466,13 +546,13 @@ private fun LoanProjectionChart(projection: List<Double>) {
         }
         for (i in 1 until points.size) {
             drawLine(
-                color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                color = chartColor,
                 start = points[i - 1], end = points[i], strokeWidth = 3.dp.toPx()
             )
         }
         points.forEach { p ->
             drawRoundRect(
-                color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                color = chartColor,
                 topLeft = Offset(p.x - 3.dp.toPx(), p.y - 3.dp.toPx()),
                 size = Size(6.dp.toPx(), 6.dp.toPx()),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
