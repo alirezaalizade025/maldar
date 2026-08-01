@@ -8,6 +8,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,11 +19,22 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.data.CategoryTotal
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.AmountTone
+import com.personalfinance.tracker.ui.design.components.AppCard
+import com.personalfinance.tracker.ui.design.components.AppCardStyle
+import com.personalfinance.tracker.ui.design.components.EmptyState
+import com.personalfinance.tracker.ui.design.components.MaldarSegmentedControl
+import com.personalfinance.tracker.ui.design.components.MetricCard
+import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -34,9 +48,16 @@ private val chartColors = listOf(
 
 @Composable
 fun ReportsScreen(viewModel: FinanceViewModel) {
+    MaldarDesignTheme {
+        ReportsContent(viewModel)
+    }
+}
+
+@Composable
+private fun ReportsContent(viewModel: FinanceViewModel) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
-    var monthOffset by remember { mutableStateOf(0) }
+    var monthOffset by remember { mutableIntStateOf(0) }
     var accountFilter by remember { mutableStateOf<Long?>(null) }
     var showMonthlyChart by remember { mutableStateOf(false) }
 
@@ -64,21 +85,44 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     }
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(
+            start = MaldarDesign.spacing.lg,
+            end = MaldarDesign.spacing.lg,
+            top = MaldarDesign.spacing.lg,
+            bottom = MaldarDesign.spacing.section
+        ),
+        verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
     ) {
-        item { Text(AppStrings.reports, style = MaterialTheme.typography.headlineMedium) }
+        item {
+            Text(AppStrings.reports, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(
+                AppStrings.monthlyFinancialReport,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                OutlinedButton(onClick = { monthOffset-- }) { Text(AppStrings.prev) }
-                Text(monthLabel, style = MaterialTheme.typography.titleLarge)
-                OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) { Text(AppStrings.next) }
+            AppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { monthOffset-- }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = AppStrings.prev)
+                    }
+                    Text(monthLabel, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = AppStrings.next)
+                    }
+                }
             }
         }
 
         item {
-            Text(AppStrings.reportAccount, style = MaterialTheme.typography.titleMedium)
+            SectionHeader(AppStrings.reportAccount)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -99,48 +143,61 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(if (showMonthlyChart) AppStrings.monthlyTrend else AppStrings.dailyReport, style = MaterialTheme.typography.titleLarge)
-                        OutlinedButton(onClick = { showMonthlyChart = !showMonthlyChart }) {
-                            Text(if (showMonthlyChart) AppStrings.showDailyChart else AppStrings.showMonthlyChart)
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    if (showMonthlyChart) {
-                        if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
-                            Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                        } else {
-                            MonthTrendGraph(data = trend)
-                        }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                MetricCard(
+                    AppStrings.reportIncome,
+                    Money.format(income),
+                    Modifier.weight(1f),
+                    tone = AmountTone.POSITIVE
+                )
+                MetricCard(
+                    AppStrings.reportExpense,
+                    Money.format(expense),
+                    Modifier.weight(1f),
+                    tone = AmountTone.NEGATIVE
+                )
+            }
+        }
+
+        item {
+            MetricCard(AppStrings.net, Money.format(income - expense), Modifier.fillMaxWidth())
+        }
+
+        item {
+            SectionHeader(if (showMonthlyChart) AppStrings.monthlyTrend else AppStrings.dailyReport)
+            MaldarSegmentedControl(
+                options = listOf(AppStrings.dailyReport, AppStrings.monthlyTrend),
+                selectedIndex = if (showMonthlyChart) 1 else 0,
+                onSelected = { showMonthlyChart = it == 1 }
+            )
+        }
+
+        item {
+            AppCard(style = AppCardStyle.RAISED, modifier = Modifier.fillMaxWidth()) {
+                if (showMonthlyChart) {
+                    if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
+                        EmptyState(AppStrings.monthlyTrend, AppStrings.noTrendData)
                     } else {
-                        DayTrendGraph(transactions = monthTransactions)
+                        MonthTrendGraph(data = trend)
                     }
+                } else {
+                    DayTrendGraph(transactions = monthTransactions)
                 }
             }
         }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    SummaryValue(AppStrings.reportIncome, income, Color(0xFF1B7A5A))
-                    SummaryValue(AppStrings.reportExpense, expense, Color(0xFFE8604C))
-                    SummaryValue(AppStrings.net, income - expense, MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-
-        item {
-            Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
+            SectionHeader(AppStrings.spendingByCategory)
         }
 
         if (breakdown.isEmpty()) {
-            item { Text(AppStrings.noExpenses, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item {
+                EmptyState(
+                    title = AppStrings.spendingByCategory,
+                    message = AppStrings.noExpenses,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MaldarDesign.spacing.lg)
+                )
+            }
         } else {
             val maxVal = breakdown.maxOf { it.total }
             val total = breakdown.sumOf { it.total }.coerceAtLeast(1.0)
@@ -157,7 +214,6 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        item { Spacer(Modifier.height(40.dp)) }
     }
 }
 
@@ -170,23 +226,28 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
     val expense = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.EXPENSE }.sumOf { it.amount } }
     val maxValue = (income + expense).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
     if (income.all { it == 0.0 } && expense.all { it == 0.0 }) {
-        Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        EmptyState(AppStrings.dailyReport, AppStrings.noTrendData)
         return
     }
-    Canvas(Modifier.fillMaxWidth().height(180.dp)) {
+    val incomeColor = MaldarDesign.colors.positive
+    val expenseColor = MaldarDesign.colors.negative
+    val chartDescription = "${AppStrings.dailyReport}، ${AppStrings.reportIncome}: ${Money.format(income.sum())} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(expense.sum())} ${AppStrings.moneyUnit}"
+    Canvas(
+        Modifier.fillMaxWidth().height(180.dp).semantics { contentDescription = chartDescription }
+    ) {
         val groupWidth = size.width / 31f
         val baseY = size.height - 20.dp.toPx()
         val chartHeight = baseY - 8.dp.toPx()
         income.forEachIndexed { index, value ->
             val x = index * groupWidth
-            drawRect(Color(0xFF1B7A5A), Offset(x + groupWidth * 0.08f, baseY - (value / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (value / maxValue * chartHeight).toFloat()))
+            drawRect(incomeColor, Offset(x + groupWidth * 0.08f, baseY - (value / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (value / maxValue * chartHeight).toFloat()))
             val expenseValue = expense[index]
-            drawRect(Color(0xFFE8604C), Offset(x + groupWidth * 0.52f, baseY - (expenseValue / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (expenseValue / maxValue * chartHeight).toFloat()))
+            drawRect(expenseColor, Offset(x + groupWidth * 0.52f, baseY - (expenseValue / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (expenseValue / maxValue * chartHeight).toFloat()))
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        ChartLegend(AppStrings.reportIncome, Color(0xFF1B7A5A))
-        ChartLegend(AppStrings.reportExpense, Color(0xFFE8604C))
+        ChartLegend(AppStrings.reportIncome, incomeColor)
+        ChartLegend(AppStrings.reportExpense, expenseColor)
     }
 }
 
@@ -200,18 +261,15 @@ private fun ChartLegend(label: String, color: Color) {
 }
 
 @Composable
-private fun SummaryValue(label: String, amount: Double, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.labelSmall)
-        Text("${Money.format(amount)} ${AppStrings.moneyUnit}", fontWeight = FontWeight.Bold, color = color)
-    }
-}
-
-@Composable
 private fun CategoryDonutChart(breakdown: List<CategoryTotal>, total: Double) {
-    AppCard(modifier = Modifier.fillMaxWidth()) {
+    val description = breakdown.joinToString("، ") {
+        "${it.category}: ${Money.format(it.total / total * 100.0)} درصد"
+    }
+    AppCard(modifier = Modifier.fillMaxWidth(), style = AppCardStyle.RAISED) {
         Box(
-            Modifier.fillMaxWidth().padding(16.dp),
+            Modifier.fillMaxWidth().semantics {
+                contentDescription = "${AppStrings.totalExpenses}: ${Money.format(total)} ${AppStrings.moneyUnit}، $description"
+            },
             contentAlignment = Alignment.Center
         ) {
             Canvas(Modifier.size(190.dp)) {
@@ -246,16 +304,19 @@ private fun CategoryBreakdownRow(
 ) {
     val barFraction = (item.total / maxValue).toFloat().coerceIn(0f, 1f)
     val percent = item.total / total * 100.0
-    AppCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
+    AppCard(modifier = Modifier.fillMaxWidth(), style = AppCardStyle.OUTLINED) {
+        Column(Modifier.semantics {
+            contentDescription = "${item.category}، ${Money.format(item.total)} ${AppStrings.moneyUnit}، ${Money.format(percent)} درصد"
+        }) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(12.dp).background(color, RoundedCornerShape(3.dp)))
                     Spacer(Modifier.width(7.dp))
-                    Text(item.category, style = MaterialTheme.typography.bodyMedium)
+                    Text(item.category, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
                     "${Money.format(item.total)} ${AppStrings.moneyUnit} (٪${Money.format(percent)})",
+                    modifier = Modifier.padding(start = MaldarDesign.spacing.sm),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )

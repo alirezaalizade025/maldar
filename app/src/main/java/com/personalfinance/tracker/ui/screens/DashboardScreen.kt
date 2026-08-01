@@ -1,24 +1,39 @@
 package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
-import com.personalfinance.tracker.ui.theme.AppCard
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.AmountText
+import com.personalfinance.tracker.ui.design.components.AmountTone
+import com.personalfinance.tracker.ui.design.components.AppCard as DesignAppCard
+import com.personalfinance.tracker.ui.design.components.AppCardStyle
+import com.personalfinance.tracker.ui.design.components.MetricCard
+import com.personalfinance.tracker.ui.design.components.SectionHeader
+import com.personalfinance.tracker.ui.design.components.TransactionRow
+import com.personalfinance.tracker.ui.design.components.WarningBanner
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -30,6 +45,13 @@ import java.util.Date
 
 @Composable
 fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit = {}) {
+    MaldarDesignTheme {
+        DashboardContent(viewModel, onGoToConfirm, onGoToReports)
+    }
+}
+
+@Composable
+private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val pending by viewModel.pendingSms.collectAsState()
@@ -52,12 +74,18 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
     val allExpense = transactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(
+            start = MaldarDesign.spacing.lg,
+            end = MaldarDesign.spacing.lg,
+            top = MaldarDesign.spacing.lg,
+            bottom = MaldarDesign.spacing.section
+        ),
+        verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium)
+                Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text(
                     JalaliCalendar.formatDate(System.currentTimeMillis()),
                     style = MaterialTheme.typography.bodyMedium,
@@ -69,8 +97,12 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         // First-launch onboarding: guide the user when the app is completely empty.
         if (accounts.isEmpty() && transactions.isEmpty()) {
             item {
-                AppCard(filled = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                DesignAppCard(
+                    style = AppCardStyle.OUTLINED,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
                         Text(AppStrings.onboardingTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(AppStrings.onboardingBody, style = MaterialTheme.typography.bodyMedium)
                     }
@@ -79,9 +111,28 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         }
 
         if (pending.isNotEmpty()) {
-            item { Text(AppStrings.unreadSms, style = MaterialTheme.typography.titleLarge) }
+            item {
+                WarningBanner(
+                    message = AppStrings.pendingSms.fa(pending.size),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            onClick = onGoToConfirm,
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            onClickLabel = AppStrings.confirmSms
+                        )
+                )
+            }
+            item {
+                SectionHeader(
+                    title = AppStrings.unreadSms,
+                    actionLabel = AppStrings.confirmEdit,
+                    onAction = onGoToConfirm
+                )
+            }
             items(pending) { p ->
-                AppCard(
+                DesignAppCard(
+                    style = AppCardStyle.OUTLINED,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(
@@ -90,14 +141,16 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
                         )
                 ) {
                     Row(
-                        Modifier.fillMaxWidth().padding(14.dp),
+                        Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(Modifier.weight(1f)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.xs)) {
                             Text(
                                 "${p.parsedType?.name ?: AppStrings.unknown} • ${p.parsedAmount?.let { Money.format2(it) + " " + AppStrings.moneyUnit } ?: AppStrings.amountUnclear}",
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(AppStrings.from + " ${p.sender}", style = MaterialTheme.typography.labelSmall)
                         }
@@ -110,7 +163,7 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         if (reviewed.isNotEmpty()) {
             item {
                 var expanded by remember { mutableStateOf(false) }
-                AppCard(modifier = Modifier.fillMaxWidth()) {
+                DesignAppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
                     Column(Modifier.fillMaxWidth()) {
                         Row(
                             Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(14.dp),
@@ -142,93 +195,108 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
         }
 
         item {
-            AppCard(filled = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(AppStrings.totalBalance, color = Color.White.copy(alpha = 0.85f))
+            DesignAppCard(style = AppCardStyle.HERO, modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(AppStrings.totalBalance, color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelLarge)
+                        Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    }
                     val animatedBalance by animateFloatAsState(
                         targetValue = totalBalance.toFloat(),
                         animationSpec = tween(durationMillis = 400),
                         label = "balance"
                     )
-                    Text(
-                        Money.format2(animatedBalance.toDouble()) + " " + AppStrings.moneyUnit,
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineMedium
+                    AmountText(
+                        amount = Money.format2(animatedBalance.toDouble()),
+                        style = MaterialTheme.typography.headlineLarge
                     )
-                    Spacer(Modifier.height(14.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text(AppStrings.monthIncome, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text(Money.format2(monthIncome) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                        Column {
-                            Text(AppStrings.monthExpense, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text(Money.format2(monthExpense + monthLoanPaid) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                    if (monthLoanPaid > 0) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(AppStrings.loanPaidThisMonth, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                            Text(Money.format2(monthLoanPaid) + " " + AppStrings.moneyUnit, color = Color.White, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
                 }
             }
         }
 
-        item { Text(AppStrings.recentTransactions, style = MaterialTheme.typography.titleLarge) }
+        item {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
+            ) {
+                MetricCard(
+                    label = AppStrings.monthIncome,
+                    value = Money.format2(monthIncome),
+                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    tone = AmountTone.POSITIVE,
+                    modifier = Modifier.width(148.dp)
+                )
+                MetricCard(
+                    label = AppStrings.monthExpense,
+                    value = Money.format2(monthExpense + monthLoanPaid),
+                    icon = Icons.AutoMirrored.Filled.TrendingDown,
+                    tone = AmountTone.NEGATIVE,
+                    modifier = Modifier.width(148.dp)
+                )
+                MetricCard(
+                    label = AppStrings.loanPaidThisMonth,
+                    value = Money.format2(monthLoanPaid),
+                    icon = Icons.Filled.Payments,
+                    modifier = Modifier.width(148.dp)
+                )
+            }
+        }
 
         item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            SectionHeader(
+                title = AppStrings.recentTransactions,
+                actionLabel = AppStrings.reports,
+                onAction = onGoToReports
+            )
+        }
+
+        item {
+            DesignAppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(AppStrings.transactionCount.fa(transactions.size), style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(allIncome) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                        Text(Money.format2(allIncome) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaldarDesign.colors.positive)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(AppStrings.allTransactionsSum, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(allExpense) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
+                        Text(Money.format2(allExpense) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaldarDesign.colors.negative)
                     }
                 }
             }
         }
 
         if (transactions.isEmpty()) {
-            item { Text(AppStrings.noTransactions, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
+            item {
+                com.personalfinance.tracker.ui.design.components.EmptyState(
+                    title = AppStrings.recentTransactions,
+                    message = AppStrings.noTransactions,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MaldarDesign.spacing.xxl)
+                )
+            }
         }
 
         items(transactions.take(15)) { tx ->
-            AppCard(
+            DesignAppCard(
+                style = AppCardStyle.OUTLINED,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(
                         onClick = { editingTx = tx },
                         role = androidx.compose.ui.semantics.Role.Button
-                    )
+                    ),
+                contentPadding = PaddingValues(0.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(tx.category, fontWeight = FontWeight.Medium)
-                        Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                TransactionRow(
+                    title = tx.category,
+                    amount = Money.format2(tx.amount),
+                    metadata = buildString {
+                        append(JalaliCalendar.formatDateTime(tx.dateMillis))
                         tx.balanceAfter?.let {
-                            Text(
-                                "${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            append(" • ${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}")
                         }
-                    }
-                    Text(
-                        (if (tx.type == TxType.INCOME) "+ " else "- ") + Money.format2(tx.amount) + " " + AppStrings.moneyUnit,
-                        color = if (tx.type == TxType.INCOME) Color(0xFF1B7A5A) else Color(0xFFE8604C),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    },
+                    tone = if (tx.type == TxType.INCOME) AmountTone.POSITIVE else AmountTone.NEGATIVE
+                )
             }
         }
 

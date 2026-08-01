@@ -12,15 +12,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.personalfinance.tracker.ui.theme.Coral
-import com.personalfinance.tracker.ui.theme.Emerald
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -37,8 +40,8 @@ import java.util.Calendar
 @Composable
 fun MonthTrendGraph(
     data: List<Pair<Double, Double>>,
-    balanceLine: List<Double> = emptyList(),
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    balanceLine: List<Double> = emptyList()
 ) {
     if (data.isEmpty()) return
     val measurer = rememberTextMeasurer()
@@ -58,9 +61,12 @@ fun MonthTrendGraph(
     val totalIncome = remember(data) { data.sumOf { it.first } }
     val totalExpense = remember(data) { data.sumOf { it.second } }
     val totalNet = totalIncome - totalExpense
+    val incomeColor = MaldarDesign.colors.positive
+    val expenseColor = MaldarDesign.colors.negative
 
     var selectedIndex by remember { mutableStateOf<Int?>(null) }
     val primaryColor = MaterialTheme.colorScheme.primary
+    val balanceColor = MaterialTheme.colorScheme.secondary
 
     val maxVal = (data.maxOfOrNull { maxOf(it.first, it.second) } ?: 0.0).coerceAtLeast(1.0)
 
@@ -76,8 +82,8 @@ fun MonthTrendGraph(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            SummaryItem(AppStrings.reportIncome, totalIncome, Emerald)
-            SummaryItem(AppStrings.reportExpense, totalExpense, Coral)
+            SummaryItem(AppStrings.reportIncome, totalIncome, incomeColor)
+            SummaryItem(AppStrings.reportExpense, totalExpense, expenseColor)
             SummaryItem(AppStrings.net, totalNet, MaterialTheme.colorScheme.onSurface)
         }
 
@@ -86,6 +92,9 @@ fun MonthTrendGraph(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(170.dp)
+                .semantics {
+                    contentDescription = "${AppStrings.monthlyTrend}، ${AppStrings.reportIncome}: ${Money.format(totalIncome)} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(totalExpense)} ${AppStrings.moneyUnit}، ${AppStrings.net}: ${Money.format(totalNet)} ${AppStrings.moneyUnit}"
+                }
                 .pointerInput(data.size) {
                     detectTapGestures { offset ->
                         val width = size.width
@@ -108,13 +117,13 @@ fun MonthTrendGraph(
                 val expH = (exp / maxVal * (baseY - 6.dp.toPx())).toFloat()
 
                 drawRoundRect(
-                    color = Emerald,
+                    color = incomeColor,
                     topLeft = Offset(groupX, baseY - incH),
                     size = Size(barW, incH),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
                 )
                 drawRoundRect(
-                    color = Coral,
+                    color = expenseColor,
                     topLeft = Offset(groupX + barW + 4.dp.toPx(), baseY - expH),
                     size = Size(barW, expH),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
@@ -164,7 +173,7 @@ fun MonthTrendGraph(
                 }
                 for (i in 1 until points.size) {
                     drawLine(
-                        color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                        color = balanceColor,
                         start = points[i - 1],
                         end = points[i],
                         strokeWidth = 3.dp.toPx()
@@ -172,7 +181,7 @@ fun MonthTrendGraph(
                 }
                 points.forEach { p ->
                     drawRoundRect(
-                        color = androidx.compose.ui.graphics.Color(0xFF2B6CB0),
+                        color = balanceColor,
                         topLeft = Offset(p.x - 3.dp.toPx(), p.y - 3.dp.toPx()),
                         size = Size(6.dp.toPx(), 6.dp.toPx()),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
@@ -232,4 +241,25 @@ private fun RowScope.SummaryItem(label: String, amount: Double, color: Color) {
             color = color
         )
     }
+}
+
+@Preview(showBackground = true, locale = "fa")
+@Composable
+private fun MonthTrendGraphPreview() = MaldarDesignTheme {
+    MonthTrendGraph(
+        data = listOf(
+            8_000_000.0 to 4_200_000.0,
+            7_500_000.0 to 5_100_000.0,
+            9_000_000.0 to 3_800_000.0,
+            8_700_000.0 to 6_200_000.0,
+            10_000_000.0 to 5_400_000.0,
+            9_800_000.0 to 4_900_000.0
+        )
+    )
+}
+
+@Preview(showBackground = true, locale = "fa", uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun MonthTrendGraphDarkPreview() = MaldarDesignTheme(true) {
+    MonthTrendGraph(data = listOf(5_000_000.0 to 0.0, 0.0 to 2_000_000.0, 7_000_000.0 to 4_000_000.0))
 }
