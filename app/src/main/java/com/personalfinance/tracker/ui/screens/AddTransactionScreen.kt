@@ -1,29 +1,48 @@
 package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material3.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxSource
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.AppButton
+import com.personalfinance.tracker.ui.design.components.AppButtonStyle
+import com.personalfinance.tracker.ui.design.components.AppCard
+import com.personalfinance.tracker.ui.design.components.AppCardStyle
+import com.personalfinance.tracker.ui.design.components.MaldarSegmentedControl
+import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.CrashLogger
+import com.personalfinance.tracker.util.Digits
+import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 @Composable
 fun AddTransactionScreen(
@@ -32,10 +51,24 @@ fun AddTransactionScreen(
     smsDate: Long? = null,
     onContinueToList: (() -> Unit)? = null
 ) {
+    MaldarDesignTheme {
+        AddTransactionContent(viewModel, accountId, smsDate, onContinueToList)
+    }
+}
+
+@Composable
+private fun AddTransactionContent(
+    viewModel: FinanceViewModel,
+    accountId: Long?,
+    smsDate: Long?,
+    onContinueToList: (() -> Unit)?
+) {
     val context = LocalContext.current
     val accounts by viewModel.bankAccounts.collectAsState()
     val loans by viewModel.loans.collectAsState()
     val senders by viewModel.smsSenders.collectAsState()
+    val expenseCategories by viewModel.expenseCategories.collectAsState()
+    val incomeCategories by viewModel.incomeCategories.collectAsState()
 
     var type by remember { mutableStateOf(TxType.EXPENSE) }
     var amountText by remember { mutableStateOf("") }
@@ -51,8 +84,9 @@ fun AddTransactionScreen(
     var remainderText by remember { mutableStateOf("") }
     var transactionDateMillis by remember { mutableStateOf<Long?>(null) }
     var sourceSmsBody by remember { mutableStateOf<String?>(null) }
-    var savedCount by remember { mutableStateOf(0) }
+    var savedCount by remember { mutableIntStateOf(0) }
     var isSaving by remember { mutableStateOf(false) }
+    var amountError by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -90,52 +124,106 @@ fun AddTransactionScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium)
+    val activeCategories = if (type == TxType.EXPENSE) expenseCategories else incomeCategories
+    val effectiveDateMillis = transactionDateMillis ?: System.currentTimeMillis()
+    val effectiveTime = remember(effectiveDateMillis) {
+        Calendar.getInstance().apply { timeInMillis = effectiveDateMillis }.let {
+            Digits.toPersian("%02d:%02d".format(java.util.Locale.US, it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)))
+        }
+    }
 
-        SingleChoiceSegmented(
-            options = listOf(AppStrings.expense, AppStrings.income, AppStrings.cardToCard),
-            selectedIndex = when(type) {
-                TxType.EXPENSE -> 0
-                TxType.INCOME -> 1
-                TxType.CARD_TO_CARD -> 2
-            },
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = MaldarDesign.spacing.lg,
+                    end = MaldarDesign.spacing.lg,
+                    top = MaldarDesign.spacing.lg,
+                    bottom = MaldarDesign.spacing.section
+                ),
+            verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.lg)
+        ) {
+        Text(AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+
+        MaldarSegmentedControl(
+            options = listOf(AppStrings.expense, AppStrings.income),
+            selectedIndex = if (type == TxType.INCOME) 1 else 0,
             onSelected = {
-                type = when(it) {
-                    0 -> TxType.EXPENSE
-                    1 -> TxType.INCOME
-                    else -> TxType.CARD_TO_CARD
-                }
+                type = if (it == 0) TxType.EXPENSE else TxType.INCOME
                 category = "" // let CategoryPicker re-default to the first category of the new type
             }
         )
 
-        OutlinedTextField(
-            value = amountText,
-            onValueChange = { amountText = sanitizeNumberInput(it) },
-            label = { Text(AppStrings.amountLabel) },
-            visualTransformation = ThousandsSeparatorTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
+        AppCard(style = AppCardStyle.HERO, modifier = Modifier.fillMaxWidth()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    if (rialMode) "${AppStrings.amount} (${AppStrings.rial})" else AppStrings.amountLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+                Spacer(Modifier.height(MaldarDesign.spacing.sm))
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = {
+                        amountText = sanitizeNumberInput(it)
+                        amountError = false
+                    },
+                    textStyle = MaterialTheme.typography.headlineLarge.copy(
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    placeholder = { Text("۰", Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+                    visualTransformation = ThousandsSeparatorTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    isError = amountError,
+                    supportingText = if (amountError) ({ Text(AppStrings.invalidAmount) }) else null,
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = if (rialMode) "${AppStrings.amount}، ${AppStrings.rial}" else AppStrings.amountLabel
+                    },
+                    shape = MaterialTheme.shapes.medium
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(AppStrings.unit, style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.width(MaldarDesign.spacing.sm))
+                    FilterChip(selected = !rialMode, onClick = { rialMode = false }, label = { Text(AppStrings.toman) })
+                    Spacer(Modifier.width(MaldarDesign.spacing.sm))
+                    FilterChip(selected = rialMode, onClick = { rialMode = true }, label = { Text(AppStrings.rial) })
+                }
+            }
+        }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Text(AppStrings.unit, style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.width(8.dp))
-            FilterChip(
-                selected = !rialMode,
-                onClick = { rialMode = false },
-                label = { Text(AppStrings.toman) }
-            )
-            Spacer(Modifier.width(8.dp))
-            FilterChip(
-                selected = rialMode,
-                onClick = { rialMode = true },
-                label = { Text(AppStrings.rial) }
-            )
+        if (sourceSmsBody != null) {
+            AppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(Icons.AutoMirrored.Filled.Message, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(MaldarDesign.spacing.sm))
+                    Column(Modifier.weight(1f)) {
+                        Text(AppStrings.smsBody, style = MaterialTheme.typography.labelLarge)
+                        Text(sourceSmsBody.orEmpty(), style = MaterialTheme.typography.bodySmall, maxLines = 3)
+                    }
+                }
+            }
+        }
+
+        SectionHeader(AppStrings.category)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
+        ) {
+            activeCategories.take(6).forEach { item ->
+                FilterChip(
+                    selected = category == item.name,
+                    onClick = { category = item.name },
+                    label = { Text(item.name) }
+                )
+            }
         }
 
         CategoryPicker(
@@ -145,74 +233,89 @@ fun AddTransactionScreen(
             onSelected = { category = it }
         )
 
-        ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
-            OutlinedTextField(
-                value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
-                onValueChange = {}, readOnly = true,
-                label = { Text(AppStrings.bankAccount) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-            )
-            ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
-                accounts.forEach { acc ->
-                    DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
+        AppCard(style = AppCardStyle.FLAT, modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)) {
+                ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
+                        onValueChange = {}, readOnly = true,
+                        label = { Text(AppStrings.bankAccount) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
+                        accounts.forEach { acc ->
+                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = loans.firstOrNull { it.id == selectedLoanId }?.name ?: AppStrings.relatedToLoan,
+                        onValueChange = {}, readOnly = true,
+                        label = { Text(AppStrings.relatedToLoan + " (" + AppStrings.optional + ")") },
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = loanMenuExpanded, onDismissRequest = { loanMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text(AppStrings.none) }, onClick = { selectedLoanId = null; loanMenuExpanded = false })
+                        loans.filter { !it.isPaid }.forEach { loan ->
+                            DropdownMenuItem(text = { Text(loan.name) }, onClick = { selectedLoanId = loan.id; loanMenuExpanded = false })
+                        }
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                    OutlinedTextField(
+                        value = JalaliCalendar.formatDate(effectiveDateMillis),
+                        onValueChange = {}, readOnly = true,
+                        label = { Text("تاریخ") },
+                        leadingIcon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = effectiveTime,
+                        onValueChange = {}, readOnly = true,
+                        label = { Text("زمان") },
+                        leadingIcon = { Icon(Icons.Filled.AccessTime, contentDescription = null) },
+                        modifier = Modifier.widthIn(min = 116.dp).weight(0.65f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = note, onValueChange = { note = it },
+                    label = { Text(AppStrings.noteOptional) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4
+                )
+
+                if (selectedAccountId != null) {
+                    OutlinedTextField(
+                        value = remainderText,
+                        onValueChange = { remainderText = sanitizeNumberInput(it) },
+                        label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
+                        visualTransformation = ThousandsSeparatorTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        AppStrings.balanceAfter + ": " + (accounts.firstOrNull { it.id == selectedAccountId }?.balance?.let { Money.format2(it) } ?: "—") + " " + AppStrings.moneyUnit,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
 
-        ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
-            OutlinedTextField(
-                value = loans.firstOrNull { it.id == selectedLoanId }?.name ?: AppStrings.relatedToLoan,
-                onValueChange = {}, readOnly = true,
-                label = { Text(AppStrings.relatedToLoan + " (" + AppStrings.optional + ")") },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-            )
-            ExposedDropdownMenu(expanded = loanMenuExpanded, onDismissRequest = { loanMenuExpanded = false }) {
-                DropdownMenuItem(text = { Text(AppStrings.none) }, onClick = { selectedLoanId = null; loanMenuExpanded = false })
-                loans.filter { !it.isPaid }.forEach { loan ->
-                    DropdownMenuItem(text = { Text(loan.name) }, onClick = { selectedLoanId = loan.id; loanMenuExpanded = false })
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = note, onValueChange = { note = it },
-            label = { Text(AppStrings.noteOptional) },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        // Show remainder field when account is selected
-        if (selectedAccountId != null) {
-            OutlinedTextField(
-                value = remainderText,
-                onValueChange = { remainderText = sanitizeNumberInput(it) },
-                label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
-                visualTransformation = ThousandsSeparatorTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                AppStrings.balanceAfter + ": " + (accounts.firstOrNull { it.id == selectedAccountId }?.balance?.let { Money.format2(it) } ?: "—") + " " + AppStrings.moneyUnit,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-        }
-
-        val saveInteraction = remember { MutableInteractionSource() }
-        val pressed by saveInteraction.collectIsPressedAsState()
-        val saveScale by animateFloatAsState(
-            targetValue = if (pressed) 0.97f else 1f,
-            animationSpec = tween(durationMillis = 120),
-            label = "saveScale"
-        )
-        Button(
+        AppButton(
+            text = AppStrings.save,
             onClick = {
                 val amount = amountText.toDoubleOrNull()
                 if (amount != null && amount > 0) {
+                    amountError = false
                     val stored = if (rialMode) amount / 10.0 else amount
 
-                    // Explicit/SMS balance is trusted. A blank balance is passed
-                    // as null so Room calculates it from the latest account row
-                    // inside the same atomic transaction as the insert.
                     val remainder = if (remainderText.isNotBlank()) {
                         remainderText.toDoubleOrNull()?.let { if (rialMode) it / 10.0 else it }
                     } else {
@@ -256,40 +359,37 @@ fun AddTransactionScreen(
                         }
                     }
                 } else {
+                    amountError = true
                     confirmationMessage = AppStrings.invalidAmount
                 }
             },
             enabled = !isSaving,
-            interactionSource = saveInteraction,
-            modifier = Modifier.fillMaxWidth().scale(saveScale)
-        ) {
-            if (isSaving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            } else {
-                Text(AppStrings.save)
-            }
-        }
+            loading = isSaving,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         if (onContinueToList != null) {
             if (savedCount > 0) {
-                OutlinedButton(onClick = onContinueToList, modifier = Modifier.fillMaxWidth()) {
-                    Text(AppStrings.continueToList)
-                }
+                AppButton(
+                    text = AppStrings.continueToList,
+                    onClick = onContinueToList,
+                    style = AppButtonStyle.OUTLINED,
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
-                Text(AppStrings.smsAddHint, style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Text(
+                    AppStrings.smsAddHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 
-    SnackbarHost(
-        hostState = snackbarHostState,
-        modifier = Modifier.align(Alignment.TopCenter)
-    )
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.TopCenter).semantics { liveRegion = LiveRegionMode.Polite }
+        )
     }
 }
 

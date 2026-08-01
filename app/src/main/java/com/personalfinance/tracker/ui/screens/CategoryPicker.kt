@@ -47,14 +47,14 @@ fun CategoryPicker(
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = selected, onValueChange = {}, readOnly = true,
-            label = { Text("Category") },
+            label = { Text(AppStrings.category) },
             modifier = Modifier.menuAnchor().fillMaxWidth()
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             categories.forEach { c ->
                 DropdownMenuItem(text = { Text(c.name) }, onClick = { onSelected(c.name); expanded = false })
             }
-            Divider()
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(AppStrings.manageCategories) },
                 onClick = { expanded = false; showManage = true }
@@ -111,11 +111,11 @@ private fun ManageCategoriesDialog(
                                 TextButton(onClick = {
                                     if (renameText.isNotBlank()) viewModel.renameCategory(cat, renameText)
                                     renaming = null
-                                }) { Text("Save") }
+                                }) { Text(AppStrings.save) }
                             } else {
                                 Text(cat.name, modifier = Modifier.weight(1f).padding(top = 12.dp))
                                 IconButton(onClick = { renaming = cat; renameText = cat.name }) {
-                                    Icon(Icons.Filled.Edit, contentDescription = "Rename")
+                                    Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit)
                                 }
                                 IconButton(onClick = {
                                     scope.launch {
@@ -126,7 +126,7 @@ private fun ManageCategoriesDialog(
                                             AppStrings.categoryDeleted
                                     }
                                 }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                    Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -137,7 +137,7 @@ private fun ManageCategoriesDialog(
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = newName, onValueChange = { newName = it },
-                        label = { Text("New category") },
+                        label = { Text(AppStrings.newCategory) },
                         modifier = Modifier.weight(1f), singleLine = true
                     )
                     TextButton(onClick = {
@@ -145,7 +145,7 @@ private fun ManageCategoriesDialog(
                             viewModel.addCategory(newName, type)
                             newName = ""
                         }
-                    }) { Text("Add") }
+                    }) { Text(AppStrings.add) }
                 }
                 resultMessage?.let {
                     Spacer(Modifier.height(8.dp))
@@ -153,7 +153,7 @@ private fun ManageCategoriesDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.done) } }
     )
 }
 
