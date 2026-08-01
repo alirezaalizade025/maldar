@@ -47,6 +47,8 @@ class SmsReceiver : BroadcastReceiver() {
         val matched = SmsAccountMatcher.match(sender, body, watchedSenders, accounts)
             ?: return
 
+        if (SmsParser.isPasswordMessage(body)) return
+
         // Capture every SMS from a watched sender. We no longer pre-filter on
         // keywords/amounts here: the user reviews each one manually, so a missed
         // keyword shouldn't silently drop a real bank SMS.

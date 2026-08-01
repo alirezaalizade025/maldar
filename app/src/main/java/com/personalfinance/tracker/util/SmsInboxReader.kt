@@ -26,7 +26,8 @@ object SmsInboxReader {
                 val address = cursor.getString(addrIdx) ?: continue
                 val body = cursor.getString(bodyIdx) ?: continue
                 if (senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) } &&
-                    SmsAccountMatcher.bodyMatchesLast4(body, accountLast4)) {
+                    SmsAccountMatcher.bodyMatchesLast4(body, accountLast4) &&
+                    !SmsParser.isPasswordMessage(body)) {
                     // Prefer the remaining balance (مانده) for the account balance;
                     // fall back to the transaction amount if no balance is present.
                     val parsed = SmsParser.parse(body)
@@ -108,6 +109,7 @@ object SmsInboxReader {
                 val body = cursor.getString(bodyIdx) ?: continue
                 if (!senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) continue
                 if (!SmsAccountMatcher.bodyMatchesLast4(body, accountLast4)) continue
+                if (SmsParser.isPasswordMessage(body)) continue
                 val date = cursor.getLong(dateIdx)
                 val parsed = SmsParser.parse(body)
                 out.add(SmsMessage(address, body, date, parsed.amount, parsed.type, parsed.balanceAfter))

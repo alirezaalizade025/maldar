@@ -114,6 +114,8 @@ object SmsParser {
             // An explicit sign on the transaction amount wins.
             amountResult?.sign == 1 -> TxType.INCOME
             amountResult?.sign == -1 -> TxType.EXPENSE
+            lower.contains("برداشت") -> TxType.EXPENSE
+            lower.contains("واریز") -> TxType.INCOME
             debitKeywords.any { lower.contains(it) } -> TxType.EXPENSE
             creditKeywords.any { lower.contains(it) } -> TxType.INCOME
             else -> null
@@ -124,6 +126,16 @@ object SmsParser {
         }
 
         return ParseResult(amountResult?.value, type, balanceAfter, merchant)
+    }
+
+    /** Returns true for bank messages that contain a card password/OTP rather than a transaction. */
+    fun isPasswordMessage(message: String): Boolean {
+        val lower = message.lowercase()
+        return listOf(
+            "رمز پویا", "رمز یکبار مصرف", "رمز یک بار مصرف", "رمز دوم", "رمز کارت",
+            "کد تایید", "کد تأیید", "otp", "one time password", "verification code",
+            "password", "passcode"
+        ).any { lower.contains(it) }
     }
 
     private fun normalizeDigits(s: String): String =

@@ -72,4 +72,17 @@ class SmsParserTest {
         assertEquals(37_425_848.2, result.balanceAfter!!, 0.001)
         assertFalse(SmsParser.looksLikeTransaction(message))
     }
+
+    @Test
+    fun depositAndWithdrawalWords_setDirection() {
+        assertEquals(TxType.INCOME, SmsParser.parse("واریز مبلغ ۱۰۰۰۰۰ ریال").type)
+        assertEquals(TxType.EXPENSE, SmsParser.parse("برداشت مبلغ ۱۰۰۰۰۰ ریال").type)
+    }
+
+    @Test
+    fun passwordMessages_areIgnored() {
+        assertTrue(SmsParser.isPasswordMessage("رمز پویا: 123456"))
+        assertTrue(SmsParser.isPasswordMessage("Your OTP is 123456"))
+        assertFalse(SmsParser.isPasswordMessage("واریز مبلغ ۱۰۰۰۰۰ ریال"))
+    }
 }

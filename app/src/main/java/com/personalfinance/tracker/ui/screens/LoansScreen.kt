@@ -36,6 +36,7 @@ import androidx.compose.ui.geometry.CornerRadius
 fun LoansScreen(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
     val accounts by viewModel.bankAccounts.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
@@ -51,7 +52,11 @@ fun LoansScreen(viewModel: FinanceViewModel) {
     }
     // Amount whose pay-day has already passed this Jalali month (due so far).
     val jNow = JalaliCalendar.fromGregorian(Calendar.getInstance())
-    val dueSoFar = activeLoans.filter { it.payDayOfMonth <= jNow.day }
+    fun paidThisMonth(loan: LoanEntity): Double = transactions
+        .filter { it.loanId == loan.id && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
+        .sumOf { it.amount }
+    fun isPaidThisMonth(loan: LoanEntity): Boolean = paidThisMonth(loan) >= monthlyDue(loan)
+    val dueSoFar = activeLoans.filter { it.payDayOfMonth <= jNow.day && !isPaidThisMonth(it) }
         .sumOf { monthlyDue(it) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -108,7 +113,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 
         if (showMonthlySchedule) {
             item {
-                MonthlyScheduleView(loans = loans, viewModel = viewModel)
+                MonthlyScheduleView(loans = loans, viewModel = viewModel, transactions = transactions)
             }
         }
 
@@ -141,8 +146,13 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                     }
                     if (loan.installment > 0.0) {
                         Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
-                        Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan), style = MaterialTheme.typography.labelSmall)
+                        Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan, isPaidThisMonth(loan)), style = MaterialTheme.typography.labelSmall)
                     }
+                    Text(
+                        if (isPaidThisMonth(loan)) AppStrings.loanInstallmentPaidThisMonth else AppStrings.loanNotPaidThisMonth,
+                        color = if (isPaidThisMonth(loan)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall
+                    )
                     Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                     if (loan.notes.isNotBlank()) Text(loan.notes, style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(10.dp))
@@ -300,18 +310,21 @@ private fun EditLoanDialog(
 }
 
 @Composable
-private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewModel) {
+private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewModel, transactions: List<com.personalfinance.tracker.data.TransactionEntity>) {
     // Find the longest loan to determine max months to display
-    val maxMonths = loans.filter { !it.isPaid }.maxOfOrNull { viewModel.monthsRemaining(it) } ?: 0
+    val maxMonths = loans.filter { !it.isPaid }.maxOfOrNull { loan ->
+        viewModel.monthsRemaining(loan, transactions.any { it.loanId == loan.id && JalaliCalendar.isInJalaliMonth(it.dateMillis) })
+    } ?: 0
     
     Column(Modifier.fillMaxWidth()) {
         repeat(maxMonths.coerceAtMost(24)) { monthIndex ->
             val monthNum = monthIndex + 1
+            val monthLabel = JalaliCalendar.monthLabel(Calendar.getInstance(), monthIndex)
             var monthTotal = 0.0
             val monthLoans = mutableListOf<String>()
             
             loans.filter { !it.isPaid }.forEach { loan ->
-                if (monthNum <= viewModel.monthsRemaining(loan)) {
+                if (monthNum <= viewModel.monthsRemaining(loan, transactions.any { it.loanId == loan.id && JalaliCalendar.isInJalaliMonth(it.dateMillis) })) {
                     val payment = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
                     monthTotal += payment
                     monthLoans.add("${loan.name}: " + Money.format2(payment) + " " + AppStrings.moneyUnit)
@@ -322,7 +335,7 @@ private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewM
                 AppCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                     Column(Modifier.padding(12.dp)) {
                         Text(
-                            "ماه $monthNum: " + Money.format2(monthTotal) + " " + AppStrings.moneyUnit,
+                            "$monthLabel: " + Money.format2(monthTotal) + " " + AppStrings.moneyUnit,
                             fontWeight = FontWeight.Bold
                         )
                         monthLoans.forEach { loan ->
@@ -401,10 +414,11 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
     val payments by produceState(initialValue = emptyList<com.personalfinance.tracker.data.TransactionEntity>(), loan.id) {
         value = viewModel.getLoanPayments(loan.id)
     }
+    val currentMonthPaid = payments.any { JalaliCalendar.isInJalaliMonth(it.dateMillis) }
     // Projected remaining balance over the next months until payoff.
-    val projection = remember(loan.id) {
+    val projection = remember(loan.id, loan.remainingAmount, currentMonthPaid) {
         val inst = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
-        val months = if (loan.installment > 0.0) viewModel.monthsRemaining(loan) else 1
+        val months = if (loan.installment > 0.0) viewModel.monthsRemaining(loan, currentMonthPaid) else 1
         (0..months.coerceAtMost(24)).scan(loan.remainingAmount) { acc, _ -> (acc - inst).coerceAtLeast(0.0) }
     }
     AlertDialog(
@@ -415,7 +429,7 @@ private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDi
                 Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
                 if (loan.installment > 0.0) {
                     Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
-                    Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan), style = MaterialTheme.typography.labelSmall)
+                    Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan, currentMonthPaid), style = MaterialTheme.typography.labelSmall)
                     Spacer(Modifier.height(4.dp))
                     Text(AppStrings.loanProjection, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     LoanProjectionChart(projection = projection)

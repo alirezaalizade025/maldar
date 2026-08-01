@@ -141,6 +141,8 @@ object AppStrings {
     val payLoan = "پرداخت قسط"
     val loanLastPayment = "آخرین پرداخت"
     val loanNoPayment = "پرداختی ثبت نشده است"
+        val loanInstallmentPaidThisMonth = "قسط این ماه پرداخت شده است"
+        val loanNotPaidThisMonth = "قسط این ماه پرداخت نشده است"
     val loanPaymentAmount = "مبلغ پرداخت (تومان)"
     val delete = "حذف"
     val addLoan = "افزودن وام"
@@ -171,6 +173,12 @@ object AppStrings {
     val more = "بیشتر"
     val noExpenses = "امسال هزینه‌ای ثبت نشده است."
     val totalExpenses = "مجموع هزینه‌ها"
+    val reportAccount = "حساب"
+    val allAccounts = "همه حساب‌ها"
+    val reportDay = "روزهای ماه"
+    val allDays = "همه روزها"
+    val dailyReport = "گزارش روزانه"
+    val day = "روز"
 
     // SMS confirmation
     val confirmSms = "تایید تراکنش‌های پیامکی"

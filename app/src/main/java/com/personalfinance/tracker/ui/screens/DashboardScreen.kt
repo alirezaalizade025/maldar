@@ -215,9 +215,6 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
                     Column {
                         Text(tx.category, fontWeight = FontWeight.Medium)
                         Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                        if (tx.note.isNotBlank()) {
-                            Text(tx.note, style = MaterialTheme.typography.labelSmall)
-                        }
                         tx.balanceAfter?.let {
                             Text(
                                 "${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}",

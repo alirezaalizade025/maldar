@@ -3,6 +3,8 @@ package com.personalfinance.tracker.ui.screens
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.data.CategoryTotal
+import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -30,23 +33,39 @@ private val chartColors = listOf(
 
 @Composable
 fun ReportsScreen(viewModel: FinanceViewModel) {
+    val accounts by viewModel.bankAccounts.collectAsState()
+    val transactions by viewModel.transactions.collectAsState()
     var monthOffset by remember { mutableStateOf(0) }
-    var income by remember { mutableStateOf(0.0) }
-    var expense by remember { mutableStateOf(0.0) }
-    var breakdown by remember { mutableStateOf<List<CategoryTotal>>(emptyList()) }
-    // Charts show the spent amount by default; toggle to view as a percentage.
-    var byPercent by remember { mutableStateOf(false) }
-    var trend by remember { mutableStateOf<List<Pair<Double, Double>>>(emptyList()) }
+    var accountFilter by remember { mutableStateOf<Long?>(null) }
+    var dayFilter by remember { mutableStateOf<Int?>(null) }
     var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
 
     LaunchedEffect(monthOffset) {
         runCatching {
-            val (inc, exp) = viewModel.monthlyIncomeExpense(monthOffset)
-            income = inc; expense = exp
-            breakdown = viewModel.categoryBreakdown(monthOffset)
-            trend = viewModel.monthlyHistory(6)
             balanceTrend = viewModel.balanceHistory(6)
         }
+    }
+
+    val monthTransactions = transactions.filter { tx ->
+        JalaliCalendar.isInJalaliMonth(tx.dateMillis, monthOffset) &&
+            (accountFilter == null || tx.bankAccountId == accountFilter)
+    }
+    val filteredTransactions = monthTransactions.filter { tx ->
+        dayFilter == null || JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = tx.dateMillis }).day == dayFilter
+    }
+    val income = filteredTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
+    val expense = filteredTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+    val breakdown = filteredTransactions.filter { it.type == TxType.EXPENSE }
+        .groupingBy { it.category }.fold(0.0) { total, tx -> total + tx.amount }
+        .map { CategoryTotal(it.key, it.value) }.sortedByDescending { it.total }
+    val trend = (5 downTo 0).map { back ->
+        val offset = -back
+        val monthTransactionsForTrend = transactions.filter { tx ->
+            JalaliCalendar.isInJalaliMonth(tx.dateMillis, offset) &&
+                (accountFilter == null || tx.bankAccountId == accountFilter)
+        }
+        monthTransactionsForTrend.filter { it.type == TxType.INCOME }.sumOf { it.amount } to
+            monthTransactionsForTrend.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     }
 
     val monthLabel = remember(monthOffset) {
@@ -64,6 +83,44 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                 OutlinedButton(onClick = { monthOffset-- }) { Text(AppStrings.prev) }
                 Text(monthLabel, style = MaterialTheme.typography.titleLarge)
                 OutlinedButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) { Text(AppStrings.next) }
+            }
+        }
+
+        item {
+            Text(AppStrings.reportAccount, style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = accountFilter == null,
+                    onClick = { accountFilter = null },
+                    label = { Text(AppStrings.allAccounts) }
+                )
+                accounts.forEach { account ->
+                    FilterChip(
+                        selected = accountFilter == account.id,
+                        onClick = { accountFilter = account.id },
+                        label = { Text(account.accountLabel) }
+                    )
+                }
+            }
+        }
+
+        item {
+            Text(AppStrings.reportDay, style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(selected = dayFilter == null, onClick = { dayFilter = null }, label = { Text(AppStrings.allDays) })
+                (1..31).forEach { day ->
+                    FilterChip(
+                        selected = dayFilter == day,
+                        onClick = { dayFilter = if (dayFilter == day) null else day },
+                        label = { Text(day.toString()) }
+                    )
+                }
             }
         }
 
@@ -99,18 +156,7 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         }
 
         item {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
-                FilterChip(
-                    selected = byPercent,
-                    onClick = { byPercent = !byPercent },
-                    label = { Text(if (byPercent) AppStrings.viewByAmount else AppStrings.viewByPercent) }
-                )
-            }
+            Text(AppStrings.spendingByCategory, style = MaterialTheme.typography.titleLarge)
         }
 
         if (breakdown.isEmpty()) {
@@ -127,8 +173,27 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                     color = chartColors[index % chartColors.size],
                     total = total,
                     maxValue = maxVal,
-                    byPercent = byPercent
                 )
+            }
+        }
+
+        item {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(AppStrings.dailyReport, style = MaterialTheme.typography.titleMedium)
+                    val daily = monthTransactions.groupBy {
+                        JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = it.dateMillis }).day
+                    }.toSortedMap()
+                    if (daily.isEmpty()) {
+                        Text(AppStrings.noTransactions, style = MaterialTheme.typography.labelSmall)
+                    } else {
+                        daily.forEach { (day, dayTransactions) ->
+                            val dayIncome = dayTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
+                            val dayExpense = dayTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+                            Text("${AppStrings.day} $day: +${Money.format(dayIncome)} / -${Money.format(dayExpense)} ${AppStrings.moneyUnit}", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
             }
         }
 
@@ -188,11 +253,9 @@ private fun CategoryBreakdownRow(
     item: CategoryTotal,
     color: Color,
     total: Double,
-    maxValue: Double,
-    byPercent: Boolean
+    maxValue: Double
 ) {
-    val exactFraction = (item.total / total).toFloat().coerceIn(0f, 1f)
-    val barFraction = if (byPercent) exactFraction else (item.total / maxValue).toFloat().coerceIn(0f, 1f)
+    val barFraction = (item.total / maxValue).toFloat().coerceIn(0f, 1f)
     val percent = item.total / total * 100.0
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -203,8 +266,7 @@ private fun CategoryBreakdownRow(
                     Text(item.category, style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(
-                    if (byPercent) "٪${Money.format(percent)}"
-                    else "${Money.format(item.total)} ${AppStrings.moneyUnit} (٪${Money.format(percent)})",
+                    "${Money.format(item.total)} ${AppStrings.moneyUnit} (٪${Money.format(percent)})",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )

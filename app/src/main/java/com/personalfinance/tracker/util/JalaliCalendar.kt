@@ -74,6 +74,10 @@ object JalaliCalendar {
         m = m.coerceIn(1, 12)
         return "${persianMonths[m - 1]} ${y.toPersian()}"
     }
+    fun isInJalaliMonth(millis: Long, offsetMonths: Int = 0): Boolean {
+        val (start, end) = jalaliMonthRange(Calendar.getInstance(), offsetMonths)
+        return millis in start..end
+    }
 
     // e.g. "۱۲ تیر ۱۴۰۳"
     fun formatDate(millis: Long): String {
