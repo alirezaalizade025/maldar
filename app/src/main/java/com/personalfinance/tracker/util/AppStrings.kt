@@ -206,6 +206,15 @@ object AppStrings {
     val ignore = "نادیده گرفتن"
     val confirmTransaction = "تایید تراکنش"
     val smsBody = "متن پیامک"
+    val confirmSmsEmptyHint = "پیامک جدیدی برای بررسی وجود ندارد."
+    val suggestedAccount = "حساب پیشنهادی"
+    val smsDate = "تاریخ پیامک"
+    val smsAmountNeedsReview = "مبلغ پیامک تشخیص داده نشد؛ پیش از تایید آن را وارد کنید."
+    val smsTypeNeedsReview = "نوع تراکنش مشخص نیست؛ پیش از تایید آن را بررسی کنید."
+    val smsAccountNotMatched = "حساب مرتبط با این پیامک پیدا نشد."
+    val expandSmsBody = "نمایش متن کامل پیامک"
+    val collapseSmsBody = "بستن متن پیامک"
+    val validPositiveAmount = "مبلغ باید بیشتر از صفر باشد."
 
     // Crash log / diagnostics
     val crashLog = "گزارش خطاها"
