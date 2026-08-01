@@ -248,7 +248,6 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     // Remaining months until payoff, derived from the installment so it drops
     // automatically with every payment. Defaults to totalMonths when no installment.
-    fun monthsRemaining(loan: LoanEntity): Int {
     fun monthsRemaining(loan: LoanEntity, currentMonthAlreadyPaid: Boolean = false): Int {
         val remaining = if (loan.installment > 0.0) {
             kotlin.math.ceil(loan.remainingAmount / loan.installment).toInt().coerceAtLeast(0)
