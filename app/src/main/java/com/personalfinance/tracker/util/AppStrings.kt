@@ -173,6 +173,7 @@ object AppStrings {
 
     // Reports
     val reports = "گزارش‌ها"
+    val monthlyFinancialReport = "گزارش مالی ماهانه"
     val prev = "قبلی"
     val next = "بعدی"
     val reportIncome = "درآمد"
