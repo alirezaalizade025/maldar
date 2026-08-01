@@ -1,24 +1,35 @@
 package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Message
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
-import com.personalfinance.tracker.ui.theme.AppCard
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.personalfinance.tracker.ui.design.MaldarDesign
+import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.AccountCard
+import com.personalfinance.tracker.ui.design.components.AmountText
+import com.personalfinance.tracker.ui.design.components.AppButton
+import com.personalfinance.tracker.ui.design.components.AppCard
+import com.personalfinance.tracker.ui.design.components.AppCardStyle
+import com.personalfinance.tracker.ui.design.components.EmptyState
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Digits
 import com.personalfinance.tracker.util.Money
@@ -31,6 +42,13 @@ import com.personalfinance.tracker.util.JalaliCalendar
 
 @Composable
 fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController? = null) {
+    MaldarDesignTheme {
+        BankAccountsContent(viewModel, navController)
+    }
+}
+
+@Composable
+private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavController?) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val senders by viewModel.smsSenders.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -41,6 +59,7 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
 
     var showAddAccount by remember { mutableStateOf(false) }
     var showEditAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
+    var showDeleteAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
     var refreshingId by remember { mutableStateOf<Long?>(null) }
     var refreshingAll by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -49,34 +68,48 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
         message?.let { snackbarHostState.showSnackbar(it) }
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = MaldarDesign.spacing.lg,
+            end = MaldarDesign.spacing.lg,
+            top = MaldarDesign.spacing.lg,
+            bottom = MaldarDesign.spacing.section
+        ),
+        verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
+    ) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(AppStrings.bankAccounts, style = MaterialTheme.typography.headlineMedium)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = {
-                            if (accounts.isEmpty() || refreshingAll) return@IconButton
-                            refreshingAll = true
-                            scope.launch {
-                                var updated = 0
-                                accounts.forEach { acc ->
-                                    val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
-                                    if (accSenders.isNotEmpty()) {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
-                                        if (res.amount != null) {
-                                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
-                                            updated++
-                                        }
+                Text(AppStrings.bankAccounts, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                IconButton(
+                    onClick = {
+                        if (accounts.isEmpty() || refreshingAll) return@IconButton
+                        refreshingAll = true
+                        scope.launch {
+                            var updated = 0
+                            accounts.forEach { acc ->
+                                val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
+                                if (accSenders.isNotEmpty()) {
+                                    val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
+                                    if (res.amount != null) {
+                                        viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                                        updated++
                                     }
                                 }
-                                refreshingAll = false
-                                message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
                             }
-                        },
-                        enabled = !refreshingAll
-                    ) { Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refreshAll) }
-                    IconButton(onClick = { showAddAccount = true }) { Icon(Icons.Filled.Add, contentDescription = AppStrings.addAccount) }
+                            refreshingAll = false
+                            message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
+                        }
+                    },
+                    enabled = accounts.isNotEmpty() && !refreshingAll,
+                    modifier = Modifier.semantics {
+                        contentDescription = AppStrings.refreshAll
+                        if (refreshingAll) stateDescription = AppStrings.refreshingAccount
+                    }
+                ) {
+                    if (refreshingAll) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refreshAll)
                 }
             }
         }
@@ -86,17 +119,15 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
             item {
                 val totalBalance = accounts.sumOf { it.balance }
                 val totalLoanRemainder = loans.filter { !it.isPaid }.sumOf { it.remainingAmount }
-                AppCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AppCard(style = AppCardStyle.HERO, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                        Text(AppStrings.total, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        AmountText(Money.format2(totalBalance), style = MaterialTheme.typography.headlineLarge)
                         if (totalLoanRemainder > 0.0) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(AppStrings.loanRemainderTotal, style = MaterialTheme.typography.labelSmall)
                                 Text(Money.format2(totalLoanRemainder) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                             }
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(AppStrings.total, style = MaterialTheme.typography.labelSmall)
-                            Text(Money.format2(totalBalance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
@@ -104,110 +135,100 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
         }
 
         if (accounts.isEmpty()) {
-            item { Text(AppStrings.noAccounts, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)) }
-        }
-
-        items(accounts) { acc ->
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text(acc.accountLabel, fontWeight = FontWeight.Medium)
-                        Text(acc.bankName, style = MaterialTheme.typography.labelSmall)
-                        if (acc.accountLast4.isNotBlank()) {
-                            Text(
-                                "${AppStrings.cardEnding}: •••• ${acc.accountLast4}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                        val attachedLoans = loans.filter { it.bankAccountId == acc.id }
-                        val activeAttachedLoans = attachedLoans.filter { !it.isPaid }
-                        val paidThisMonth = transactions.filter {
-                            it.bankAccountId == acc.id && it.loanId != null &&
-                                it.dateMillis in currentMonthRange.first..currentMonthRange.second
-                        }.sumOf { it.amount }
-                        val installmentDue = activeAttachedLoans.sumOf {
-                            (if (it.installment > 0.0) it.installment else it.remainingAmount)
-                                .coerceAtMost(it.remainingAmount)
-                        }
-                        if (attachedLoans.isNotEmpty()) {
-                            Text(
-                                "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            Text(
-                                "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                            val remainingThisMonth = (installmentDue - paidThisMonth).coerceAtLeast(0.0)
-                            if (remainingThisMonth > 0.0) {
-                                Text(
-                                    "${AppStrings.installmentRemainingThisMonth}: ${Money.format2(remainingThisMonth)} ${AppStrings.moneyUnit}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
-                        var menuExpanded by remember { mutableStateOf(false) }
-                        Box {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.accountActions)
-                            }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text(AppStrings.showSms, color = MaterialTheme.colorScheme.onSurface) },
-                                    enabled = navController != null,
-                                    onClick = { menuExpanded = false; navController?.navigate("account_sms/${acc.id}") }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(AppStrings.refresh, color = MaterialTheme.colorScheme.onSurface) },
-                                    enabled = refreshingId != acc.id,
-                                    onClick = {
-                                        menuExpanded = false
-                                        val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
-                                        if (accSenders.isEmpty()) { message = AppStrings.refreshFailed; return@DropdownMenuItem }
-                                        refreshingId = acc.id
-                                        scope.launch {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
-                                            if (res.amount != null) {
-                                                viewModel.updateBankAccount(acc.copy(balance = res.amount))
-                                                message = AppStrings.refreshDone
-                                            } else {
-                                                message = AppStrings.refreshFailed
-                                            }
-                                            refreshingId = null
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(AppStrings.edit, color = MaterialTheme.colorScheme.onSurface) },
-                                    onClick = { menuExpanded = false; showEditAccount = acc }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(AppStrings.delete, color = MaterialTheme.colorScheme.error) },
-                                    onClick = { menuExpanded = false; viewModel.deleteBankAccount(acc) }
-                                )
-                            }
-                        }
-                    }
-                }
+            item {
+                EmptyState(
+                    title = AppStrings.bankAccounts,
+                    message = AppStrings.noAccounts,
+                    actionLabel = AppStrings.addAccount,
+                    onAction = { showAddAccount = true },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = MaldarDesign.spacing.section)
+                )
             }
         }
 
-        item { Spacer(Modifier.height(40.dp)) }
+        items(accounts) { acc ->
+            val accSenders = senders.filter { it.bankAccountId == acc.id }
+            val attachedLoans = loans.filter { it.bankAccountId == acc.id }
+            val activeAttachedLoans = attachedLoans.filter { !it.isPaid }
+            val paidThisMonth = transactions.filter {
+                it.bankAccountId == acc.id && it.loanId != null &&
+                    it.dateMillis in currentMonthRange.first..currentMonthRange.second
+            }.sumOf { it.amount }
+            val installmentDue = activeAttachedLoans.sumOf {
+                (if (it.installment > 0.0) it.installment else it.remainingAmount)
+                    .coerceAtMost(it.remainingAmount)
+            }
+            val remainingThisMonth = (installmentDue - paidThisMonth).coerceAtLeast(0.0)
+            val refreshAccount: () -> Unit = {
+                if (accSenders.isEmpty()) {
+                    message = AppStrings.refreshFailed
+                } else {
+                    refreshingId = acc.id
+                    scope.launch {
+                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders.map { it.senderId }, acc.accountLast4)
+                        if (res.amount != null) {
+                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                            message = AppStrings.refreshDone
+                        } else {
+                            message = AppStrings.refreshFailed
+                        }
+                        refreshingId = null
+                    }
+                }
+            }
+            AccountCard(
+                title = acc.accountLabel,
+                bankName = acc.bankName,
+                balance = Money.format2(acc.balance),
+                maskedIdentifier = acc.accountLast4.takeIf { it.isNotBlank() }?.let { "${AppStrings.cardEnding}: •••• $it" },
+                status = when {
+                    refreshingId == acc.id -> AppStrings.refreshingAccount
+                    accSenders.isEmpty() -> AppStrings.noSendersForAccount
+                    else -> null
+                },
+                loanSummary = if (attachedLoans.isEmpty()) emptyList() else listOf(
+                    "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
+                    "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}"
+                ),
+                monthlyInstallmentRemainder = remainingThisMonth.takeIf { it > 0.0 }?.let {
+                    "${AppStrings.installmentRemainingThisMonth}: ${Money.format2(it)} ${AppStrings.moneyUnit}"
+                },
+                refreshing = refreshingId == acc.id,
+                onClick = navController?.let { controller -> { controller.navigate("account_sms/${acc.id}") } },
+                onEdit = { showEditAccount = acc },
+                onRefresh = refreshAccount,
+                onSms = navController?.let { controller -> { controller.navigate("account_sms/${acc.id}") } },
+                onDelete = { showDeleteAccount = acc },
+                editDescription = AppStrings.edit,
+                refreshDescription = AppStrings.refresh,
+                smsDescription = AppStrings.showSms,
+                deleteDescription = AppStrings.delete,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        if (accounts.isNotEmpty()) {
+            item {
+                AppButton(
+                    text = AppStrings.addAccount,
+                    onClick = { showAddAccount = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) }
+                )
+            }
+        }
     }
 
-    androidx.compose.material3.SnackbarHost(hostState = snackbarHostState)
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.TopCenter).semantics { liveRegion = LiveRegionMode.Polite }
+    )
+    }
 
     if (showAddAccount) {
-        AddAccountDialog(viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senders ->
+        AddAccountDialog(onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senderIds ->
             viewModel.addBankAccount(bank, label, bal, last4) { accountId ->
-                senders.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
+                senderIds.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
             }
             showAddAccount = false
         })
@@ -219,11 +240,28 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
             showEditAccount = null
         })
     }
+
+    showDeleteAccount?.let { acc ->
+        AlertDialog(
+            onDismissRequest = { showDeleteAccount = null },
+            title = { Text(AppStrings.deleteAccountConfirmTitle) },
+            text = { Text(AppStrings.deleteAccountConfirmBody) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteBankAccount(acc)
+                        showDeleteAccount = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(AppStrings.delete) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteAccount = null }) { Text(AppStrings.cancel) } }
+        )
+    }
 }
 
 @Composable
 private fun AddAccountDialog(
-    viewModel: FinanceViewModel,
     onDismiss: () -> Unit,
     onAdd: (String, String, String, Double, List<String>) -> Unit
 ) {
@@ -235,7 +273,6 @@ private fun AddAccountDialog(
     var last4Error by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val allSenders by viewModel.smsSenders.collectAsState()
     val detectedSenders = remember {
         SmsInboxReader.recentSenders(context)
     }
@@ -255,7 +292,10 @@ private fun AddAccountDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.addAccount) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = bankName,
                     onValueChange = { bankName = it; bankNameError = false },
@@ -398,7 +438,10 @@ private fun EditAccountDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.edit) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 OutlinedTextField(
                     value = bankName,
                     onValueChange = { bankName = it; bankNameError = false },
