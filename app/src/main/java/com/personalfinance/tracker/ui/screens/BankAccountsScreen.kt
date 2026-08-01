@@ -85,18 +85,19 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
         if (accounts.isNotEmpty()) {
             item {
                 val totalBalance = accounts.sumOf { it.balance }
+                val totalLoanRemainder = loans.filter { !it.isPaid }.sumOf { it.remainingAmount }
                 AppCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(AppStrings.total, style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            Money.format2(totalBalance) + " " + AppStrings.moneyUnit,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (totalLoanRemainder > 0.0) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(AppStrings.loanRemainderTotal, style = MaterialTheme.typography.labelSmall)
+                                Text(Money.format2(totalLoanRemainder) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(AppStrings.total, style = MaterialTheme.typography.labelSmall)
+                            Text(Money.format2(totalBalance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                        }
                     }
                 }
             }
@@ -128,27 +129,24 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
                             (if (it.installment > 0.0) it.installment else it.remainingAmount)
                                 .coerceAtMost(it.remainingAmount)
                         }
-                        Text(
-                            "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                        Text(
-                            "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                        Text(
-                            "${AppStrings.payableThisMonth}: ${Money.format2(installmentDue)} ${AppStrings.moneyUnit}",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                        Text(
-                            "${AppStrings.loanPaidThisMonth}: ${Money.format2(paidThisMonth)} ${AppStrings.moneyUnit}",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                        Text(
-                            "${AppStrings.installmentRemainingThisMonth}: ${Money.format2((installmentDue - paidThisMonth).coerceAtLeast(0.0))} ${AppStrings.moneyUnit}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        if (attachedLoans.isNotEmpty()) {
+                            Text(
+                                "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Text(
+                                "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            val remainingThisMonth = (installmentDue - paidThisMonth).coerceAtLeast(0.0)
+                            if (remainingThisMonth > 0.0) {
+                                Text(
+                                    "${AppStrings.installmentRemainingThisMonth}: ${Money.format2(remainingThisMonth)} ${AppStrings.moneyUnit}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(Money.format2(acc.balance) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)

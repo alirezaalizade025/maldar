@@ -50,14 +50,14 @@ fun LoansScreen(viewModel: FinanceViewModel) {
         val installment = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
         return installment.coerceAtMost(loan.remainingAmount)
     }
-    // Amount whose pay-day has already passed this Jalali month (due so far).
-    val jNow = JalaliCalendar.fromGregorian(Calendar.getInstance())
     fun paidThisMonth(loan: LoanEntity): Double = transactions
         .filter { it.loanId == loan.id && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
         .sumOf { it.amount }
     fun isPaidThisMonth(loan: LoanEntity): Boolean = paidThisMonth(loan) >= monthlyDue(loan)
-    val dueSoFar = activeLoans.filter { it.payDayOfMonth <= jNow.day && !isPaidThisMonth(it) }
-        .sumOf { monthlyDue(it) }
+    val totalPaidThisMonth = transactions
+        .filter { it.loanId != null && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
+        .sumOf { it.amount }
+    val totalRemainingThisMonth = activeLoans.sumOf { (monthlyDue(it) - paidThisMonth(it)).coerceAtLeast(0.0) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -80,12 +80,12 @@ fun LoansScreen(viewModel: FinanceViewModel) {
                         Text(Money.format2(total) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(AppStrings.loansSummaryDue, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(dueSoFar) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
+                        Text(AppStrings.loanPaidThisMonthSummary, style = MaterialTheme.typography.labelSmall)
+                        Text(Money.format2(totalPaidThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(AppStrings.loansSummaryRemain, style = MaterialTheme.typography.labelSmall)
-                        Text(Money.format2(totalRemaining) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFF1B7A5A))
+                        Text(AppStrings.loanRemainingThisMonthSummary, style = MaterialTheme.typography.labelSmall)
+                        Text(Money.format2(totalRemainingThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = Color(0xFFE8604C))
                     }
                 }
             }

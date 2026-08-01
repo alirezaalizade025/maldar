@@ -106,6 +106,7 @@ object AppStrings {
     val accountActions = "عملیات حساب"
     val installmentRemainingThisMonth = "مانده قسط این ماه"
     val attachedLoansTotal = "مجموع وام‌های متصل"
+    val loanRemainderTotal = "مانده کل وام‌ها"
     val payableThisMonth = "قابل پرداخت این ماه"
     val smsList = "پیامک‌های حساب"
     val noSmsForAccount = "پیامکی از فرستندگان این حساب یافت نشد."
@@ -143,6 +144,8 @@ object AppStrings {
     val loanNoPayment = "پرداختی ثبت نشده است"
         val loanInstallmentPaidThisMonth = "قسط این ماه پرداخت شده است"
         val loanNotPaidThisMonth = "قسط این ماه پرداخت نشده است"
+        val loanPaidThisMonthSummary = "پرداخت وام این ماه"
+        val loanRemainingThisMonthSummary = "مانده وام این ماه"
     val loanPaymentAmount = "مبلغ پرداخت (تومان)"
     val delete = "حذف"
     val addLoan = "افزودن وام"
@@ -179,6 +182,8 @@ object AppStrings {
     val allDays = "همه روزها"
     val dailyReport = "گزارش روزانه"
     val day = "روز"
+    val showDailyChart = "نمایش روزانه"
+    val showMonthlyChart = "نمایش ماهانه"
 
     // SMS confirmation
     val confirmSms = "تایید تراکنش‌های پیامکی"

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -37,25 +38,15 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
     val transactions by viewModel.transactions.collectAsState()
     var monthOffset by remember { mutableStateOf(0) }
     var accountFilter by remember { mutableStateOf<Long?>(null) }
-    var dayFilter by remember { mutableStateOf<Int?>(null) }
-    var balanceTrend by remember { mutableStateOf<List<Double>>(emptyList()) }
-
-    LaunchedEffect(monthOffset) {
-        runCatching {
-            balanceTrend = viewModel.balanceHistory(6)
-        }
-    }
+    var showMonthlyChart by remember { mutableStateOf(false) }
 
     val monthTransactions = transactions.filter { tx ->
         JalaliCalendar.isInJalaliMonth(tx.dateMillis, monthOffset) &&
             (accountFilter == null || tx.bankAccountId == accountFilter)
     }
-    val filteredTransactions = monthTransactions.filter { tx ->
-        dayFilter == null || JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = tx.dateMillis }).day == dayFilter
-    }
-    val income = filteredTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
-    val expense = filteredTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
-    val breakdown = filteredTransactions.filter { it.type == TxType.EXPENSE }
+    val income = monthTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
+    val expense = monthTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+    val breakdown = monthTransactions.filter { it.type == TxType.EXPENSE }
         .groupingBy { it.category }.fold(0.0) { total, tx -> total + tx.amount }
         .map { CategoryTotal(it.key, it.value) }.sortedByDescending { it.total }
     val trend = (5 downTo 0).map { back ->
@@ -100,25 +91,8 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
                 accounts.forEach { account ->
                     FilterChip(
                         selected = accountFilter == account.id,
-                        onClick = { accountFilter = account.id },
+                        onClick = { accountFilter = if (accountFilter == account.id) null else account.id },
                         label = { Text(account.accountLabel) }
-                    )
-                }
-            }
-        }
-
-        item {
-            Text(AppStrings.reportDay, style = MaterialTheme.typography.titleMedium)
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilterChip(selected = dayFilter == null, onClick = { dayFilter = null }, label = { Text(AppStrings.allDays) })
-                (1..31).forEach { day ->
-                    FilterChip(
-                        selected = dayFilter == day,
-                        onClick = { dayFilter = if (dayFilter == day) null else day },
-                        label = { Text(day.toString()) }
                     )
                 }
             }
@@ -127,19 +101,25 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
         item {
             AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(AppStrings.monthlyTrend, style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(12.dp))
-                    if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
-                        Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    } else {
-                        MonthTrendGraph(data = trend, balanceLine = balanceTrend)
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            ChartLegend(AppStrings.reportIncome, Color(0xFF1B7A5A))
-                            ChartLegend(AppStrings.reportExpense, Color(0xFFE8604C))
-                            ChartLegend(AppStrings.net, Color(0xFF5A5F66))
-                            ChartLegend(AppStrings.balanceTrend, Color(0xFF2B6CB0))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (showMonthlyChart) AppStrings.monthlyTrend else AppStrings.dailyReport, style = MaterialTheme.typography.titleLarge)
+                        OutlinedButton(onClick = { showMonthlyChart = !showMonthlyChart }) {
+                            Text(if (showMonthlyChart) AppStrings.showDailyChart else AppStrings.showMonthlyChart)
                         }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    if (showMonthlyChart) {
+                        if (trend.isEmpty() || trend.all { it.first == 0.0 && it.second == 0.0 }) {
+                            Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        } else {
+                            MonthTrendGraph(data = trend)
+                        }
+                    } else {
+                        DayTrendGraph(transactions = monthTransactions)
                     }
                 }
             }
@@ -177,27 +157,36 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        item {
-            AppCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(AppStrings.dailyReport, style = MaterialTheme.typography.titleMedium)
-                    val daily = monthTransactions.groupBy {
-                        JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = it.dateMillis }).day
-                    }.toSortedMap()
-                    if (daily.isEmpty()) {
-                        Text(AppStrings.noTransactions, style = MaterialTheme.typography.labelSmall)
-                    } else {
-                        daily.forEach { (day, dayTransactions) ->
-                            val dayIncome = dayTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
-                            val dayExpense = dayTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
-                            Text("${AppStrings.day} $day: +${Money.format(dayIncome)} / -${Money.format(dayExpense)} ${AppStrings.moneyUnit}", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }
-            }
-        }
-
         item { Spacer(Modifier.height(40.dp)) }
+    }
+}
+
+@Composable
+private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.TransactionEntity>) {
+    val daily = transactions.groupBy {
+        JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = it.dateMillis }).day
+    }
+    val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME }.sumOf { it.amount } }
+    val expense = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.EXPENSE }.sumOf { it.amount } }
+    val maxValue = (income + expense).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    if (income.all { it == 0.0 } && expense.all { it == 0.0 }) {
+        Text(AppStrings.noTrendData, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        return
+    }
+    Canvas(Modifier.fillMaxWidth().height(180.dp)) {
+        val groupWidth = size.width / 31f
+        val baseY = size.height - 20.dp.toPx()
+        val chartHeight = baseY - 8.dp.toPx()
+        income.forEachIndexed { index, value ->
+            val x = index * groupWidth
+            drawRect(Color(0xFF1B7A5A), Offset(x + groupWidth * 0.08f, baseY - (value / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (value / maxValue * chartHeight).toFloat()))
+            val expenseValue = expense[index]
+            drawRect(Color(0xFFE8604C), Offset(x + groupWidth * 0.52f, baseY - (expenseValue / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (expenseValue / maxValue * chartHeight).toFloat()))
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        ChartLegend(AppStrings.reportIncome, Color(0xFF1B7A5A))
+        ChartLegend(AppStrings.reportExpense, Color(0xFFE8604C))
     }
 }
 
