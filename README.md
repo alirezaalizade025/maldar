@@ -1,143 +1,204 @@
-# Maldar (مل der / مال‌دار) — Android
+# مال‌دار (Maldar) — اپ حسابداری شخصی فارسی برای اندروید
 
-A fully offline personal accounting app (Farsi / RTL, Toman currency, Jalali
-calendar): manual + SMS/notification-detected expense/income tracking, loan
-due-date reminders, bank account balances, and monthly reports.
+<p align="center">
+  <img src="app/src/main/res/drawable-nodpi/maldar_logo.png" alt="لوگوی اپ حسابداری شخصی مال‌دار" width="180">
+</p>
 
-## Features → code map
+<p align="center">
+  مدیریت هزینه و درآمد، حساب‌های بانکی، اقساط و دارایی‌ها در یک اپ فارسی، راست‌چین و حریم‌خصوصی‌محور
+</p>
 
-| # | Feature | Where |
-|---|---------|-------|
-| 1 | Capture bank transactions from SMS **or** notifications, with a dynamic sender list and a confirm-before-save step | `sms/SmsReceiver.kt`, `sms/BankNotificationListenerService.kt`, `sms/SmsParser.kt`, `ui/screens/SmsConfirmationScreen.kt`, `ui/screens/BankAccountsScreen.kt` |
-| 2 | Loan details + reminder before due date | `data/Entities.kt` (`LoanEntity`), `ui/screens/LoansScreen.kt`, `worker/LoanReminderWorker.kt` |
-| 3 | Reports (month totals + category bars + income/expense/balance trend) | `ui/screens/ReportsScreen.kt`, `ui/screens/MonthTrendGraph.kt` |
-| 4 | Manual income/expense entry + edit/delete | `ui/screens/AddTransactionScreen.kt`, `ui/screens/DashboardScreen.kt` (edit/delete dialogs) |
-| 5 | Bank accounts + balances, linked to SMS/notification | `ui/screens/BankAccountsScreen.kt`, `ui/screens/AccountSmsScreen.kt`, `data/FinanceRepository.kt` (`adjustBalance`) |
-| 6 | Daily reminder notification | `ui/screens/SettingsScreen.kt`, `worker/DailyReminderWorker.kt` |
-| 7 | Data export / import (CSV + JSON backup) | `ui/screens/ExportScreen.kt`, `ui/screens/ImportScreen.kt`, `util/DataExport.kt` |
-| 8 | In-app update checker (auto-check on launch, skip version) | `util/UpdateChecker.kt`, `ui/screens/UpdateDialogs.kt` |
-| 9 | Crash log viewer (share/clear) | `ui/screens/CrashLogScreen.kt`, `util/CrashLogger.kt` |
+<p align="center">
+  <img alt="Android 8+" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
+  <img alt="Persian RTL" src="https://img.shields.io/badge/Language-Persian%20RTL-087866">
+  <img alt="Local first" src="https://img.shields.io/badge/Data-Local--first-159447">
+</p>
 
-## Navigation
+**مال‌دار** یک اپ حسابداری شخصی فارسی برای Android است که ثبت و مدیریت تراکنش‌ها، هزینه‌ها، درآمدها، حساب‌های بانکی، وام‌ها، اقساط، طلا، نقره و سهام بورس ایران را ساده می‌کند. رابط کاربری کاملاً راست‌چین، نمایش مبالغ به تومان و ریال، اعداد فارسی و تقویم شمسی باعث می‌شوند اپ برای مدیریت مالی روزمره کاربران ایرانی آماده باشد.
 
-Bottom bar: **Home / Add / Loans / Reports / Accounts**. The top-right menu
-(⋮) opens: check for updates, crash log, export, import, settings, about.
+هسته حسابداری برنامه بدون نیاز به اینترنت کار می‌کند و داده‌ها روی دستگاه نگه‌داری می‌شوند. اینترنت فقط برای قابلیت‌های اختیاری مانند دریافت قیمت دارایی‌ها و بررسی نسخه جدید لازم است.
 
-## Categories
+## چرا مال‌دار؟
 
-Categories (Food, Transport, Salary, etc.) are stored in the database, not
-hardcoded. A default set is seeded the first time the app runs
-(`data/AppDatabase.kt`). From then on you can add, rename, or delete categories
-from the **"Manage categories…"** option in any category dropdown
-(`ui/screens/CategoryPicker.kt`), used consistently in Add Transaction and the
-SMS/notification confirmation dialog. Deleting a category that is still used by
-transactions automatically reassigns those records to "سایر" so nothing is lost.
+- **طراحی‌شده برای کاربران فارسی‌زبان:** رابط RTL، تقویم جلالی، اعداد فارسی و واحد تومان/ریال
+- **ثبت سریع و مطمئن:** ورود دستی یا استخراج پیشنهادی تراکنش از پیامک و اعلان بانکی
+- **کنترل کامل پیش از ذخیره:** هیچ تراکنش تشخیص‌داده‌شده‌ای بدون تأیید شما ثبت نمی‌شود
+- **دید کامل از وضعیت مالی:** داشبورد، گزارش روزانه و ماهانه، نمودار روند و تفکیک هزینه‌ها
+- **مدیریت بدهی و دارایی:** پیگیری وام و اقساط در کنار طلا، نقره و سهام ایران
+- **حریم خصوصی بهتر:** پایگاه داده اصلی به‌صورت محلی روی دستگاه قرار دارد
+- **پشتیبان‌گیری قابل حمل:** خروجی CSV و نسخه پشتیبان JSON با امکان بازیابی
 
-## Capture path: SMS vs Notification Listener
+## امکانات اصلی
 
-`READ_SMS` / `RECEIVE_SMS` are **restricted on the Play Store** to a small set
-of app categories (default SMS app, etc.) — a personal finance app doesn't
-qualify.
+### 💳 مدیریت تراکنش و حساب بانکی
 
-- **SMS Receiver** (`SmsReceiver`) works when the app is **sideloaded** (APK
-  installed directly via `adb install` or file transfer). It has no Play Store
-  restriction in that context.
-- **Notification Listener** (`BankNotificationListenerService`) is the
-  **Play-Store-compatible** alternative. It reads bank transaction
-  *notifications* (which banks post for every card/account event) without the
-  restricted SMS permission. The user enables it in system settings
-  (Settings ▸ Notifications ▸ Maldar).
+- ثبت هزینه، درآمد و کارت‌به‌کارت
+- ویرایش و حذف تراکنش‌ها با اصلاح خودکار موجودی مرتبط
+- تعریف چند حساب بانکی و مشاهده موجودی هر حساب
+- ثبت مانده حساب پس از تراکنش
+- فیلتر و مرتب‌سازی اطلاعات مالی
+- نمایش تاریخ و ساعت شمسی تراکنش‌ها
 
-Whichever path is active, nothing is saved automatically: a "pending" entry is
-created and the user confirms it on the Confirm screen. Both paths share the
-same `SmsParser` (looks for currency markers `تومان`, `ریال`, `Rls`, `IRR`,
-`toman`, and debit/credit keywords) and the same pending/confirm flow in
-`SmsConfirmationScreen`.
+### 📨 تشخیص تراکنش از پیامک و اعلان بانکی
 
-## How the capture flow works
+- خواندن پیامک بانکی برای نسخه‌های نصب‌شده مستقیم (sideloaded APK)
+- پشتیبانی از **Notification Listener** به‌عنوان روش سازگارتر با قوانین Google Play
+- تشخیص مبلغ، نوع تراکنش و مانده حساب از قالب‌های مختلف پیام
+- اتصال شناسه فرستنده پیامک به حساب بانکی موردنظر
+- صندوق تراکنش‌های در انتظار برای بررسی، ویرایش، تأیید یا رد
+- مشاهده پیامک‌های هر حساب و تطبیق آن‌ها با تراکنش‌های ثبت‌شده
 
-1. Go to **Accounts** → add a bank account → add an **SMS Sender** (the exact
-   sender ID shown in your Messages app, e.g. `HDFCBK`, `VM-SBIINB`, or a phone
-   number), linked to that account. The sender picker can also **detect recent
-   bank senders** from your SMS inbox (`util/SmsInboxReader.recentSenders`) so
-   you don't have to type the ID manually.
-2. When an SMS arrives from a watched sender, or a matching bank notification is
-   posted, the parser extracts amount/type/balance and creates a "pending" entry
-   + fires a notification. It does **not** auto-save.
-3. Tapping the notification (or the banner on the Dashboard) opens **Confirm SMS
-   Transactions**, where you review/edit amount, type, and category before
-   saving. This "stay for confirm" step exists because generic parsing across
-   many bank formats will occasionally misread a message — better to catch it
-   here than to silently miscount. (Pending items can also be opened/edited
-   directly from the Dashboard banner, and reviewed/ignored/deleted from the
-   "Reviewed" section.)
-4. Once confirmed, the transaction is saved and the linked bank account's balance
-   is updated automatically via `FinanceRepository.adjustBalance`.
+### 📊 گزارش‌ها و نمودارهای مالی
 
-## Account SMS reconciliation
+- خلاصه درآمد، هزینه و خالص گردش مالی
+- گزارش روزانه و ماهانه
+- نمودار روند درآمد و هزینه در ماه‌های اخیر
+- نمودار دایره‌ای هزینه‌ها بر اساس دسته‌بندی
+- مشاهده مبلغ و درصد هر دسته
+- مرور گزارش ماه‌های گذشته
 
-Inside a bank account you can open **Show SMS** (`AccountSmsScreen`) which lists
-the recent inbox SMS for that account's senders (parsed amount/type + Jalali
-date) and marks each as reconciled or not against your saved transactions. Tap a
-message to prefill the Add Transaction screen — handy for backfilling historical
-spend from your bank's messages.
+### 🏷️ دسته‌بندی‌های قابل مدیریت
 
-## Loan reminders
+- دسته‌های جداگانه برای هزینه و درآمد
+- افزودن، تغییر نام و حذف دسته‌بندی دلخواه
+- انتقال امن تراکنش‌های یک دسته حذف‌شده به «سایر»
+- استفاده یکپارچه از دسته‌ها در ثبت دستی و تأیید پیامک
 
-`LoanReminderWorker` runs once a day via WorkManager and checks every active
-loan's due date against its `reminderDaysBefore` setting, firing a local
-notification when you're inside that window.
+### 🏦 وام، قسط و یادآوری
 
-## Daily reminder
+- تعریف مبلغ وام، مبلغ قسط، تعداد اقساط و روز سررسید
+- اتصال پرداخت اقساط به حساب بانکی
+- نمایش مانده وام، درصد پرداخت‌شده و ماه‌های باقی‌مانده
+- تشخیص وضعیت پرداخت قسط ماه جاری
+- نمودار پیش‌بینی کاهش مانده وام
+- اعلان یادآوری پیش از سررسید
 
-`DailyReminderWorker` fires a daily summary notification at a user-chosen hour
-(configured in **Settings**) and reschedules itself. Disabling it cancels the
-pending work. A `BootReceiver` re-arms WorkManager after reboot.
+### 🪙 طلا، نقره و سهام ایران
 
-## Backup / export / import
+- ثبت مقدار طلای ۱۸ عیار و نقره ۹۹۹
+- دریافت قیمت فلزات و محاسبه ارزش روز دارایی
+- جست‌وجو و افزودن نمادهای بورس ایران
+- ثبت تعداد سهم و قیمت خرید
+- دریافت قیمت سهم و محاسبه سود یا زیان
+- نمایش مجموع ارزش دارایی‌های مالی
 
-From the top-right menu → **Export** you can share all data as CSV or JSON
-(`util/DataExport`). **Import** restores a JSON backup (also triggered
-automatically if you tap a `.json` backup from a file manager — see the
-`VIEW`/`BROWSABLE` intent filter in `AndroidManifest.xml`).
+> دریافت قیمت طلا و نقره از TGJU و اطلاعات سهام از TSETMC به اتصال اینترنت نیاز دارد و در دسترس بودن آن به سرویس منبع وابسته است.
 
-## Reports
+### 🔐 پشتیبان‌گیری و ابزارهای کاربردی
 
-One month at a time (navigate back up to 12 months, forward to current month).
-Shows income/expense/net, a per-category bar breakdown (toggle amount ↔
-percent), and a 6-month trend graph with income, expense, net, and **balance
-over time** lines (`MonthTrendGraph`).
+- خروجی CSV برای تحلیل داده‌ها
+- پشتیبان کامل JSON و بازیابی از فایل
+- باز کردن فایل پشتیبان JSON مستقیماً از فایل‌منیجر
+- یادآوری روزانه قابل تنظیم
+- بررسی به‌روزرسانی داخل برنامه
+- گزارش خطای داخلی با امکان مشاهده، اشتراک‌گذاری و پاک‌کردن
+- طراحی Material 3 با پشتیبانی از تم روشن و تاریک
 
-## Opening the project
+## حریم خصوصی و نحوه نگه‌داری داده‌ها
 
-1. Install **Android Studio** (Koala or newer).
-2. `File > Open` → select the `PersonalAccountingApp` folder.
-3. Android Studio will offer to generate the Gradle wrapper jar automatically on
-   first sync (this project ships `gradle-wrapper.properties` but not the binary
-   jar, since it can't be downloaded in this environment). Just click through
-   the sync prompt — it needs internet access once, to pull Gradle + dependencies.
-4. Run on a device or emulator with **API 26+**. SMS parsing only works on a real
-   device (or an emulator you send test SMS to via `adb emu sms send`), since
-   emulators without a SIM don't receive real bank SMS. The Notification Listener
-   works on any device/emulator that receives the bank's notifications.
+اطلاعات حسابداری اصلی با Room در حافظه محلی دستگاه ذخیره می‌شود. برنامه تراکنش استخراج‌شده از پیامک یا اعلان را ابتدا در فهرست «در انتظار تأیید» قرار می‌دهد؛ بنابراین مبلغ، نوع و دسته‌بندی پیش از ثبت نهایی قابل بررسی است.
 
-## Versioning & release
+قابلیت‌های آنلاین اختیاری شامل دریافت قیمت بازار و بررسی به‌روزرسانی هستند. فایل‌های خروجی نیز فقط زمانی از دستگاه خارج می‌شوند که خود کاربر آن‌ها را ذخیره یا اشتراک‌گذاری کند.
 
-`app/build.gradle.kts` computes `versionName` / `versionCode` from conventional
-commits since the last `vX.Y[.Z]` tag (a `feat` bumps MINOR and resets PATCH; a
-`fix` bumps PATCH; `versionCode` is monotonic). `.github/workflows/build-apk.yml`
-builds the release APK and publishes a GitHub **prerelease** tagged by the
-resolved `versionName`. The update checker compares `versionCode` (Int), not
-parsed `versionName`. Bump is handled automatically by the commit convention —
-no manual edit of `versionName`/`versionCode` is needed.
+## جریان ثبت تراکنش بانکی
 
-## Notes / next steps you may want
+1. در بخش **حساب‌ها** یک حساب بانکی بسازید.
+2. شناسه فرستنده پیامک بانک را به همان حساب متصل کنید؛ برنامه می‌تواند فرستنده‌های اخیر را نیز پیشنهاد دهد.
+3. پس از دریافت پیامک یا اعلان بانکی، مال‌دار مبلغ، نوع و مانده احتمالی را استخراج می‌کند.
+4. تراکنش در بخش موارد در انتظار نمایش داده می‌شود و تا زمان تأیید شما وارد حساب‌ها نمی‌شود.
+5. پس از بررسی مبلغ، دسته و حساب، تراکنش را ذخیره کنید تا موجودی حساب نیز به‌روزرسانی شود.
 
-- Categories are fully user-editable from the **"Manage categories…"** option
-  in any category dropdown; deleting a used category reassigns records to "سایر".
-- Transaction edit/delete is exposed on the Dashboard; `deleteTransaction` calls
-  `adjustBalance`, so removing a record keeps account balances correct.
-- Reports show one month at a time with category bars plus a net/balance marker;
-  a year-over-year view would be a natural next addition.
-- Hand-rolled date converters (Jalali) have unit tests around leap years /
-  boundaries in `app/src/test/java/com/personalfinance/tracker/util/JalaliCalendarTest.kt`.
+### پیامک یا Notification Listener؟
+
+مجوزهای `READ_SMS` و `RECEIVE_SMS` در Google Play محدود هستند. به همین دلیل مال‌دار دو مسیر دارد:
+
+- **SMS Receiver:** مناسب APK نصب‌شده مستقیم روی گوشی؛ پیام‌های فرستنده‌های تعریف‌شده را بررسی می‌کند.
+- **Notification Listener:** اعلان بانکی را می‌خواند و به مجوز محدودشده پیامک نیاز ندارد. کاربر باید این دسترسی را از تنظیمات اعلان Android فعال کند.
+
+هر دو مسیر از یک پردازشگر مشترک و مرحله تأیید یکسان استفاده می‌کنند.
+
+## نصب اپ
+
+نسخه‌های آماده را از صفحه [GitHub Releases](https://github.com/alirezaalizade025/maldar/releases) دریافت کنید.
+
+1. فایل APK آخرین نسخه را دانلود کنید.
+2. در صورت درخواست Android، اجازه نصب از منبع انتخاب‌شده را فعال کنید.
+3. APK را نصب و برنامه را اجرا کنید.
+4. دسترسی‌های اختیاری را فقط برای قابلیت‌هایی که نیاز دارید فعال کنید.
+
+> Android 8.0 یا جدیدتر (API 26+) موردنیاز است.
+
+## اجرای پروژه برای توسعه‌دهندگان
+
+### پیش‌نیازها
+
+- Android Studio Koala یا جدیدتر
+- JDK 17
+- Android SDK 34
+- Git
+
+### راه‌اندازی
+
+```bash
+git clone https://github.com/alirezaalizade025/maldar.git
+cd maldar
+./gradlew assembleDebug
+```
+
+سپس پروژه را در Android Studio باز کنید و روی دستگاه یا شبیه‌ساز API 26+ اجرا کنید. برای آزمایش پیامک واقعی به دستگاه فیزیکی یا شبیه‌سازی پیامک با ADB نیاز دارید.
+
+### اجرای تست‌ها
+
+```bash
+./gradlew test
+```
+
+## معماری و فناوری‌ها
+
+| بخش | فناوری |
+|---|---|
+| زبان | Kotlin |
+| رابط کاربری | Jetpack Compose + Material 3 |
+| معماری رابط | ViewModel + StateFlow |
+| پایگاه داده محلی | Room |
+| کارهای زمان‌بندی‌شده | WorkManager |
+| مسیریابی | Navigation Compose |
+| پردازش نمادها | KSP |
+| حداقل Android | API 26 (Android 8.0) |
+| نسخه هدف | API 34 |
+
+ساختار مهم پروژه:
+
+```text
+app/src/main/java/com/personalfinance/tracker/
+├── data/          # Room entities, DAO, database and repository
+├── sms/           # SMS/notification capture and transaction parsing
+├── ui/            # Compose screens, navigation and design system
+├── util/          # Jalali date, export/import, prices and helpers
+├── viewmodel/     # UI state and application actions
+└── worker/        # Daily and loan reminder jobs
+```
+
+## مسیرهای اصلی برنامه
+
+نوار پایین شامل **خانه، وام‌ها، گزارش‌ها، حساب‌ها و دارایی‌ها** است. دکمه شناور صفحه خانه برای ثبت تراکنش جدید استفاده می‌شود. منوی سه‌نقطه نیز بررسی به‌روزرسانی، گزارش خطا، خروجی، بازیابی، بررسی پیامک، تنظیمات و درباره برنامه را در اختیار می‌گذارد.
+
+## پشتیبان‌گیری و بازیابی
+
+- **CSV:** مناسب مشاهده و تحلیل تراکنش‌ها در ابزارهای صفحه‌گسترده
+- **JSON:** نسخه پشتیبان ساختاریافته برای بازیابی اطلاعات برنامه
+
+بازیابی JSON داده‌های فعلی را جایگزین می‌کند؛ بنابراین پیش از بازیابی، از اطلاعات موجود یک نسخه پشتیبان تازه بگیرید.
+
+## نسخه‌بندی و انتشار
+
+نسخه برنامه از تگ‌های Semantic Versioning و پیام‌های Conventional Commit محاسبه می‌شود. کامیت‌های `feat` نسخه فرعی و کامیت‌های `fix` نسخه اصلاحی را افزایش می‌دهند. گردش‌کار GitHub Actions نیز APK انتشار را ساخته و در بخش Releases منتشر می‌کند.
+
+## مشارکت در توسعه
+
+Issue و Pull Request برای رفع خطا، بهبود تجربه فارسی و RTL، افزودن قالب پیام بانک‌ها و توسعه گزارش‌های مالی استقبال می‌شوند. لطفاً تغییرات را کوچک، قابل بررسی و همراه با تست مرتبط نگه دارید.
+
+---
+
+اگر به دنبال یک **اپ حسابداری شخصی فارسی اندروید** برای مدیریت هزینه و درآمد، ثبت تراکنش بانکی، پیگیری اقساط، گزارش مالی با تقویم شمسی و کنترل دارایی‌های ایران هستید، مال‌دار با رویکرد local-first این امکانات را در یک تجربه یکپارچه ارائه می‌دهد.
