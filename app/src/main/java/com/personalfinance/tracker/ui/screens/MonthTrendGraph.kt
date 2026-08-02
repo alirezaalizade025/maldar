@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personalfinance.tracker.ui.design.MaldarDesign
 import com.personalfinance.tracker.ui.design.MaldarDesignTheme
+import com.personalfinance.tracker.ui.design.components.ChartValueGuide
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
@@ -88,9 +89,11 @@ fun MonthTrendGraph(
         }
 
         val sidePad = 8.dp
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChartValueGuide(maxValue = maxVal, modifier = Modifier.height(170.dp).widthIn(min = 46.dp, max = 76.dp))
         Canvas(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .height(170.dp)
                 .semantics {
                     contentDescription = "${AppStrings.monthlyTrend}، ${AppStrings.reportIncome}: ${Money.format(totalIncome)} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(totalExpense)} ${AppStrings.moneyUnit}، ${AppStrings.net}: ${Money.format(totalNet)} ${AppStrings.moneyUnit}"
@@ -226,6 +229,7 @@ fun MonthTrendGraph(
                     y += tl.size.height + 4.dp.toPx()
                 }
             }
+        }
         }
     }
 }

@@ -31,7 +31,6 @@ import com.personalfinance.tracker.ui.design.components.AmountTone
 import com.personalfinance.tracker.ui.design.components.AppCard as DesignAppCard
 import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.MetricCard
-import com.personalfinance.tracker.ui.design.components.MaldarLogo
 import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.ui.design.components.TransactionRow
 import com.personalfinance.tracker.ui.design.components.WarningBanner
@@ -85,23 +84,13 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
         verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
-            ) {
-                MaldarLogo(
-                    modifier = Modifier.size(width = 52.dp, height = 44.dp),
-                    contentDescription = null
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    JalaliCalendar.formatDate(System.currentTimeMillis()),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                 )
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(AppStrings.overview, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        JalaliCalendar.formatDate(System.currentTimeMillis()),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                    )
-                }
             }
         }
 

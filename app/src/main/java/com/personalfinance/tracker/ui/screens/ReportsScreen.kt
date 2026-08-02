@@ -32,6 +32,7 @@ import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.ui.design.MaldarDesign
 import com.personalfinance.tracker.ui.design.MaldarDesignTheme
 import com.personalfinance.tracker.ui.design.components.AmountTone
+import com.personalfinance.tracker.ui.design.components.ChartValueGuide
 import com.personalfinance.tracker.ui.design.components.AppCard
 import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.EmptyState
@@ -303,8 +304,10 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
             ChartSummaryChip(AppStrings.reportIncome, income.sum(), incomeColor)
             ChartSummaryChip(AppStrings.reportExpense, expense.sum(), expenseColor)
         }
-        Canvas(
-            Modifier.fillMaxWidth().height(220.dp).semantics { contentDescription = chartDescription }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ChartValueGuide(maxValue = maxValue, modifier = Modifier.height(220.dp).widthIn(min = 46.dp, max = 76.dp))
+            Canvas(
+            Modifier.weight(1f).height(220.dp).semantics { contentDescription = chartDescription }
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
                         val index = ((offset.x / size.width) * 31).toInt().coerceIn(0, 30)
@@ -333,6 +336,7 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
                 val normalizedExpense = (expenseValue / maxValue * chartHeight).toFloat()
                 drawRect(expenseColor, Offset(x + groupWidth * 0.52f, baseY - normalizedExpense), Size(groupWidth * 0.38f, normalizedExpense))
             }
+        }
         }
         selectedDay?.let { dayIndex ->
             val dayIncome = income[dayIndex]

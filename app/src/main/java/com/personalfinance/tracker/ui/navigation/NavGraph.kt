@@ -3,8 +3,10 @@ package com.personalfinance.tracker.ui.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalance
@@ -28,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.personalfinance.tracker.ui.screens.*
+import com.personalfinance.tracker.ui.design.components.MaldarLogo
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.UpdateChecker
 import com.personalfinance.tracker.BuildConfig
@@ -38,8 +41,6 @@ private data class NavItem(val route: String, val label: String, val icon: andro
 
 private val bottomItems = listOf(
     NavItem("dashboard", AppStrings.navHome, Icons.Filled.Home),
-    NavItem("add_transaction", AppStrings.navAdd, Icons.Filled.Add),
-    NavItem("split_transaction", AppStrings.splitTransaction, Icons.Filled.Add),
     NavItem("loans", AppStrings.navLoans, Icons.Filled.Payments),
     NavItem("reports", AppStrings.navReports, Icons.Filled.Assessment),
     NavItem("bank_accounts", AppStrings.navAccounts, Icons.Filled.AccountBalance),
@@ -116,51 +117,29 @@ fun NavGraph(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(AppStrings.appName) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                    scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
-                ),
-                actions = {
-                    Box {
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
+                title = {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        MaldarLogo(Modifier.size(width = 52.dp, height = 44.dp), contentDescription = null)
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
+                            }
+                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                DropdownMenuItem(text = { Text(AppStrings.menuUpdates) }, onClick = { menuExpanded = false; runCheck(auto = false) })
+                                DropdownMenuItem(text = { Text(AppStrings.crashLog) }, onClick = { menuExpanded = false; showCrashLog = true })
+                                DropdownMenuItem(text = { Text(AppStrings.exportData) }, onClick = { menuExpanded = false; showExport = true })
+                                DropdownMenuItem(text = { Text(AppStrings.importData) }, onClick = { menuExpanded = false; showImport = true })
+                                DropdownMenuItem(text = { Text(AppStrings.checkSms) }, onClick = { menuExpanded = false; showCheckSms = true })
+                                DropdownMenuItem(text = { Text(AppStrings.settings) }, onClick = { menuExpanded = false; showSettings = true })
+                                DropdownMenuItem(text = { Text(AppStrings.about) }, onClick = { menuExpanded = false; showAbout = true })
+                            }
                         }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
-                        ) {
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.menuUpdates, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; runCheck(auto = false) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.crashLog, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showCrashLog = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.exportData, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showExport = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.importData, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showImport = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.checkSms, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showCheckSms = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.settings, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showSettings = true }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(AppStrings.about, color = MaterialTheme.colorScheme.onSurface) },
-                            onClick = { menuExpanded = false; showAbout = true }
-                        )
                     }
-                    }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    scrolledContainerColor = androidx.compose.ui.graphics.Color.Transparent
+                )
             )
         },
         floatingActionButton = {
@@ -179,10 +158,10 @@ fun NavGraph(
                 }
             }
         },
-        floatingActionButtonPosition = FabPosition.Center,
+        floatingActionButtonPosition = FabPosition.End,
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
                 val backStackEntry by navController.currentBackStackEntryAsState()
@@ -198,7 +177,14 @@ fun NavGraph(
                             }
                         },
                         icon = { Icon(item.icon, contentDescription = item.label) },
-                        label = { Text(item.label) }
+                        label = { Text(item.label) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
