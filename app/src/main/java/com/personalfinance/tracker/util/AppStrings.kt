@@ -290,6 +290,7 @@ object AppStrings {
     val saveAndRefresh = "ذخیره و دریافت قیمت"
     val assetPriceFailed = "دریافت قیمت انجام نشد"
     val iranStocks = "سهام ایران"
+    val stockSymbol = "نماد"
     val stockSearch = "جستجوی نام یا نماد"
     val stockSearchHint = "حداقل دو حرف وارد کنید و نماد موردنظر را از نتایج TSETMC انتخاب کنید."
     val stockSearchFailed = "جستجوی نماد انجام نشد"

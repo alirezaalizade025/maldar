@@ -1,7 +1,9 @@
 package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -413,23 +415,25 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        items(stocks, key = { it.instrumentCode }) { stock ->
-            StockAssetCard(
-                stock = stock,
-                onEdit = {
-                    selectStock(
-                        StockSearchResult(
-                            instrumentCode = stock.instrumentCode,
-                            symbol = stock.symbol,
-                            name = stock.name,
-                            market = ""
-                        ),
-                        existing = stock
-                    )
-                },
-                onDelete = { viewModel.deleteStockAsset(stock) },
-                deleteEnabled = !stockRefreshing
-            )
+        if (stocks.isNotEmpty()) {
+            item {
+                StockAssetsTable(
+                    stocks = stocks,
+                    deleteEnabled = !stockRefreshing,
+                    onEdit = { stock ->
+                        selectStock(
+                            StockSearchResult(
+                                instrumentCode = stock.instrumentCode,
+                                symbol = stock.symbol,
+                                name = stock.name,
+                                market = ""
+                            ),
+                            existing = stock
+                        )
+                    },
+                    onDelete = viewModel::deleteStockAsset
+                )
+            }
         }
     }
 }
@@ -459,52 +463,74 @@ private fun AssetEditor(label: String, amount: String, price: Double?, onChange:
 }
 
 @Composable
-private fun StockAssetCard(
-    stock: StockAssetEntity,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
+private fun StockAssetsTable(
+    stocks: List<StockAssetEntity>,
+    onEdit: (StockAssetEntity) -> Unit,
+    onDelete: (StockAssetEntity) -> Unit,
     deleteEnabled: Boolean
 ) {
-    val currentPrice = stock.lastPriceToman
-    val currentValue = currentPrice?.let { stock.quantity * it }
-    val cost = stock.quantity * stock.buyPriceToman
-    val profit = currentValue?.minus(cost)
     AppCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text(stock.symbol, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(stock.name, style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(10.dp)) {
+            StockTableRow(
+                values = listOf(
+                    AppStrings.stockSymbol,
+                    AppStrings.stockQuantity,
+                    AppStrings.stockBuyPrice,
+                    AppStrings.stockCurrentPrice,
+                    AppStrings.assetValue,
+                    AppStrings.stockProfit
+                ),
+                header = true
+            )
+            HorizontalDivider()
+            stocks.forEach { stock ->
+                val currentPrice = stock.lastPriceToman
+                val currentValue = currentPrice?.let { stock.quantity * it }
+                val profit = currentValue?.minus(stock.quantity * stock.buyPriceToman)
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    StockTableCell(stock.symbol, 92.dp, FontWeight.Bold)
+                    StockTableCell(Money.input(stock.quantity), 84.dp)
+                    StockTableCell(Money.format2(stock.buyPriceToman), 132.dp)
+                    StockTableCell(currentPrice?.let(Money::format2) ?: "—", 132.dp)
+                    StockTableCell(currentValue?.let(Money::format2) ?: "—", 140.dp)
+                    StockTableCell(profit?.let(Money::format2) ?: "—", 124.dp, FontWeight.Bold, profit?.let(::profitColor))
+                    IconButton(onClick = { onEdit(stock) }) { Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit) }
+                    IconButton(onClick = { onDelete(stock) }, enabled = deleteEnabled) {
+                        Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
+                    }
                 }
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit)
-                }
-                IconButton(onClick = onDelete, enabled = deleteEnabled) {
-                    Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
-                }
-            }
-            Text("${AppStrings.stockQuantity}: ${Money.input(stock.quantity)}")
-            Text("${AppStrings.stockBuyPrice}: ${Money.format2(stock.buyPriceToman)} ${AppStrings.moneyUnit}")
-            Text("${AppStrings.stockCost}: ${Money.format2(cost)} ${AppStrings.moneyUnit}")
-            if (currentPrice != null && currentValue != null && profit != null) {
-                Text("${AppStrings.stockCurrentPrice}: ${Money.format2(currentPrice)} ${AppStrings.moneyUnit}")
-                Text("${AppStrings.assetValue}: ${Money.format2(currentValue)} ${AppStrings.moneyUnit}")
-                Text(
-                    "${AppStrings.stockProfit}: ${Money.format2(profit)} ${AppStrings.moneyUnit}",
-                    color = profitColor(profit),
-                    fontWeight = FontWeight.Bold
-                )
-                stock.lastPriceUpdatedAt?.let {
-                    Text(
-                        "${AppStrings.lastPriceUpdate}: ${JalaliCalendar.formatDateTime(it)}",
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
-            } else {
-                Text(AppStrings.priceUnavailable, color = MaterialTheme.colorScheme.error)
+                HorizontalDivider()
             }
         }
     }
+}
+
+@Composable
+private fun StockTableRow(values: List<String>, header: Boolean) {
+    val widths = listOf(92.dp, 84.dp, 132.dp, 132.dp, 140.dp, 124.dp)
+    Row {
+        values.forEachIndexed { index, value ->
+            StockTableCell(value, widths[index], if (header) FontWeight.Bold else FontWeight.Normal)
+        }
+        Spacer(Modifier.width(96.dp))
+    }
+}
+
+@Composable
+private fun StockTableCell(
+    value: String,
+    width: androidx.compose.ui.unit.Dp,
+    weight: FontWeight = FontWeight.Normal,
+    color: Color? = null
+) {
+    Text(
+        text = value,
+        modifier = Modifier.width(width).padding(horizontal = 6.dp, vertical = 10.dp),
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = weight,
+        color = color ?: MaterialTheme.colorScheme.onSurface,
+        maxLines = 1
+    )
 }
 
 private fun profitColor(profit: Double): Color =

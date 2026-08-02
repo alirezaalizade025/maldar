@@ -389,7 +389,7 @@ private fun CategoryDonutChart(breakdown: List<CategoryTotal>, total: Double) {
                 contentDescription = "${AppStrings.totalExpenses}: ${Money.format(total)} ${AppStrings.moneyUnit}، $description"
             },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
+            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.xl)
         ) {
             Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.fillMaxSize()) {

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
+import com.personalfinance.tracker.data.matchesLoanPayment
 import com.personalfinance.tracker.ui.design.MaldarDesign
 import com.personalfinance.tracker.ui.design.MaldarDesignTheme
 import com.personalfinance.tracker.ui.design.components.AmountText
@@ -54,21 +55,24 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
 private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    val loans by viewModel.loans.collectAsState()
     val pending by viewModel.pendingSms.collectAsState()
     val reviewed by viewModel.reviewedSms.collectAsState()
 
     var monthIncome by remember { mutableStateOf(0.0) }
     var monthExpense by remember { mutableStateOf(0.0) }
-    var monthLoanPaid by remember { mutableStateOf(0.0) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
     var totalBalance by remember { mutableStateOf(0.0) }
     LaunchedEffect(transactions, accounts) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
-        monthLoanPaid = viewModel.loanPaymentsThisMonth()
         totalBalance = viewModel.totalAccountBalance()
     }
+
+    val monthLoanPaid = transactions.filter { tx ->
+        JalaliCalendar.isInJalaliMonth(tx.dateMillis) && loans.any { tx.matchesLoanPayment(it, loans) }
+    }.sumOf { it.amount }
 
     val allIncome = transactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
     val allExpense = transactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
@@ -228,7 +232,7 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
                 )
                 MetricCard(
                     label = AppStrings.monthExpense,
-                    value = Money.format2(monthExpense + monthLoanPaid),
+                    value = Money.format2(monthExpense),
                     icon = Icons.AutoMirrored.Filled.TrendingDown,
                     tone = AmountTone.NEGATIVE,
                     modifier = Modifier.width(148.dp)

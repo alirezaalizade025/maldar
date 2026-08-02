@@ -95,6 +95,9 @@ fun NavGraph(
     var showQuickAddMenu by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = backStackEntry?.destination
+    val isDashboard = currentDestination?.hierarchy?.any { it.route == "dashboard" } == true
 
     fun runCheck(auto: Boolean) {
         scope.launch {
@@ -143,7 +146,7 @@ fun NavGraph(
             )
         },
         floatingActionButton = {
-            Box {
+            if (isDashboard) Box {
                 FloatingActionButton(
                     onClick = { showQuickAddMenu = true },
                     containerColor = MaterialTheme.colorScheme.surface,
@@ -164,11 +167,9 @@ fun NavGraph(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface
             ) {
-                val backStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = backStackEntry?.destination
                 bottomItems.forEach { item ->
                     NavigationBarItem(
-                        selected = currentRoute?.hierarchy?.any { it.route == item.route } == true,
+                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
                         onClick = {
                             navController.navigate(item.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }

@@ -40,6 +40,7 @@ import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
 import com.personalfinance.tracker.util.JalaliCalendar
+import com.personalfinance.tracker.data.matchesLoanPayment
 
 @Composable
 fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController? = null) {
@@ -179,9 +180,9 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
             val accSenders = senders.filter { it.bankAccountId == acc.id }
             val attachedLoans = loans.filter { it.bankAccountId == acc.id }
             val activeAttachedLoans = attachedLoans.filter { !it.isPaid }
-            val paidThisMonth = transactions.filter {
-                it.bankAccountId == acc.id && it.loanId != null &&
-                    it.dateMillis in currentMonthRange.first..currentMonthRange.second
+            val paidThisMonth = transactions.filter { tx ->
+                attachedLoans.any { tx.matchesLoanPayment(it, loans) } &&
+                    tx.dateMillis in currentMonthRange.first..currentMonthRange.second
             }.sumOf { it.amount }
             val installmentDue = activeAttachedLoans.sumOf {
                 (if (it.installment > 0.0) it.installment else it.remainingAmount)
