@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -21,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -121,9 +123,12 @@ fun NavGraph(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        MaldarLogo(Modifier.size(width = 52.dp, height = 44.dp), contentDescription = null)
-                        Box {
+                    Box(Modifier.fillMaxWidth()) {
+                        MaldarLogo(
+                            Modifier.align(Alignment.CenterEnd).size(width = 52.dp, height = 44.dp),
+                            contentDescription = null
+                        )
+                        Box(Modifier.align(Alignment.CenterStart)) {
                             IconButton(onClick = { menuExpanded = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
                             }

@@ -380,37 +380,47 @@ private fun ChartLegend(label: String, color: Color) {
 
 @Composable
 private fun CategoryDonutChart(breakdown: List<CategoryTotal>, total: Double) {
+    val currentLayoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     val description = breakdown.joinToString("، ") {
         "${it.category}: ${Money.format(it.total / total * 100.0)} درصد"
     }
     AppCard(modifier = Modifier.fillMaxWidth(), style = AppCardStyle.RAISED) {
-        Row(
-            Modifier.fillMaxWidth().semantics {
-                contentDescription = "${AppStrings.totalExpenses}: ${Money.format(total)} ${AppStrings.moneyUnit}، $description"
-            },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.xl)
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
         ) {
-            Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize()) {
-                    var startAngle = -90f
-                    breakdown.forEachIndexed { index, item ->
-                        val sweep = (item.total / total * 360.0).toFloat()
-                        drawArc(chartColors[index % chartColors.size], startAngle, sweep, false, style = Stroke(24.dp.toPx()))
-                        startAngle += sweep
+            Row(
+                Modifier.fillMaxWidth().semantics {
+                    contentDescription = "${AppStrings.totalExpenses}: ${Money.format(total)} ${AppStrings.moneyUnit}، $description"
+                },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalLayoutDirection provides currentLayoutDirection
+                ) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        breakdown.forEachIndexed { index, item ->
+                            ChartLegend(
+                                "${item.category}  ٪${Money.format(item.total / total * 100.0)}",
+                                chartColors[index % chartColors.size]
+                            )
+                        }
                     }
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("۱۰۰٪", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(AppStrings.totalExpenses, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                breakdown.forEachIndexed { index, item ->
-                    ChartLegend(
-                        "${item.category}  ٪${Money.format(item.total / total * 100.0)}",
-                        chartColors[index % chartColors.size]
-                    )
+                Spacer(Modifier.width(MaldarDesign.spacing.xl))
+                Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        var startAngle = -90f
+                        breakdown.forEachIndexed { index, item ->
+                            val sweep = (item.total / total * 360.0).toFloat()
+                            drawArc(chartColors[index % chartColors.size], startAngle, sweep, false, style = Stroke(24.dp.toPx()))
+                            startAngle += sweep
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("۱۰۰٪", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(AppStrings.totalExpenses, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
