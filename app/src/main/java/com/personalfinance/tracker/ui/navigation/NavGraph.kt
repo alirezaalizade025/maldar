@@ -100,6 +100,7 @@ fun NavGraph(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val isDashboard = currentDestination?.hierarchy?.any { it.route == "dashboard" } == true
+    val currentLayoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
 
     fun runCheck(auto: Boolean) {
         scope.launch {
@@ -123,23 +124,31 @@ fun NavGraph(
         topBar = {
             TopAppBar(
                 title = {
-                    Box(Modifier.fillMaxWidth()) {
-                        MaldarLogo(
-                            Modifier.align(Alignment.CenterEnd).size(width = 52.dp, height = 44.dp),
-                            contentDescription = null
-                        )
-                        Box(Modifier.align(Alignment.CenterStart)) {
-                            IconButton(onClick = { menuExpanded = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
-                            }
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(text = { Text(AppStrings.menuUpdates) }, onClick = { menuExpanded = false; runCheck(auto = false) })
-                                DropdownMenuItem(text = { Text(AppStrings.crashLog) }, onClick = { menuExpanded = false; showCrashLog = true })
-                                DropdownMenuItem(text = { Text(AppStrings.exportData) }, onClick = { menuExpanded = false; showExport = true })
-                                DropdownMenuItem(text = { Text(AppStrings.importData) }, onClick = { menuExpanded = false; showImport = true })
-                                DropdownMenuItem(text = { Text(AppStrings.checkSms) }, onClick = { menuExpanded = false; showCheckSms = true })
-                                DropdownMenuItem(text = { Text(AppStrings.settings) }, onClick = { menuExpanded = false; showSettings = true })
-                                DropdownMenuItem(text = { Text(AppStrings.about) }, onClick = { menuExpanded = false; showAbout = true })
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
+                    ) {
+                        Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+                            MaldarLogo(
+                                Modifier.align(Alignment.CenterEnd).size(width = 52.dp, height = 44.dp),
+                                contentDescription = null
+                            )
+                            androidx.compose.runtime.CompositionLocalProvider(
+                                androidx.compose.ui.platform.LocalLayoutDirection provides currentLayoutDirection
+                            ) {
+                                Box(Modifier.align(Alignment.CenterStart)) {
+                                    IconButton(onClick = { menuExpanded = true }) {
+                                        Icon(Icons.Filled.MoreVert, contentDescription = AppStrings.menuUpdates)
+                                    }
+                                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                        DropdownMenuItem(text = { Text(AppStrings.menuUpdates) }, onClick = { menuExpanded = false; runCheck(auto = false) })
+                                        DropdownMenuItem(text = { Text(AppStrings.crashLog) }, onClick = { menuExpanded = false; showCrashLog = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.exportData) }, onClick = { menuExpanded = false; showExport = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.importData) }, onClick = { menuExpanded = false; showImport = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.checkSms) }, onClick = { menuExpanded = false; showCheckSms = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.settings) }, onClick = { menuExpanded = false; showSettings = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.about) }, onClick = { menuExpanded = false; showAbout = true })
+                                    }
+                                }
                             }
                         }
                     }
