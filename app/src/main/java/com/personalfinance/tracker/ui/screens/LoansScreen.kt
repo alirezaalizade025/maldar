@@ -40,6 +40,22 @@ import java.util.*
 
 private enum class LoanSortOption { ALPHABETIC, HIGHEST_AMOUNT, LOWEST_AMOUNT, LAST_PAID }
 
+private fun isLoanPayment(
+    tx: com.personalfinance.tracker.data.TransactionEntity,
+    loan: LoanEntity,
+    loans: List<LoanEntity>
+): Boolean {
+    if (tx.loanId != null) return tx.loanId == loan.id
+    if (tx.type != com.personalfinance.tracker.data.TxType.EXPENSE || tx.category.trim() != "وام") return false
+    if (tx.note.contains(loan.name, ignoreCase = true)) return true
+    val due = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
+    if (kotlin.math.abs(tx.amount - due) >= 0.01) return false
+    return loans.count {
+        val otherDue = if (it.installment > 0.0) it.installment else it.remainingAmount
+        kotlin.math.abs(tx.amount - otherDue) < 0.01
+    } == 1
+}
+
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
     MaldarDesignTheme {
@@ -69,11 +85,11 @@ private fun LoansContent(viewModel: FinanceViewModel) {
         return installment.coerceAtMost(loan.remainingAmount)
     }
     fun paidThisMonth(loan: LoanEntity): Double = transactions
-        .filter { it.loanId == loan.id && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
+        .filter { isLoanPayment(it, loan, loans) && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
         .sumOf { it.amount }
     fun isPaidThisMonth(loan: LoanEntity): Boolean = paidThisMonth(loan) >= monthlyDue(loan)
     val totalPaidThisMonth = transactions
-        .filter { it.loanId != null && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
+        .filter { tx -> loans.any { isLoanPayment(tx, it, loans) } && JalaliCalendar.isInJalaliMonth(tx.dateMillis) }
         .sumOf { it.amount }
     val totalRemainingThisMonth = activeLoans.sumOf { (monthlyDue(it) - paidThisMonth(it)).coerceAtLeast(0.0) }
     val nextLoan = activeLoans.minByOrNull { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
@@ -83,7 +99,7 @@ private fun LoansContent(viewModel: FinanceViewModel) {
             LoanSortOption.HIGHEST_AMOUNT -> loans.sortedByDescending { it.remainingAmount }
             LoanSortOption.LOWEST_AMOUNT -> loans.sortedBy { it.remainingAmount }
             LoanSortOption.LAST_PAID -> loans.sortedByDescending {
-                transactions.filter { it.loanId == it.loanId }.maxOfOrNull { it.dateMillis } ?: Long.MIN_VALUE
+                loan -> transactions.filter { isLoanPayment(it, loan, loans) }.maxOfOrNull { it.dateMillis } ?: Long.MIN_VALUE
             }
             else -> loans.sortedBy { it.name.lowercase() }
         }
@@ -262,7 +278,7 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     }
 
     if (selectedLoan != null) {
-        LoanDetailDialog(loan = selectedLoan!!, viewModel = viewModel, onDismiss = { selectedLoan = null })
+        LoanDetailDialog(loan = selectedLoan!!, loans = loans, transactions = transactions, viewModel = viewModel, onDismiss = { selectedLoan = null })
     }
 
     if (editingLoan != null) {
@@ -512,10 +528,14 @@ private fun PayLoanDialog(
 }
 
 @Composable
-private fun LoanDetailDialog(loan: LoanEntity, viewModel: FinanceViewModel, onDismiss: () -> Unit) {
-    val payments by produceState(initialValue = emptyList<com.personalfinance.tracker.data.TransactionEntity>(), loan.id) {
-        value = viewModel.getLoanPayments(loan.id)
-    }
+private fun LoanDetailDialog(
+    loan: LoanEntity,
+    loans: List<LoanEntity>,
+    transactions: List<com.personalfinance.tracker.data.TransactionEntity>,
+    viewModel: FinanceViewModel,
+    onDismiss: () -> Unit
+) {
+    val payments = transactions.filter { isLoanPayment(it, loan, loans) }.sortedByDescending { it.dateMillis }
     val currentMonthPaid = payments.any { JalaliCalendar.isInJalaliMonth(it.dateMillis) }
     // Projected remaining balance over the next months until payoff.
     val projection = remember(loan.id, loan.remainingAmount, currentMonthPaid) {

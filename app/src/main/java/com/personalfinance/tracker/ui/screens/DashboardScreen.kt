@@ -354,9 +354,12 @@ private fun EditTransactionDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SingleChoiceSegmented(
-                    options = listOf(AppStrings.expense, AppStrings.income),
-                    selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
-                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME; category = "" }
+                    options = listOf(AppStrings.expense, AppStrings.income, AppStrings.cardToCard),
+                    selectedIndex = when (type) { TxType.EXPENSE -> 0; TxType.INCOME -> 1; TxType.CARD_TO_CARD -> 2 },
+                    onSelected = {
+                        type = when (it) { 0 -> TxType.EXPENSE; 1 -> TxType.INCOME; else -> TxType.CARD_TO_CARD }
+                        category = if (type == TxType.CARD_TO_CARD) AppStrings.cardToCard else ""
+                    }
                 )
                 OutlinedTextField(
                     value = amountText,
@@ -364,7 +367,9 @@ private fun EditTransactionDialog(
                     label = { Text(AppStrings.amountLabel) },
                     visualTransformation = ThousandsSeparatorTransformation()
                 )
-                CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
+                if (type != TxType.CARD_TO_CARD) {
+                    CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
+                }
                 ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
                     OutlinedTextField(
                         value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,

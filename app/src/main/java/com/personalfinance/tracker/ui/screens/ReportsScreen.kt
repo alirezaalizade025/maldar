@@ -2,6 +2,7 @@ package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
@@ -62,13 +63,15 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
     var monthOffset by remember { mutableIntStateOf(0) }
     var accountFilter by remember { mutableStateOf<Long?>(null) }
     var showMonthlyChart by remember { mutableStateOf(false) }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
 
     val monthTransactions = transactions.filter { tx ->
         JalaliCalendar.isInJalaliMonth(tx.dateMillis, monthOffset) &&
             (accountFilter == null || tx.bankAccountId == accountFilter)
     }
-    val income = monthTransactions.filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount }
+    val income = monthTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
     val expense = monthTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+    val transfers = monthTransactions.filter { it.type == TxType.CARD_TO_CARD }.sumOf { it.amount }
     val breakdown = monthTransactions.filter { it.type == TxType.EXPENSE }
         .groupingBy { it.category }.fold(0.0) { total, tx -> total + tx.amount }
         .map { CategoryTotal(it.key, it.value) }.sortedByDescending { it.total }
@@ -78,7 +81,7 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
             JalaliCalendar.isInJalaliMonth(tx.dateMillis, offset) &&
                 (accountFilter == null || tx.bankAccountId == accountFilter)
         }
-        monthTransactionsForTrend.filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount } to
+        monthTransactionsForTrend.filter { it.type == TxType.INCOME }.sumOf { it.amount } to
             monthTransactionsForTrend.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     }
 
@@ -163,6 +166,12 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
 
         item {
             MetricCard(AppStrings.net, Money.format(income - expense), Modifier.fillMaxWidth())
+        }
+
+        if (transfers > 0.0) {
+            item {
+                MetricCard(AppStrings.cardToCard, Money.format(transfers), Modifier.fillMaxWidth())
+            }
         }
 
         item {
@@ -258,6 +267,13 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
                     color = chartColors[index % chartColors.size],
                     total = total,
                     maxValue = maxVal,
+                    expanded = selectedCategory == category.category,
+                    transactions = monthTransactions.filter {
+                        it.type == TxType.EXPENSE && it.category == category.category
+                    },
+                    onClick = {
+                        selectedCategory = if (selectedCategory == category.category) null else category.category
+                    }
                 )
             }
         }
@@ -270,7 +286,7 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
     val daily = transactions.groupBy {
         JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = it.dateMillis }).day
     }
-    val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount } }
+    val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME }.sumOf { it.amount } }
     val expense = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.EXPENSE }.sumOf { it.amount } }
     val maxValue = (income + expense).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
     if (income.all { it == 0.0 } && expense.all { it == 0.0 }) {
@@ -364,30 +380,34 @@ private fun CategoryDonutChart(breakdown: List<CategoryTotal>, total: Double) {
         "${it.category}: ${Money.format(it.total / total * 100.0)} درصد"
     }
     AppCard(modifier = Modifier.fillMaxWidth(), style = AppCardStyle.RAISED) {
-        Box(
+        Row(
             Modifier.fillMaxWidth().semantics {
                 contentDescription = "${AppStrings.totalExpenses}: ${Money.format(total)} ${AppStrings.moneyUnit}، $description"
             },
-            contentAlignment = Alignment.Center
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)
         ) {
-            Canvas(Modifier.size(190.dp)) {
-                var startAngle = -90f
-                breakdown.forEachIndexed { index, item ->
-                    val sweep = (item.total / total * 360.0).toFloat()
-                    drawArc(
-                        color = chartColors[index % chartColors.size],
-                        startAngle = startAngle,
-                        sweepAngle = sweep,
-                        useCenter = false,
-                        style = Stroke(width = 28.dp.toPx())
-                    )
-                    startAngle += sweep
+            Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.fillMaxSize()) {
+                    var startAngle = -90f
+                    breakdown.forEachIndexed { index, item ->
+                        val sweep = (item.total / total * 360.0).toFloat()
+                        drawArc(chartColors[index % chartColors.size], startAngle, sweep, false, style = Stroke(24.dp.toPx()))
+                        startAngle += sweep
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("۱۰۰٪", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(AppStrings.totalExpenses, style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("۱۰۰٪", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text(AppStrings.totalExpenses, style = MaterialTheme.typography.labelSmall)
-                Text("${Money.format(total)} ${AppStrings.moneyUnit}", style = MaterialTheme.typography.labelSmall)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                breakdown.forEachIndexed { index, item ->
+                    ChartLegend(
+                        "${item.category}  ٪${Money.format(item.total / total * 100.0)}",
+                        chartColors[index % chartColors.size]
+                    )
+                }
             }
         }
     }
@@ -398,11 +418,14 @@ private fun CategoryBreakdownRow(
     item: CategoryTotal,
     color: Color,
     total: Double,
-    maxValue: Double
+    maxValue: Double,
+    expanded: Boolean,
+    transactions: List<com.personalfinance.tracker.data.TransactionEntity>,
+    onClick: () -> Unit
 ) {
     val barFraction = (item.total / maxValue).toFloat().coerceIn(0f, 1f)
     val percent = item.total / total * 100.0
-    AppCard(modifier = Modifier.fillMaxWidth(), style = AppCardStyle.OUTLINED) {
+    AppCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), style = AppCardStyle.OUTLINED) {
         Column(Modifier.semantics {
             contentDescription = "${item.category}، ${Money.format(item.total)} ${AppStrings.moneyUnit}، ${Money.format(percent)} درصد"
         }) {
@@ -423,6 +446,18 @@ private fun CategoryBreakdownRow(
             Canvas(modifier = Modifier.fillMaxWidth().height(9.dp)) {
                 drawRoundRect(color.copy(alpha = 0.18f), size = Size(size.width, size.height))
                 drawRoundRect(color, size = Size(size.width * barFraction, size.height))
+            }
+            if (expanded) {
+                HorizontalDivider(Modifier.padding(vertical = MaldarDesign.spacing.sm))
+                transactions.sortedByDescending { it.dateMillis }.forEach { tx ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(tx.note.ifBlank { JalaliCalendar.formatDate(tx.dateMillis) }, style = MaterialTheme.typography.bodySmall)
+                            Text(JalaliCalendar.formatDateTime(tx.dateMillis), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("${Money.format(tx.amount)} ${AppStrings.moneyUnit}", fontWeight = FontWeight.Medium)
+                    }
+                }
             }
         }
     }

@@ -289,7 +289,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         return (count - 1 downTo 0).map { offset ->
             val (start, end) = monthRange(-offset)
             val income = repo.totalByType(TxType.INCOME, start, end)
-            val expense = repo.totalByType(TxType.EXPENSE, start, end) + repo.getLoanPaymentsBetween(start, end).sumOf { it.amount }
+            val expense = repo.totalByType(TxType.EXPENSE, start, end)
             income to expense
         }
     }

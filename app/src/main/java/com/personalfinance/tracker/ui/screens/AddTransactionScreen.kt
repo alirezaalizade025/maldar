@@ -126,7 +126,11 @@ private fun AddTransactionContent(
         }
     }
 
-    val activeCategories = if (type == TxType.EXPENSE) expenseCategories else incomeCategories
+    val activeCategories = when (type) {
+        TxType.EXPENSE -> expenseCategories
+        TxType.INCOME -> incomeCategories
+        TxType.CARD_TO_CARD -> emptyList()
+    }
     val effectiveDateMillis = transactionDateMillis ?: System.currentTimeMillis()
     val effectiveTime = remember(effectiveDateMillis) {
         Calendar.getInstance().apply { timeInMillis = effectiveDateMillis }.let {
@@ -150,11 +154,12 @@ private fun AddTransactionContent(
         Text(if (isSplitMode) AppStrings.splitTransaction else AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
         MaldarSegmentedControl(
-            options = listOf(AppStrings.expense, AppStrings.income),
-            selectedIndex = if (type == TxType.INCOME) 1 else 0,
+            options = listOf(AppStrings.expense, AppStrings.income, AppStrings.cardToCard),
+            selectedIndex = when (type) { TxType.EXPENSE -> 0; TxType.INCOME -> 1; TxType.CARD_TO_CARD -> 2 },
             onSelected = {
-                type = if (it == 0) TxType.EXPENSE else TxType.INCOME
+                type = when (it) { 0 -> TxType.EXPENSE; 1 -> TxType.INCOME; else -> TxType.CARD_TO_CARD }
                 category = "" // let CategoryPicker re-default to the first category of the new type
+                if (type == TxType.CARD_TO_CARD) selectedLoanId = null
             }
         )
 
@@ -214,26 +219,18 @@ private fun AddTransactionContent(
             }
         }
 
-        SectionHeader(AppStrings.category)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
-        ) {
-            activeCategories.take(6).forEach { item ->
-                FilterChip(
-                    selected = category == item.name,
-                    onClick = { category = item.name },
-                    label = { Text(item.name) }
-                )
+        if (type != TxType.CARD_TO_CARD) {
+            SectionHeader(AppStrings.category)
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
+            ) {
+                activeCategories.take(6).forEach { item ->
+                    FilterChip(selected = category == item.name, onClick = { category = item.name }, label = { Text(item.name) })
+                }
             }
+            CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
         }
-
-        CategoryPicker(
-            viewModel = viewModel,
-            type = type,
-            selected = category,
-            onSelected = { category = it }
-        )
 
         AppCard(style = AppCardStyle.FLAT, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)) {
@@ -252,7 +249,7 @@ private fun AddTransactionContent(
                     }
                 }
 
-                ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
+                if (type == TxType.EXPENSE) ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
                     OutlinedTextField(
                         value = loans.firstOrNull { it.id == selectedLoanId }?.name ?: AppStrings.relatedToLoan,
                         onValueChange = {}, readOnly = true,
@@ -325,17 +322,21 @@ private fun AddTransactionContent(
                     }
 
                     val smsBody = sourceSmsBody
+                    val inferredLoanId = selectedLoanId ?: loans.filter { loan ->
+                        !loan.isPaid && category.trim() == "وام" &&
+                            kotlin.math.abs((if (loan.installment > 0.0) loan.installment else loan.remainingAmount) - stored) < 0.01
+                    }.singleOrNull()?.id
                     isSaving = true
                     scope.launch {
                         val result = runCatching {
                             viewModel.addTransaction(
                                 amount = stored,
                                 type = type,
-                                category = category.ifBlank { "سایر" },
+                                category = if (type == TxType.CARD_TO_CARD) AppStrings.cardToCard else category.ifBlank { "سایر" },
                                 note = note,
                                 bankAccountId = selectedAccountId,
                                 dateMillis = transactionDateMillis ?: System.currentTimeMillis(),
-                                loanId = selectedLoanId,
+                                loanId = inferredLoanId,
                                 balanceAfter = remainder,
                                 source = if (smsBody != null) TxSource.SMS else TxSource.MANUAL,
                                 rawSms = smsBody
