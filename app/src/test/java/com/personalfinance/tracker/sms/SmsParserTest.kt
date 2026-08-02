@@ -83,6 +83,15 @@ class SmsParserTest {
     fun passwordMessages_areIgnored() {
         assertTrue(SmsParser.isPasswordMessage("رمز پویا: 123456"))
         assertTrue(SmsParser.isPasswordMessage("Your OTP is 123456"))
+        assertTrue(SmsParser.isPasswordMessage("رمز: 12345"))
+        assertTrue(SmsParser.isPasswordMessage("رمز 987654"))
         assertFalse(SmsParser.isPasswordMessage("واریز مبلغ ۱۰۰۰۰۰ ریال"))
+    }
+
+    @Test
+    fun passwordMessageWithShortCode_isNotTreatedAsTransaction() {
+        val message = "رمز: 12345\nلطفا برای ادامه وارد کنید"
+        assertFalse(SmsParser.looksLikeTransaction(message))
+        assertNull(SmsParser.parse(message).amount)
     }
 }

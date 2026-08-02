@@ -131,11 +131,13 @@ object SmsParser {
     /** Returns true for bank messages that contain a card password/OTP rather than a transaction. */
     fun isPasswordMessage(message: String): Boolean {
         val lower = message.lowercase()
-        return listOf(
-            "رمز پویا", "رمز یکبار مصرف", "رمز یک بار مصرف", "رمز دوم", "رمز کارت",
+        val hasPasswordKeyword = listOf(
+            "رمز پویا", "رمز یکبار مصرف", "رمز یک بار مصرف", "رمز دوم", "رمز کارت", "رمز",
             "کد تایید", "کد تأیید", "otp", "one time password", "verification code",
             "password", "passcode"
         ).any { lower.contains(it) }
+        val hasOtpCode = Regex("\\b\\d{5,8}\\b").find(message) != null
+        return hasPasswordKeyword && hasOtpCode
     }
 
     private fun normalizeDigits(s: String): String =
@@ -303,6 +305,7 @@ object SmsParser {
      * surfacing to the user, so random SMS (OTPs, promos) don't spam the pending list.
      */
     fun looksLikeTransaction(message: String): Boolean {
+        if (isPasswordMessage(message)) return false
         if (extractSignedLineAmount(message) != null) return true
 
         val lower = message.lowercase()

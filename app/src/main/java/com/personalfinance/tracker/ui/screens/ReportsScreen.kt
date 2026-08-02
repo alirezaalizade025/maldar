@@ -2,6 +2,7 @@ package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +20,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +67,7 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
         JalaliCalendar.isInJalaliMonth(tx.dateMillis, monthOffset) &&
             (accountFilter == null || tx.bankAccountId == accountFilter)
     }
-    val income = monthTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
+    val income = monthTransactions.filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount }
     val expense = monthTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     val breakdown = monthTransactions.filter { it.type == TxType.EXPENSE }
         .groupingBy { it.category }.fold(0.0) { total, tx -> total + tx.amount }
@@ -76,7 +78,7 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
             JalaliCalendar.isInJalaliMonth(tx.dateMillis, offset) &&
                 (accountFilter == null || tx.bankAccountId == accountFilter)
         }
-        monthTransactionsForTrend.filter { it.type == TxType.INCOME }.sumOf { it.amount } to
+        monthTransactionsForTrend.filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount } to
             monthTransactionsForTrend.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     }
 
@@ -111,11 +113,11 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { monthOffset-- }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = AppStrings.prev)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = AppStrings.prev)
                     }
                     Text(monthLabel, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     IconButton(onClick = { monthOffset++ }, enabled = monthOffset < 12) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = AppStrings.next)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = AppStrings.next)
                     }
                 }
             }
@@ -187,6 +189,52 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
         }
 
         item {
+            SectionHeader(AppStrings.monthlyTransactions)
+        }
+
+        if (monthTransactions.isNotEmpty()) {
+            item {
+                AppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        monthTransactions.sortedByDescending { it.dateMillis }.take(8).forEach { tx ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = tx.category.ifBlank { AppStrings.unknown },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = tx.note.ifBlank { JalaliCalendar.formatDate(tx.dateMillis) },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = if (tx.type == TxType.CARD_TO_CARD) AppStrings.cardToCard else if (tx.type == TxType.INCOME) AppStrings.income else AppStrings.expense,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (tx.type == TxType.EXPENSE) MaldarDesign.colors.negative else MaldarDesign.colors.positive
+                                    )
+                                    Text(
+                                        text = "${Money.format(tx.amount)} ${AppStrings.moneyUnit}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (tx.type == TxType.EXPENSE) MaldarDesign.colors.negative else MaldarDesign.colors.positive
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             SectionHeader(AppStrings.spendingByCategory)
         }
 
@@ -222,32 +270,82 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
     val daily = transactions.groupBy {
         JalaliCalendar.fromGregorian(Calendar.getInstance().apply { timeInMillis = it.dateMillis }).day
     }
-    val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME }.sumOf { it.amount } }
+    val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME || it.type == TxType.CARD_TO_CARD }.sumOf { it.amount } }
     val expense = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.EXPENSE }.sumOf { it.amount } }
     val maxValue = (income + expense).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
     if (income.all { it == 0.0 } && expense.all { it == 0.0 }) {
         EmptyState(AppStrings.dailyReport, AppStrings.noTrendData)
         return
     }
+    var selectedDay by remember { mutableStateOf<Int?>(null) }
     val incomeColor = MaldarDesign.colors.positive
     val expenseColor = MaldarDesign.colors.negative
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
     val chartDescription = "${AppStrings.dailyReport}، ${AppStrings.reportIncome}: ${Money.format(income.sum())} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(expense.sum())} ${AppStrings.moneyUnit}"
-    Canvas(
-        Modifier.fillMaxWidth().height(180.dp).semantics { contentDescription = chartDescription }
-    ) {
-        val groupWidth = size.width / 31f
-        val baseY = size.height - 20.dp.toPx()
-        val chartHeight = baseY - 8.dp.toPx()
-        income.forEachIndexed { index, value ->
-            val x = index * groupWidth
-            drawRect(incomeColor, Offset(x + groupWidth * 0.08f, baseY - (value / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (value / maxValue * chartHeight).toFloat()))
-            val expenseValue = expense[index]
-            drawRect(expenseColor, Offset(x + groupWidth * 0.52f, baseY - (expenseValue / maxValue * chartHeight).toFloat()), Size(groupWidth * 0.38f, (expenseValue / maxValue * chartHeight).toFloat()))
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            ChartSummaryChip(AppStrings.reportIncome, income.sum(), incomeColor)
+            ChartSummaryChip(AppStrings.reportExpense, expense.sum(), expenseColor)
+        }
+        Canvas(
+            Modifier.fillMaxWidth().height(220.dp).semantics { contentDescription = chartDescription }
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val index = ((offset.x / size.width) * 31).toInt().coerceIn(0, 30)
+                        selectedDay = index
+                    }
+                }
+        ) {
+            val groupWidth = size.width / 31f
+            val baseY = size.height - 24.dp.toPx()
+            val chartHeight = baseY - 8.dp.toPx()
+            val gridSteps = 4
+            repeat(gridSteps) { step ->
+                val y = baseY - (chartHeight / (gridSteps - 1)) * step
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+            income.forEachIndexed { index, value ->
+                val x = index * groupWidth
+                val normalized = (value / maxValue * chartHeight).toFloat()
+                drawRect(incomeColor, Offset(x + groupWidth * 0.08f, baseY - normalized), Size(groupWidth * 0.38f, normalized))
+                val expenseValue = expense[index]
+                val normalizedExpense = (expenseValue / maxValue * chartHeight).toFloat()
+                drawRect(expenseColor, Offset(x + groupWidth * 0.52f, baseY - normalizedExpense), Size(groupWidth * 0.38f, normalizedExpense))
+            }
+        }
+        selectedDay?.let { dayIndex ->
+            val dayIncome = income[dayIndex]
+            val dayExpense = expense[dayIndex]
+            val dayLabel = (dayIndex + 1).toString()
+            Text(
+                text = "${AppStrings.day} $dayLabel • ${AppStrings.reportIncome}: ${Money.format(dayIncome)} • ${AppStrings.reportExpense}: ${Money.format(dayExpense)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp)
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            ChartLegend(AppStrings.reportIncome, incomeColor)
+            ChartLegend(AppStrings.reportExpense, expenseColor)
         }
     }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        ChartLegend(AppStrings.reportIncome, incomeColor)
-        ChartLegend(AppStrings.reportExpense, expenseColor)
+}
+
+@Composable
+private fun ChartSummaryChip(label: String, amount: Double, color: Color) {
+    Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+        Text(
+            text = "$label: ${Money.format(amount)} ${AppStrings.moneyUnit}",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = color,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,6 +39,7 @@ private data class NavItem(val route: String, val label: String, val icon: andro
 private val bottomItems = listOf(
     NavItem("dashboard", AppStrings.navHome, Icons.Filled.Home),
     NavItem("add_transaction", AppStrings.navAdd, Icons.Filled.Add),
+    NavItem("split_transaction", AppStrings.splitTransaction, Icons.Filled.Add),
     NavItem("loans", AppStrings.navLoans, Icons.Filled.Payments),
     NavItem("reports", AppStrings.navReports, Icons.Filled.Assessment),
     NavItem("bank_accounts", AppStrings.navAccounts, Icons.Filled.AccountBalance),
@@ -89,6 +91,7 @@ fun NavGraph(
     var showSettings by remember { mutableStateOf(false) }
     var showCheckSms by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showQuickAddMenu by remember { mutableStateOf(false) }
     // Avoid showing the startup prompt more than once per session.
     var startupChecked by rememberSaveable { mutableStateOf(false) }
 
@@ -160,6 +163,23 @@ fun NavGraph(
                 }
             )
         },
+        floatingActionButton = {
+            Box {
+                FloatingActionButton(
+                    onClick = { showQuickAddMenu = true },
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = AppStrings.addTransaction)
+                }
+                DropdownMenu(expanded = showQuickAddMenu, onDismissRequest = { showQuickAddMenu = false }) {
+                    DropdownMenuItem(text = { Text(AppStrings.addTransaction) }, onClick = { showQuickAddMenu = false; navController.navigate("add_transaction") })
+                    DropdownMenuItem(text = { Text(AppStrings.splitTransaction) }, onClick = { showQuickAddMenu = false; navController.navigate("split_transaction") })
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center,
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
@@ -206,6 +226,7 @@ fun NavGraph(
                     onContinueToList = if (accId != null) ({ navController.popBackStack("account_sms/$accId", false) }) else null
                 )
             }
+            composable("split_transaction") { AddTransactionScreen(viewModel = viewModel, isSplitMode = true) }
             composable("confirm_sms_list") { SmsConfirmationScreen(viewModel) }
             composable("bank_accounts") { BankAccountsScreen(viewModel, navController = navController) }
             composable("loans") { LoansScreen(viewModel) }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +38,8 @@ import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
 
+private enum class LoanSortOption { ALPHABETIC, HIGHEST_AMOUNT, LOWEST_AMOUNT, LAST_PAID }
+
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
     MaldarDesignTheme {
@@ -55,6 +58,8 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     var editingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var deletingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var showMonthlySchedule by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf(LoanSortOption.ALPHABETIC) }
 
     val activeLoans = loans.filter { !it.isPaid }
     val total = activeLoans.sumOf { it.principal }
@@ -73,6 +78,16 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     val totalRemainingThisMonth = activeLoans.sumOf { (monthlyDue(it) - paidThisMonth(it)).coerceAtLeast(0.0) }
     val nextLoan = activeLoans.minByOrNull { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
     val nextLoanDueMillis = nextLoan?.let { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
+    val sortedLoans = remember(loans, transactions, sortOption) {
+        when (sortOption) {
+            LoanSortOption.HIGHEST_AMOUNT -> loans.sortedByDescending { it.remainingAmount }
+            LoanSortOption.LOWEST_AMOUNT -> loans.sortedBy { it.remainingAmount }
+            LoanSortOption.LAST_PAID -> loans.sortedByDescending {
+                transactions.filter { it.loanId == it.loanId }.maxOfOrNull { it.dateMillis } ?: Long.MIN_VALUE
+            }
+            else -> loans.sortedBy { it.name.lowercase() }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -87,6 +102,17 @@ private fun LoansContent(viewModel: FinanceViewModel) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(AppStrings.loans, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Box {
+                    IconButton(onClick = { showSortMenu = true }) {
+                        Icon(Icons.Filled.Sort, contentDescription = AppStrings.sort)
+                    }
+                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        DropdownMenuItem(text = { Text(AppStrings.sortAlphabetic) }, onClick = { sortOption = LoanSortOption.ALPHABETIC; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(AppStrings.sortHighestAmount) }, onClick = { sortOption = LoanSortOption.HIGHEST_AMOUNT; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(AppStrings.sortLowestAmount) }, onClick = { sortOption = LoanSortOption.LOWEST_AMOUNT; showSortMenu = false })
+                        DropdownMenuItem(text = { Text(AppStrings.sortLastPaid) }, onClick = { sortOption = LoanSortOption.LAST_PAID; showSortMenu = false })
+                    }
+                }
             }
             Text(
                 AppStrings.loansHint,
@@ -163,7 +189,7 @@ private fun LoansContent(viewModel: FinanceViewModel) {
             }
         }
 
-        items(loans) { loan ->
+        items(sortedLoans) { loan ->
             val nextDueMillis = if (loan.isPaid) loan.dueDateMillis else JalaliCalendar.nextDueDateMillis(loan.payDayOfMonth)
             val daysLeft = JalaliCalendar.daysUntil(nextDueMillis)
             val paidThisMonth = isPaidThisMonth(loan)

@@ -7,6 +7,7 @@ import com.personalfinance.tracker.data.AppDatabase
 import com.personalfinance.tracker.data.PendingSmsEntity
 import com.personalfinance.tracker.data.PendingStatus
 import com.personalfinance.tracker.notification.NotificationHelper
+import com.personalfinance.tracker.util.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ class BankNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
+        if (!Settings.readSmsFromNotificationsEnabled) return
         // Skip our own notifications to avoid loops.
         if (sbn.packageName == packageName) return
 

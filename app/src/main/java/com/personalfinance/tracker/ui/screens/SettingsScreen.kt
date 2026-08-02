@@ -41,6 +41,7 @@ fun SettingsScreen(onClose: () -> Unit) {
     var enabled by remember { mutableStateOf(Settings.dailyReminderEnabled) }
     var hour by remember { mutableStateOf(Settings.dailyReminderHour) }
     var minute by remember { mutableStateOf(Settings.dailyReminderMinute) }
+    var readSmsFromNotifications by remember { mutableStateOf(Settings.readSmsFromNotificationsEnabled) }
     var showTimePicker by remember { mutableStateOf(false) }
 
     if (showTimePicker) {
@@ -86,6 +87,19 @@ fun SettingsScreen(onClose: () -> Unit) {
                         Settings.dailyReminderEnabled = it
                         if (it) DailyReminderScheduler.scheduleNext(context)
                         else DailyReminderScheduler.cancel(context)
+                    })
+                }
+
+                HorizontalDivider()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(AppStrings.readSmsFromNotifications, style = MaterialTheme.typography.titleMedium)
+                        Text(AppStrings.readSmsFromNotificationsHint, style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    }
+                    Switch(checked = readSmsFromNotifications, onCheckedChange = {
+                        readSmsFromNotifications = it
+                        Settings.readSmsFromNotificationsEnabled = it
                     })
                 }
 

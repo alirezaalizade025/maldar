@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,6 +48,8 @@ fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController
     }
 }
 
+private enum class AccountSortOption { ALPHABETIC, HIGHEST_AMOUNT, LOWEST_AMOUNT, LAST_USED }
+
 @Composable
 private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavController?) {
     val accounts by viewModel.bankAccounts.collectAsState()
@@ -59,6 +62,8 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
 
     var showAddAccount by remember { mutableStateOf(false) }
     var showEditAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf(AccountSortOption.ALPHABETIC) }
     var showDeleteAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
     var refreshingId by remember { mutableStateOf<Long?>(null) }
     var refreshingAll by remember { mutableStateOf(false) }
@@ -66,6 +71,17 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     LaunchedEffect(message) {
         message?.let { snackbarHostState.showSnackbar(it) }
+    }
+
+    val sortedAccountList = remember(accounts, transactions, sortOption) {
+        when (sortOption) {
+            AccountSortOption.HIGHEST_AMOUNT -> accounts.sortedByDescending { it.balance }
+            AccountSortOption.LOWEST_AMOUNT -> accounts.sortedBy { it.balance }
+            AccountSortOption.LAST_USED -> accounts.sortedByDescending { account ->
+                transactions.filter { it.bankAccountId == account.id }.maxOfOrNull { it.dateMillis } ?: Long.MIN_VALUE
+            }
+            else -> accounts.sortedBy { it.accountLabel.lowercase() }
+        }
     }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -82,34 +98,47 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(AppStrings.bankAccounts, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                IconButton(
-                    onClick = {
-                        if (accounts.isEmpty() || refreshingAll) return@IconButton
-                        refreshingAll = true
-                        scope.launch {
-                            var updated = 0
-                            accounts.forEach { acc ->
-                                val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
-                                if (accSenders.isNotEmpty()) {
-                                    val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
-                                    if (res.amount != null) {
-                                        viewModel.updateBankAccount(acc.copy(balance = res.amount))
-                                        updated++
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            if (accounts.isEmpty() || refreshingAll) return@IconButton
+                            refreshingAll = true
+                            scope.launch {
+                                var updated = 0
+                                accounts.forEach { acc ->
+                                    val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
+                                    if (accSenders.isNotEmpty()) {
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
+                                        if (res.amount != null) {
+                                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                                            updated++
+                                        }
                                     }
                                 }
+                                refreshingAll = false
+                                message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
                             }
-                            refreshingAll = false
-                            message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
+                        },
+                        enabled = accounts.isNotEmpty() && !refreshingAll,
+                        modifier = Modifier.semantics {
+                            contentDescription = AppStrings.refreshAll
+                            if (refreshingAll) stateDescription = AppStrings.refreshingAccount
                         }
-                    },
-                    enabled = accounts.isNotEmpty() && !refreshingAll,
-                    modifier = Modifier.semantics {
-                        contentDescription = AppStrings.refreshAll
-                        if (refreshingAll) stateDescription = AppStrings.refreshingAccount
+                    ) {
+                        if (refreshingAll) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refreshAll)
                     }
-                ) {
-                    if (refreshingAll) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Filled.Refresh, contentDescription = AppStrings.refreshAll)
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(Icons.Filled.Sort, contentDescription = AppStrings.sort)
+                        }
+                        DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                            DropdownMenuItem(text = { Text(AppStrings.sortAlphabetic) }, onClick = { sortOption = AccountSortOption.ALPHABETIC; showSortMenu = false })
+                            DropdownMenuItem(text = { Text(AppStrings.sortHighestAmount) }, onClick = { sortOption = AccountSortOption.HIGHEST_AMOUNT; showSortMenu = false })
+                            DropdownMenuItem(text = { Text(AppStrings.sortLowestAmount) }, onClick = { sortOption = AccountSortOption.LOWEST_AMOUNT; showSortMenu = false })
+                            DropdownMenuItem(text = { Text(AppStrings.sortLastUsed) }, onClick = { sortOption = AccountSortOption.LAST_USED; showSortMenu = false })
+                        }
+                    }
                 }
             }
         }
@@ -146,7 +175,7 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
             }
         }
 
-        items(accounts) { acc ->
+        items(sortedAccountList) { acc ->
             val accSenders = senders.filter { it.bankAccountId == acc.id }
             val attachedLoans = loans.filter { it.bankAccountId == acc.id }
             val activeAttachedLoans = attachedLoans.filter { !it.isPaid }

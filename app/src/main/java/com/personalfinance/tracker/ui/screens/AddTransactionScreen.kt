@@ -49,10 +49,11 @@ fun AddTransactionScreen(
     viewModel: FinanceViewModel,
     accountId: Long? = null,
     smsDate: Long? = null,
-    onContinueToList: (() -> Unit)? = null
+    onContinueToList: (() -> Unit)? = null,
+    isSplitMode: Boolean = false
 ) {
     MaldarDesignTheme {
-        AddTransactionContent(viewModel, accountId, smsDate, onContinueToList)
+        AddTransactionContent(viewModel, accountId, smsDate, onContinueToList, isSplitMode)
     }
 }
 
@@ -61,7 +62,8 @@ private fun AddTransactionContent(
     viewModel: FinanceViewModel,
     accountId: Long?,
     smsDate: Long?,
-    onContinueToList: (() -> Unit)?
+    onContinueToList: (() -> Unit)?,
+    isSplitMode: Boolean
 ) {
     val context = LocalContext.current
     val accounts by viewModel.bankAccounts.collectAsState()
@@ -145,7 +147,7 @@ private fun AddTransactionContent(
                 ),
             verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.lg)
         ) {
-        Text(AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(if (isSplitMode) AppStrings.splitTransaction else AppStrings.addTransaction, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
         MaldarSegmentedControl(
             options = listOf(AppStrings.expense, AppStrings.income),
