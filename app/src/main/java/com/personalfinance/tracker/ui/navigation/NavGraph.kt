@@ -157,7 +157,6 @@ fun NavGraph(
                 }
                 DropdownMenu(expanded = showQuickAddMenu, onDismissRequest = { showQuickAddMenu = false }) {
                     DropdownMenuItem(text = { Text(AppStrings.addTransaction) }, onClick = { showQuickAddMenu = false; navController.navigate("add_transaction") })
-                    DropdownMenuItem(text = { Text(AppStrings.splitTransaction) }, onClick = { showQuickAddMenu = false; navController.navigate("split_transaction") })
                 }
             }
         },
@@ -213,7 +212,6 @@ fun NavGraph(
                     onContinueToList = if (accId != null) ({ navController.popBackStack("account_sms/$accId", false) }) else null
                 )
             }
-            composable("split_transaction") { AddTransactionScreen(viewModel = viewModel, isSplitMode = true) }
             composable("confirm_sms_list") { SmsConfirmationScreen(viewModel) }
             composable("bank_accounts") { BankAccountsScreen(viewModel, navController = navController) }
             composable("loans") { LoansScreen(viewModel) }

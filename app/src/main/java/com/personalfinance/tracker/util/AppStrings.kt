@@ -275,7 +275,6 @@ object AppStrings {
     val sortLowestAmount = "کم‌ترین مبلغ"
     val sortLastUsed = "آخرین استفاده"
     val sortLastPaid = "آخرین پرداخت"
-    val splitTransaction = "تقسیم تراکنش"
     val monthlyTransactions = "تراکنش‌های این ماه"
 
     val financialAssets = "دارایی‌های مالی"
