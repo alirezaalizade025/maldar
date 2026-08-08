@@ -36,8 +36,20 @@ class FinanceRepository(private val db: AppDatabase) {
     // For CARD_TO_CARD transactions, the balance is not affected.
     // If balanceAfter is provided, it is used; otherwise it is calculated.
     suspend fun addTransaction(tx: TransactionEntity): Long = db.withTransaction {
-        // CARD_TO_CARD transactions don't affect account balance.
+        // CARD_TO_CARD moves money between two accounts: decrease the source and
+        // increase the destination. Both balances are updated; balanceAfter is not
+        // used because a card-to-card has no single "remaining" for one account.
         if (tx.type == TxType.CARD_TO_CARD) {
+            tx.bankAccountId?.let { fromId ->
+                db.bankAccountDao().getById(fromId)?.let { from ->
+                    db.bankAccountDao().update(from.copy(balance = (from.balance - tx.amount).coerceAtLeast(0.0)))
+                }
+            }
+            tx.toAccountId?.let { toId ->
+                db.bankAccountDao().getById(toId)?.let { to ->
+                    db.bankAccountDao().update(to.copy(balance = to.balance + tx.amount))
+                }
+            }
             return@withTransaction db.transactionDao().insert(tx)
         }
 
@@ -60,9 +72,21 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun deleteTransaction(tx: TransactionEntity) {
         db.transactionDao().delete(tx)
-        // CARD_TO_CARD transactions don't affect account balance, so no revert needed
-        if (tx.type == TxType.CARD_TO_CARD) return
-        
+        // CARD_TO_CARD transactions affect two accounts; revert both sides.
+        if (tx.type == TxType.CARD_TO_CARD) {
+            tx.bankAccountId?.let { fromId ->
+                db.bankAccountDao().getById(fromId)?.let { from ->
+                    db.bankAccountDao().update(from.copy(balance = (from.balance + tx.amount).coerceAtLeast(0.0)))
+                }
+            }
+            tx.toAccountId?.let { toId ->
+                db.bankAccountDao().getById(toId)?.let { to ->
+                    db.bankAccountDao().update(to.copy(balance = (to.balance - tx.amount).coerceAtLeast(0.0)))
+                }
+            }
+            return
+        }
+
         if (tx.bankAccountId != null) {
             val account = db.bankAccountDao().getById(tx.bankAccountId)
             if (account != null) {

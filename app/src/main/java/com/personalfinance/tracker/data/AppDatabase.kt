@@ -42,7 +42,7 @@ class Converters {
         FinancialAssetEntity::class,
         StockAssetEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -88,6 +88,11 @@ abstract class AppDatabase : RoomDatabase() {
                 )
             }
         }
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN toAccountId INTEGER")
+            }
+        }
 
         private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
         private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
@@ -101,7 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // Known schema upgrades use explicit migrations. The destructive
                 // fallback only covers unsupported legacy versions or corrupt data.
                 .fallbackToDestructiveMigration()
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

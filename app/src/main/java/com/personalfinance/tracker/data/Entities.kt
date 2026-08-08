@@ -53,6 +53,9 @@ data class TransactionEntity(
     val note: String = "",
     val dateMillis: Long,
     val bankAccountId: Long? = null,
+    // For CARD_TO_CARD, the destination account that receives the amount (the
+    // source account is [bankAccountId]). Both balances are updated on save.
+    val toAccountId: Long? = null,
     val source: TxSource = TxSource.MANUAL,
     val rawSms: String? = null,
     // Remaining balance of the linked account right after this transaction.

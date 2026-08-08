@@ -101,13 +101,14 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         loanId: Long? = null,
         balanceAfter: Double? = null,
         source: TxSource = TxSource.MANUAL,
-        rawSms: String? = null
+        rawSms: String? = null,
+        toAccountId: Long? = null
     ): Long =
         repo.addTransaction(
             TransactionEntity(
                 amount = amount, type = type, category = category, note = note,
                 dateMillis = dateMillis, bankAccountId = bankAccountId, source = source, loanId = loanId,
-                balanceAfter = balanceAfter, rawSms = rawSms
+                balanceAfter = balanceAfter, rawSms = rawSms, toAccountId = toAccountId
             )
         )
     fun deleteTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.deleteTransaction(tx) }

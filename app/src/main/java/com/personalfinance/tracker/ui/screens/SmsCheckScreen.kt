@@ -44,7 +44,7 @@ fun SmsCheckScreen(
     val senderIds = remember(senders) { senders.map { it.senderId } }
 
     var list by remember(senderIds, since) {
-        mutableStateOf(SmsInboxReader.uncheckedSince(context, senderIds, since))
+        mutableStateOf(SmsInboxReader.uncheckedSince(context, senderIds, since, Settings.ignoredSms))
     }
     var rejected by remember { mutableStateOf<Set<Long>>(emptySet()) }
     val visible = list.filter { !rejected.contains(it.dateMillis) }
@@ -71,10 +71,11 @@ fun SmsCheckScreen(
                     items(visible) { sms ->
                         AppCard(modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(sms.body, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+                                Text(sms.body, style = MaterialTheme.typography.bodyMedium, maxLines = 3,
+                                    color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text(JalaliCalendar.formatDateTime(sms.dateMillis), style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     sms.amount?.let {
                                         Text(Money.format2(it) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold,
                                             color = if (sms.type?.name == "INCOME") androidx.compose.ui.graphics.Color(0xFF1B7A5A)
@@ -89,7 +90,10 @@ fun SmsCheckScreen(
                                         Text(AppStrings.confirm)
                                     }
                                     OutlinedButton(modifier = Modifier.weight(1f),
-                                        onClick = { rejected = rejected + sms.dateMillis }) {
+                                        onClick = {
+                                            Settings.addIgnoredSms(SmsInboxReader.smsKey(sms.address, sms.dateMillis))
+                                            rejected = rejected + sms.dateMillis
+                                        }) {
                                         Icon(Icons.Filled.Close, contentDescription = null)
                                         Spacer(Modifier.width(6.dp))
                                         Text(AppStrings.reject)

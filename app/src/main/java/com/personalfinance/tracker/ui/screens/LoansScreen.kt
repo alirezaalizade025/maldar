@@ -20,6 +20,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.LoanEntity
+import com.personalfinance.tracker.data.loanMonthlyDue
+import com.personalfinance.tracker.data.loanPaidThisMonth
+import com.personalfinance.tracker.data.loanRemainingThisMonth
 import com.personalfinance.tracker.data.matchesLoanPayment
 import com.personalfinance.tracker.ui.design.MaldarDesign
 import com.personalfinance.tracker.ui.design.MaldarDesignTheme
@@ -30,6 +33,7 @@ import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.EmptyState
 import com.personalfinance.tracker.ui.design.components.LoanCard
 import com.personalfinance.tracker.ui.design.components.LoanStatusTone
+import com.personalfinance.tracker.ui.design.components.WarningBanner
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -39,7 +43,7 @@ import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import java.util.*
 
-private enum class LoanSortOption { ALPHABETIC, HIGHEST_AMOUNT, LOWEST_AMOUNT, LAST_PAID }
+private enum class LoanSortOption { NEAREST_PAY, ALPHABETIC, HIGHEST_AMOUNT, LOWEST_AMOUNT, LAST_PAID }
 
 @Composable
 fun LoansScreen(viewModel: FinanceViewModel) {
@@ -60,27 +64,22 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     var deletingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var showMonthlySchedule by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
-    var sortOption by remember { mutableStateOf(LoanSortOption.ALPHABETIC) }
+    var sortOption by remember { mutableStateOf(LoanSortOption.NEAREST_PAY) }
 
     val activeLoans = loans.filter { !it.isPaid }
     val total = activeLoans.sumOf { it.principal }
     val totalRemaining = activeLoans.sumOf { it.remainingAmount }
-    fun monthlyDue(loan: LoanEntity): Double {
-        val installment = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
-        return installment.coerceAtMost(loan.remainingAmount)
-    }
-    fun paidThisMonth(loan: LoanEntity): Double = transactions
-        .filter { it.matchesLoanPayment(loan, loans) && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
-        .sumOf { it.amount }
-    fun isPaidThisMonth(loan: LoanEntity): Boolean = paidThisMonth(loan) >= monthlyDue(loan)
+    fun isPaidThisMonth(loan: LoanEntity): Boolean =
+        loanPaidThisMonth(loan, loans, transactions) >= loanMonthlyDue(loan)
     val totalPaidThisMonth = transactions
         .filter { tx -> loans.any { tx.matchesLoanPayment(it, loans) } && JalaliCalendar.isInJalaliMonth(tx.dateMillis) }
         .sumOf { it.amount }
-    val totalRemainingThisMonth = activeLoans.sumOf { (monthlyDue(it) - paidThisMonth(it)).coerceAtLeast(0.0) }
+    val totalRemainingThisMonth = activeLoans.sumOf { loanRemainingThisMonth(it, loans, transactions) }
     val nextLoan = activeLoans.minByOrNull { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
     val nextLoanDueMillis = nextLoan?.let { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
     val sortedLoans = remember(loans, transactions, sortOption) {
         when (sortOption) {
+            LoanSortOption.NEAREST_PAY -> loans.sortedBy { JalaliCalendar.nextDueDateMillis(it.payDayOfMonth) }
             LoanSortOption.HIGHEST_AMOUNT -> loans.sortedByDescending { it.remainingAmount }
             LoanSortOption.LOWEST_AMOUNT -> loans.sortedBy { it.remainingAmount }
             LoanSortOption.LAST_PAID -> loans.sortedByDescending {
@@ -108,6 +107,7 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                         Icon(Icons.Filled.Sort, contentDescription = AppStrings.sort)
                     }
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        DropdownMenuItem(text = { Text(AppStrings.sortNearestPay) }, onClick = { sortOption = LoanSortOption.NEAREST_PAY; showSortMenu = false })
                         DropdownMenuItem(text = { Text(AppStrings.sortAlphabetic) }, onClick = { sortOption = LoanSortOption.ALPHABETIC; showSortMenu = false })
                         DropdownMenuItem(text = { Text(AppStrings.sortHighestAmount) }, onClick = { sortOption = LoanSortOption.HIGHEST_AMOUNT; showSortMenu = false })
                         DropdownMenuItem(text = { Text(AppStrings.sortLowestAmount) }, onClick = { sortOption = LoanSortOption.LOWEST_AMOUNT; showSortMenu = false })
@@ -120,6 +120,19 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
+        }
+
+        // Alert for overdue loans that have not been paid yet.
+        val overdueLoans = loans.filter {
+            !it.isPaid && JalaliCalendar.daysUntil(JalaliCalendar.nextDueDateMillis(it.payDayOfMonth)) < 0
+        }
+        if (overdueLoans.isNotEmpty()) {
+            item {
+                WarningBanner(
+                    message = AppStrings.overdueLoansAlert.fa(overdueLoans.size) + " • " +
+                        overdueLoans.joinToString("، ") { it.name }
+                )
+            }
         }
 
         item {

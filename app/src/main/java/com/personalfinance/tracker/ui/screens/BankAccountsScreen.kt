@@ -34,13 +34,13 @@ import com.personalfinance.tracker.ui.design.components.EmptyState
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.Digits
 import com.personalfinance.tracker.util.Money
+import com.personalfinance.tracker.util.Settings
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
-import com.personalfinance.tracker.util.JalaliCalendar
-import com.personalfinance.tracker.data.matchesLoanPayment
+import com.personalfinance.tracker.data.loanRemainingThisMonth
 
 @Composable
 fun BankAccountsScreen(viewModel: FinanceViewModel, navController: NavController? = null) {
@@ -57,7 +57,6 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
     val senders by viewModel.smsSenders.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val loans by viewModel.loans.collectAsState()
-    val currentMonthRange = remember { JalaliCalendar.jalaliMonthRange(java.util.Calendar.getInstance(), 0) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -109,7 +108,7 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
                                 accounts.forEach { acc ->
                                     val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
                                     if (accSenders.isNotEmpty()) {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4)
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4, Settings.ignoredSms)
                                         if (res.amount != null) {
                                             viewModel.updateBankAccount(acc.copy(balance = res.amount))
                                             updated++
@@ -180,22 +179,14 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
             val accSenders = senders.filter { it.bankAccountId == acc.id }
             val attachedLoans = loans.filter { it.bankAccountId == acc.id }
             val activeAttachedLoans = attachedLoans.filter { !it.isPaid }
-            val paidThisMonth = transactions.filter { tx ->
-                attachedLoans.any { tx.matchesLoanPayment(it, loans) } &&
-                    tx.dateMillis in currentMonthRange.first..currentMonthRange.second
-            }.sumOf { it.amount }
-            val installmentDue = activeAttachedLoans.sumOf {
-                (if (it.installment > 0.0) it.installment else it.remainingAmount)
-                    .coerceAtMost(it.remainingAmount)
-            }
-            val remainingThisMonth = (installmentDue - paidThisMonth).coerceAtLeast(0.0)
+            val remainingThisMonth = activeAttachedLoans.sumOf { loanRemainingThisMonth(it, loans, transactions) }
             val refreshAccount: () -> Unit = {
                 if (accSenders.isEmpty()) {
                     message = AppStrings.refreshFailed
                 } else {
                     refreshingId = acc.id
                     scope.launch {
-                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders.map { it.senderId }, acc.accountLast4)
+                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders.map { it.senderId }, acc.accountLast4, Settings.ignoredSms)
                         if (res.amount != null) {
                             viewModel.updateBankAccount(acc.copy(balance = res.amount))
                             message = AppStrings.refreshDone

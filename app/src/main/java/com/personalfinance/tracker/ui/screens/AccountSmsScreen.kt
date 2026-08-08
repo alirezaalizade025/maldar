@@ -46,7 +46,8 @@ fun AccountSmsScreen(
         smsList = SmsInboxReader.allSmsForSenders(
             context,
             accountSenders,
-            accountLast4 = account.accountLast4
+            accountLast4 = account.accountLast4,
+            ignored = com.personalfinance.tracker.util.Settings.ignoredSms
         )
         loading = false
     }

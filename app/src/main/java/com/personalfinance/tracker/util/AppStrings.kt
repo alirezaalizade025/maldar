@@ -56,6 +56,8 @@ object AppStrings {
     val toman = "تومان"
     val rial = "ریال"
     val bankAccount = "حساب بانکی"
+    val toAccount = "به حساب"
+    val selectDestinationAccount = "انتخاب حساب مقصد"
     val noneCash = "بدون حساب (نقدی)"
     val noteOptional = "یادداشت (اختیاری)"
     val relatedToLoan = "مرتبط با وام"
@@ -150,6 +152,7 @@ object AppStrings {
     val loanPaidThisMonthSummary = "پرداخت وام این ماه"
     val loanRemainingThisMonthSummary = "مانده وام این ماه"
     val loanDueSoon = "پرداخت نزدیک است"
+    val overdueLoansAlert = "%d وام سررسید گذشته پرداخت نشده است"
     val loanDetails = "جزئیات وام"
     val loanReminderSettings = "تنظیم یادآوری"
     val deleteLoanConfirmTitle = "حذف وام"
@@ -275,6 +278,7 @@ object AppStrings {
     val sortLowestAmount = "کم‌ترین مبلغ"
     val sortLastUsed = "آخرین استفاده"
     val sortLastPaid = "آخرین پرداخت"
+    val sortNearestPay = "نزدیک‌ترین سررسید"
     val monthlyTransactions = "تراکنش‌های این ماه"
 
     val financialAssets = "دارایی‌های مالی"
@@ -309,6 +313,8 @@ object AppStrings {
     val noStocks = "هنوز سهمی اضافه نشده است."
     val market = "بازار"
     val priceUnavailable = "قیمت فعلی در دسترس نیست"
+    val deleteStockConfirmTitle = "حذف سهم"
+    val deleteStockConfirmBody = "آیا از حذف سهم %s مطمئن هستید؟ این عمل قابل بازگشت نیست."
 }
 
 /**

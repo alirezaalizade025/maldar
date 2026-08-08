@@ -289,20 +289,23 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
     }
     val income = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.INCOME }.sumOf { it.amount } }
     val expense = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.EXPENSE }.sumOf { it.amount } }
-    val maxValue = (income + expense).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
-    if (income.all { it == 0.0 } && expense.all { it == 0.0 }) {
+    val transfer = (1..31).map { day -> daily[day].orEmpty().filter { it.type == TxType.CARD_TO_CARD }.sumOf { it.amount } }
+    val maxValue = (income + expense + transfer).maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
+    if (income.all { it == 0.0 } && expense.all { it == 0.0 } && transfer.all { it == 0.0 }) {
         EmptyState(AppStrings.dailyReport, AppStrings.noTrendData)
         return
     }
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     val incomeColor = MaldarDesign.colors.positive
     val expenseColor = MaldarDesign.colors.negative
+    val transferColor = Color(0xFF8E5FB0)
     val gridColor = MaterialTheme.colorScheme.outlineVariant
-    val chartDescription = "${AppStrings.dailyReport}، ${AppStrings.reportIncome}: ${Money.format(income.sum())} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(expense.sum())} ${AppStrings.moneyUnit}"
+    val chartDescription = "${AppStrings.dailyReport}، ${AppStrings.reportIncome}: ${Money.format(income.sum())} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(expense.sum())} ${AppStrings.moneyUnit}، ${AppStrings.cardToCard}: ${Money.format(transfer.sum())} ${AppStrings.moneyUnit}"
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             ChartSummaryChip(AppStrings.reportIncome, income.sum(), incomeColor)
             ChartSummaryChip(AppStrings.reportExpense, expense.sum(), expenseColor)
+            ChartSummaryChip(AppStrings.cardToCard, transfer.sum(), transferColor)
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChartValueGuide(maxValue = maxValue, modifier = Modifier.height(220.dp).widthIn(min = 46.dp, max = 76.dp))
@@ -331,19 +334,23 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
             income.forEachIndexed { index, value ->
                 val x = index * groupWidth
                 val normalized = (value / maxValue * chartHeight).toFloat()
-                drawRect(incomeColor, Offset(x + groupWidth * 0.08f, baseY - normalized), Size(groupWidth * 0.38f, normalized))
+                drawRect(incomeColor, Offset(x + groupWidth * 0.06f, baseY - normalized), Size(groupWidth * 0.26f, normalized))
                 val expenseValue = expense[index]
                 val normalizedExpense = (expenseValue / maxValue * chartHeight).toFloat()
-                drawRect(expenseColor, Offset(x + groupWidth * 0.52f, baseY - normalizedExpense), Size(groupWidth * 0.38f, normalizedExpense))
+                drawRect(expenseColor, Offset(x + groupWidth * 0.37f, baseY - normalizedExpense), Size(groupWidth * 0.26f, normalizedExpense))
+                val transferValue = transfer[index]
+                val normalizedTransfer = (transferValue / maxValue * chartHeight).toFloat()
+                drawRect(transferColor, Offset(x + groupWidth * 0.68f, baseY - normalizedTransfer), Size(groupWidth * 0.26f, normalizedTransfer))
             }
         }
         }
         selectedDay?.let { dayIndex ->
             val dayIncome = income[dayIndex]
             val dayExpense = expense[dayIndex]
+            val dayTransfer = transfer[dayIndex]
             val dayLabel = (dayIndex + 1).toString()
             Text(
-                text = "${AppStrings.day} $dayLabel • ${AppStrings.reportIncome}: ${Money.format(dayIncome)} • ${AppStrings.reportExpense}: ${Money.format(dayExpense)}",
+                text = "${AppStrings.day} $dayLabel • ${AppStrings.reportIncome}: ${Money.format(dayIncome)} • ${AppStrings.reportExpense}: ${Money.format(dayExpense)} • ${AppStrings.cardToCard}: ${Money.format(dayTransfer)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp)
@@ -352,6 +359,7 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
             ChartLegend(AppStrings.reportIncome, incomeColor)
             ChartLegend(AppStrings.reportExpense, expenseColor)
+            ChartLegend(AppStrings.cardToCard, transferColor)
         }
     }
 }

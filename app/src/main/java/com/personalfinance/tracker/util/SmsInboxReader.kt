@@ -14,20 +14,31 @@ object SmsInboxReader {
 
     data class Result(val body: String?, val amount: Double?)
 
-    fun lastSmsForSenders(context: Context, senderIds: List<String>, accountLast4: String = ""): Result {
+    /** Stable key identifying a single inbox SMS (used to persist ignored SMS). */
+    fun smsKey(address: String, dateMillis: Long): String = "$address|$dateMillis"
+
+    fun lastSmsForSenders(
+        context: Context,
+        senderIds: List<String>,
+        accountLast4: String = "",
+        ignored: Set<String> = emptySet()
+    ): Result {
         val uri = Telephony.Sms.Inbox.CONTENT_URI
-        val projection = arrayOf(Telephony.Sms.Inbox.BODY, Telephony.Sms.Inbox.ADDRESS)
+        val projection = arrayOf(Telephony.Sms.Inbox.BODY, Telephony.Sms.Inbox.ADDRESS, Telephony.Sms.Inbox.DATE)
         val sort = "${Telephony.Sms.Inbox.DATE} DESC"
 
         context.contentResolver.query(uri, projection, null, null, sort)?.use { cursor ->
             val bodyIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.BODY)
             val addrIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.ADDRESS)
+            val dateIdx = cursor.getColumnIndexOrThrow(Telephony.Sms.Inbox.DATE)
             while (cursor.moveToNext()) {
                 val address = cursor.getString(addrIdx) ?: continue
                 val body = cursor.getString(bodyIdx) ?: continue
+                val date = cursor.getLong(dateIdx)
                 if (senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) } &&
                     SmsAccountMatcher.bodyMatchesLast4(body, accountLast4) &&
-                    !SmsParser.isPasswordMessage(body)) {
+                    !SmsParser.isPasswordMessage(body) &&
+                    smsKey(address, date) !in ignored) {
                     // Prefer the remaining balance (مانده) for the account balance;
                     // fall back to the transaction amount if no balance is present.
                     val parsed = SmsParser.parse(body)
@@ -89,7 +100,8 @@ object SmsInboxReader {
         context: Context,
         senderIds: List<String>,
         limit: Int = 200,
-        accountLast4: String = ""
+        accountLast4: String = "",
+        ignored: Set<String> = emptySet()
     ): List<SmsMessage> {
         if (senderIds.isEmpty()) return emptyList()
         val uri = Telephony.Sms.Inbox.CONTENT_URI
@@ -107,10 +119,11 @@ object SmsInboxReader {
             while (cursor.moveToNext() && out.size < limit) {
                 val address = cursor.getString(addrIdx) ?: continue
                 val body = cursor.getString(bodyIdx) ?: continue
+                val date = cursor.getLong(dateIdx)
                 if (!senderIds.any { address.contains(it, ignoreCase = true) || it.contains(address, ignoreCase = true) }) continue
                 if (!SmsAccountMatcher.bodyMatchesLast4(body, accountLast4)) continue
                 if (SmsParser.isPasswordMessage(body)) continue
-                val date = cursor.getLong(dateIdx)
+                if (smsKey(address, date) in ignored) continue
                 val parsed = SmsParser.parse(body)
                 out.add(SmsMessage(address, body, date, parsed.amount, parsed.type, parsed.balanceAfter))
             }
@@ -139,8 +152,13 @@ object SmsInboxReader {
      * newest first. Passing [sinceMillis] <= 0 (never checked) returns an empty
      * list so the "unchecked SMS" screen starts empty until a check is performed.
      */
-    fun uncheckedSince(context: Context, senderIds: List<String>, sinceMillis: Long): List<SmsMessage> {
+    fun uncheckedSince(
+        context: Context,
+        senderIds: List<String>,
+        sinceMillis: Long,
+        ignored: Set<String> = emptySet()
+    ): List<SmsMessage> {
         if (sinceMillis <= 0L) return emptyList()
-        return allSmsForSenders(context, senderIds).filter { it.dateMillis > sinceMillis }
+        return allSmsForSenders(context, senderIds, ignored = ignored).filter { it.dateMillis > sinceMillis }
     }
 }

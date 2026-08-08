@@ -51,6 +51,7 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
     var stockRefreshing by remember { mutableStateOf(false) }
     var stockMessage by remember { mutableStateOf<String?>(null) }
     var stockError by remember { mutableStateOf<String?>(null) }
+    var stockToDelete by remember { mutableStateOf<StockAssetEntity?>(null) }
     val scope = rememberCoroutineScope()
 
     fun refreshMetals() {
@@ -431,10 +432,30 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
                             existing = stock
                         )
                     },
-                    onDelete = viewModel::deleteStockAsset
+                    onDelete = { stockToDelete = it }
                 )
             }
         }
+
+    }
+
+    if (stockToDelete != null) {
+        val stock = stockToDelete!!
+        AlertDialog(
+            onDismissRequest = { stockToDelete = null },
+            title = { Text(AppStrings.deleteStockConfirmTitle) },
+            text = { Text(AppStrings.deleteStockConfirmBody.fa(stock.symbol)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteStockAsset(stock)
+                        stockToDelete = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(AppStrings.delete) }
+            },
+            dismissButton = { TextButton(onClick = { stockToDelete = null }) { Text(AppStrings.cancel) } }
+        )
     }
 }
 
