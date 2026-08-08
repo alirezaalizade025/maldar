@@ -80,6 +80,24 @@ class SmsParserTest {
     }
 
     @Test
+    fun bankInstallment_isParsedAsExpense() {
+        val message = """
+            بانك ملي ايران
+            قسط:1,200,000-
+            حساب:07000
+            مانده:5,000,000
+            0517-08:50
+        """.trimIndent()
+
+        val result = SmsParser.parse(message)
+
+        assertEquals(120_000.0, result.amount!!, 0.001)
+        assertEquals(TxType.EXPENSE, result.type)
+        assertEquals(500_000.0, result.balanceAfter!!, 0.001)
+        assertTrue(SmsParser.looksLikeTransaction(message))
+    }
+
+    @Test
     fun passwordMessages_areIgnored() {
         assertTrue(SmsParser.isPasswordMessage("رمز پویا: 123456"))
         assertTrue(SmsParser.isPasswordMessage("Your OTP is 123456"))

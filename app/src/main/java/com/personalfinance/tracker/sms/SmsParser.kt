@@ -89,6 +89,14 @@ object SmsParser {
         Pattern.CASE_INSENSITIVE
     )
 
+    // 4b) Loan/installment payment SMS (e.g. Bank Melli): a "قسط" line carrying
+    // the paid installment amount, optionally followed by a trailing '-' (debit).
+    // Group 1 = digits, group 2 = optional trailing sign.
+    private val installmentAmount = Pattern.compile(
+        "(?:قسط|اقساط|بازپرداخت|قسط وام|قسط تسهیلات|پرداخت قسط)\\s*[:=]?\\s*($UNSIGNED_NUMBER)\\s*([+-])?",
+        Pattern.CASE_INSENSITIVE
+    )
+
     // 5) The remaining balance: a number following a balance keyword.
     private val balanceAmount = Pattern.compile(
         "(?:${balanceKeywords.joinToString("|")})\\D{0,20}?$NUMBER\\s*$UNIT?",
@@ -214,6 +222,19 @@ object SmsParser {
             if (!isBalanceContext(message, m.start(2))) return build(m)
         }
 
+        // 1b) Loan/installment payment: قسط:<amount>[-]. Always an expense.
+        installmentAmount.matcher(message).takeIf { it.find() }?.let { m ->
+            val raw = m.group(1) ?: return@let null
+            if (looksLikeCardNumber(raw)) return@let null
+            val value = toDouble(raw) ?: return@let null
+            val sign = when (m.group(2)) {
+                "+" -> 1
+                "-" -> -1
+                else -> -1
+            }
+            return AmountResult(scale(value) ?: return@let null, sign)
+        }
+
         // 2) A signed number occupying a complete line. This is an explicit
         // transaction signal even when the SMS has no debit/credit keyword.
         extractSignedLineAmount(message)?.let { return it }
@@ -314,6 +335,7 @@ object SmsParser {
             anchoredKwThenNum.matcher(message).find() ||
             anchoredNumThenKw.matcher(message).find() ||
             labelledAmount.matcher(message).find()
-        return hasKeyword && hasAmount
+        val hasInstallment = installmentAmount.matcher(message).find()
+        return (hasKeyword && hasAmount) || hasInstallment
     }
 }
