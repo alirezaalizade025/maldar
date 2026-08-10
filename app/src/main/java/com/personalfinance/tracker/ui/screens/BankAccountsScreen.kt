@@ -207,12 +207,13 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
                     accSenders.isEmpty() -> AppStrings.noSendersForAccount
                     else -> null
                 },
-                loanSummary = if (attachedLoans.isEmpty()) emptyList() else listOf(
-                    "${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}",
-                    "${AppStrings.loansSummaryRemain}: ${Money.format2(activeAttachedLoans.sumOf { it.remainingAmount })} ${AppStrings.moneyUnit}"
-                ),
-                monthlyInstallmentRemainder = remainingThisMonth.takeIf { it > 0.0 }?.let {
-                    "${AppStrings.installmentRemainingThisMonth}: ${Money.format2(it)} ${AppStrings.moneyUnit}"
+                loanSummary = buildList {
+                    if (attachedLoans.isNotEmpty()) {
+                        add("${AppStrings.attachedLoansTotal}: ${Money.format2(attachedLoans.sumOf { it.principal })} ${AppStrings.moneyUnit}")
+                    }
+                    if (remainingThisMonth > 0.0) {
+                        add("${AppStrings.installmentRemainingThisMonth}: ${Money.format2(remainingThisMonth)} ${AppStrings.moneyUnit}")
+                    }
                 },
                 refreshing = refreshingId == acc.id,
                 onClick = navController?.let { controller -> { controller.navigate("account_sms/${acc.id}") } },

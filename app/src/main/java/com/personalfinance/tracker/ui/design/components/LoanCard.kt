@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -54,14 +52,11 @@ fun LoanCard(
     notes: String? = null,
     paid: Boolean = false,
     onOpenDetails: () -> Unit,
-    onPay: (() -> Unit)?,
+    onSelectLoan: (() -> Unit)?,
     onEdit: () -> Unit,
-    onReminder: () -> Unit,
     onDelete: () -> Unit,
-    detailsDescription: String,
-    paymentLabel: String,
+    selectLoanLabel: String,
     editDescription: String,
-    reminderDescription: String,
     deleteDescription: String
 ) {
     AppCard(modifier = modifier, style = AppCardStyle.RAISED) {
@@ -121,13 +116,11 @@ fun LoanCard(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            if (onPay != null) {
-                AppButton(text = paymentLabel, onClick = onPay, modifier = Modifier.fillMaxWidth())
+            if (onSelectLoan != null) {
+                AppButton(text = selectLoanLabel, onClick = onSelectLoan, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(4.dp))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                IconButton(onClick = onOpenDetails) { Icon(Icons.Filled.Info, contentDescription = detailsDescription) }
-                IconButton(onClick = onReminder) { Icon(Icons.Filled.Notifications, contentDescription = reminderDescription) }
                 IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = editDescription) }
                 IconButton(onClick = onDelete) {
                     Icon(Icons.Filled.Delete, contentDescription = deleteDescription, tint = MaterialTheme.colorScheme.error)
@@ -147,9 +140,9 @@ private fun LoanCardPreview() = MaldarDesignTheme {
         progressDescription = "۳۸ درصد پرداخت شده", nextDueDate = "سررسید بعدی: ۱۵ آبان ۱۴۰۳",
         remainingInstallments = "۱۲ قسط باقی‌مانده", status = "پرداخت نزدیک است",
         statusTone = LoanStatusTone.WARNING, linkedAccount = "حساب پرداخت: حساب جاری",
-        onOpenDetails = {}, onPay = {}, onEdit = {}, onReminder = {}, onDelete = {},
-        detailsDescription = "جزئیات", paymentLabel = "ثبت پرداخت", editDescription = "ویرایش",
-        reminderDescription = "یادآوری", deleteDescription = "حذف"
+        onOpenDetails = {}, onSelectLoan = {}, onEdit = {}, onDelete = {},
+        selectLoanLabel = "مشاهده تراکنش‌های وام", editDescription = "ویرایش",
+        deleteDescription = "حذف"
     )
 }
 
@@ -159,8 +152,8 @@ private fun PaidLoanCardDarkPreview() = MaldarDesignTheme(true) {
     LoanCard(
         title = "وام خودرو", remainingAmount = "۰", remainingLabel = "مانده", progress = 1f,
         progressDescription = "پرداخت کامل", status = "پرداخت شد", statusTone = LoanStatusTone.POSITIVE,
-        paid = true, onOpenDetails = {}, onPay = null, onEdit = {}, onReminder = {}, onDelete = {},
-        detailsDescription = "جزئیات", paymentLabel = "ثبت پرداخت", editDescription = "ویرایش",
-        reminderDescription = "یادآوری", deleteDescription = "حذف"
+        paid = true, onOpenDetails = {}, onSelectLoan = null, onEdit = {}, onDelete = {},
+        selectLoanLabel = "مشاهده تراکنش‌های وام", editDescription = "ویرایش",
+        deleteDescription = "حذف"
     )
 }

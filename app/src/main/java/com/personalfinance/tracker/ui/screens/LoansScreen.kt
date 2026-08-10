@@ -58,7 +58,6 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
-    var showPayLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var editingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var deletingLoan by remember { mutableStateOf<LoanEntity?>(null) }
@@ -245,14 +244,11 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                 notes = loan.notes,
                 paid = loan.isPaid,
                 onOpenDetails = { selectedLoan = loan },
-                onPay = if (loan.isPaid) null else ({ showPayLoan = loan }),
+                onSelectLoan = if (loan.isPaid) null else ({ selectedLoan = loan }),
                 onEdit = { editingLoan = loan },
-                onReminder = { editingLoan = loan },
                 onDelete = { deletingLoan = loan },
-                detailsDescription = AppStrings.loanDetails,
-                paymentLabel = AppStrings.payLoan,
+                selectLoanLabel = AppStrings.loanViewTransactions,
                 editDescription = AppStrings.edit,
-                reminderDescription = AppStrings.loanReminderSettings,
                 deleteDescription = AppStrings.delete,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -268,11 +264,6 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                 )
             }
         }
-    }
-
-    if (showPayLoan != null) {
-        PayLoanDialog(loan = showPayLoan!!, accounts = accounts, onDismiss = { showPayLoan = null },
-            onPay = { amount, accountId -> viewModel.payLoan(showPayLoan!!, amount, accountId); showPayLoan = null })
     }
 
     if (selectedLoan != null) {
@@ -462,67 +453,6 @@ private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewM
             }
         }
     }
-}
-
-@Composable
-private fun PayLoanDialog(
-    loan: LoanEntity,
-    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
-    onDismiss: () -> Unit,
-    onPay: (Double, Long?) -> Unit
-) {
-    var amountText by remember { mutableStateOf(Money.input(loan.remainingAmount)) }
-    var accountId by remember(loan.id) { mutableStateOf(loan.bankAccountId) }
-    var accountMenuExpanded by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(AppStrings.payLoan + " - " + loan.name) },
-        text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = sanitizeNumberInput(it) },
-                    label = { Text(AppStrings.loanPaymentAmount) },
-                    visualTransformation = ThousandsSeparatorTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ExposedDropdownMenuBox(
-                    expanded = accountMenuExpanded,
-                    onExpandedChange = { accountMenuExpanded = it }
-                ) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == accountId }?.accountLabel ?: AppStrings.noneCash,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(AppStrings.bankAccount) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = {
-                            accountId = null
-                            accountMenuExpanded = false
-                        })
-                        accounts.forEach { account ->
-                            DropdownMenuItem(text = { Text(account.accountLabel) }, onClick = {
-                                accountId = account.id
-                                accountMenuExpanded = false
-                            })
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0) onPay(amount, accountId)
-            }) { Text(AppStrings.payLoan) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
-    )
 }
 
 @Composable

@@ -199,52 +199,6 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
         }
 
         item {
-            SectionHeader(AppStrings.monthlyTransactions)
-        }
-
-        if (monthTransactions.isNotEmpty()) {
-            item {
-                AppCard(style = AppCardStyle.OUTLINED, modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        monthTransactions.sortedByDescending { it.dateMillis }.take(8).forEach { tx ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = tx.category.ifBlank { AppStrings.unknown },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = tx.note.ifBlank { JalaliCalendar.formatDate(tx.dateMillis) },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = if (tx.type == TxType.CARD_TO_CARD) AppStrings.cardToCard else if (tx.type == TxType.INCOME) AppStrings.income else AppStrings.expense,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (tx.type == TxType.EXPENSE) MaldarDesign.colors.negative else MaldarDesign.colors.positive
-                                    )
-                                    Text(
-                                        text = "${Money.format(tx.amount)} ${AppStrings.moneyUnit}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (tx.type == TxType.EXPENSE) MaldarDesign.colors.negative else MaldarDesign.colors.positive
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
             SectionHeader(AppStrings.spendingByCategory)
         }
 
@@ -300,6 +254,7 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
     val expenseColor = MaldarDesign.colors.negative
     val transferColor = Color(0xFF8E5FB0)
     val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val guidelineColor = MaterialTheme.colorScheme.outline
     val chartDescription = "${AppStrings.dailyReport}، ${AppStrings.reportIncome}: ${Money.format(income.sum())} ${AppStrings.moneyUnit}، ${AppStrings.reportExpense}: ${Money.format(expense.sum())} ${AppStrings.moneyUnit}، ${AppStrings.cardToCard}: ${Money.format(transfer.sum())} ${AppStrings.moneyUnit}"
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -331,6 +286,13 @@ private fun DayTrendGraph(transactions: List<com.personalfinance.tracker.data.Tr
                     strokeWidth = 1.dp.toPx()
                 )
             }
+            // Strong baseline guideline along the bottom axis.
+            drawLine(
+                color = guidelineColor,
+                start = Offset(0f, baseY),
+                end = Offset(size.width, baseY),
+                strokeWidth = 2.dp.toPx()
+            )
             income.forEachIndexed { index, value ->
                 val x = index * groupWidth
                 val normalized = (value / maxValue * chartHeight).toFloat()
