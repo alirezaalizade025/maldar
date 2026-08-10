@@ -147,15 +147,15 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
         if (accounts.isNotEmpty()) {
             item {
                 val totalBalance = accounts.sumOf { it.balance }
-                val totalLoanRemainder = loans.filter { !it.isPaid }.sumOf { it.remainingAmount }
+                val loanRemainderThisMonth = loans.filter { !it.isPaid }.sumOf { loanRemainingThisMonth(it, loans, transactions) }
                 AppCard(style = AppCardStyle.HERO, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
                         Text(AppStrings.total, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         AmountText(Money.format2(totalBalance), style = MaterialTheme.typography.headlineLarge)
-                        if (totalLoanRemainder > 0.0) {
+                        if (loanRemainderThisMonth > 0.0) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(AppStrings.loanRemainderTotal, style = MaterialTheme.typography.labelSmall)
-                                Text(Money.format2(totalLoanRemainder) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                                Text(AppStrings.loanRemainingThisMonthSummary, style = MaterialTheme.typography.labelSmall)
+                                Text(Money.format2(loanRemainderThisMonth) + " " + AppStrings.moneyUnit, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                             }
                         }
                     }

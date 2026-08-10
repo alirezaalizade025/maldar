@@ -58,7 +58,6 @@ private fun LoansContent(viewModel: FinanceViewModel) {
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
-    var selectedLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var editingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var deletingLoan by remember { mutableStateOf<LoanEntity?>(null) }
     var showMonthlySchedule by remember { mutableStateOf(false) }
@@ -243,11 +242,8 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                 },
                 notes = loan.notes,
                 paid = loan.isPaid,
-                onOpenDetails = { selectedLoan = loan },
-                onSelectLoan = if (loan.isPaid) null else ({ selectedLoan = loan }),
                 onEdit = { editingLoan = loan },
                 onDelete = { deletingLoan = loan },
-                selectLoanLabel = AppStrings.loanViewTransactions,
                 editDescription = AppStrings.edit,
                 deleteDescription = AppStrings.delete,
                 modifier = Modifier.fillMaxWidth()
@@ -264,10 +260,6 @@ private fun LoansContent(viewModel: FinanceViewModel) {
                 )
             }
         }
-    }
-
-    if (selectedLoan != null) {
-        LoanDetailDialog(loan = selectedLoan!!, loans = loans, transactions = transactions, viewModel = viewModel, onDismiss = { selectedLoan = null })
     }
 
     if (editingLoan != null) {
@@ -453,53 +445,6 @@ private fun MonthlyScheduleView(loans: List<LoanEntity>, viewModel: FinanceViewM
             }
         }
     }
-}
-
-@Composable
-private fun LoanDetailDialog(
-    loan: LoanEntity,
-    loans: List<LoanEntity>,
-    transactions: List<com.personalfinance.tracker.data.TransactionEntity>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    val payments = transactions.filter { it.matchesLoanPayment(loan, loans) }.sortedByDescending { it.dateMillis }
-    val currentMonthPaid = payments.any { JalaliCalendar.isInJalaliMonth(it.dateMillis) }
-    // Projected remaining balance over the next months until payoff.
-    val projection = remember(loan.id, loan.remainingAmount, currentMonthPaid) {
-        val inst = if (loan.installment > 0.0) loan.installment else loan.remainingAmount
-        val months = if (loan.installment > 0.0) viewModel.monthsRemaining(loan, currentMonthPaid) else 1
-        (0..months.coerceAtMost(24)).scan(loan.remainingAmount) { acc, _ -> (acc - inst).coerceAtLeast(0.0) }
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(loan.name) },
-        text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(AppStrings.amount + ": " + Money.format2(loan.remainingAmount) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.bodyMedium)
-                if (loan.installment > 0.0) {
-                    Text(AppStrings.loanInstallment + ": " + Money.format2(loan.installment) + " " + AppStrings.moneyUnit, style = MaterialTheme.typography.labelSmall)
-                    Text(AppStrings.loanMonthsLeft + ": " + viewModel.monthsRemaining(loan, currentMonthPaid), style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(4.dp))
-                    Text(AppStrings.loanProjection, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    LoanProjectionChart(projection = projection)
-                }
-                Text(AppStrings.loanLastPayment + ":", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                if (payments.isEmpty()) {
-                    Text(AppStrings.loanNoPayment, style = MaterialTheme.typography.labelSmall)
-                } else {
-                    payments.take(10).forEach { p ->
-                        Text("- " + Money.format2(p.amount) + " " + AppStrings.moneyUnit + "  " + JalaliCalendar.formatDate(p.dateMillis),
-                            style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(AppStrings.close) } }
-    )
 }
 
 @Composable

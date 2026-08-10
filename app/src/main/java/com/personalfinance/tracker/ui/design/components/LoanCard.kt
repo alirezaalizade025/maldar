@@ -20,7 +20,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -51,21 +50,14 @@ fun LoanCard(
     linkedAccount: String? = null,
     notes: String? = null,
     paid: Boolean = false,
-    onOpenDetails: () -> Unit,
-    onSelectLoan: (() -> Unit)?,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    selectLoanLabel: String,
     editDescription: String,
     deleteDescription: String
 ) {
     AppCard(modifier = modifier, style = AppCardStyle.RAISED) {
         Column(Modifier.fillMaxWidth()) {
-            val summary = listOfNotNull(title, lender, remainingAmount, status, nextDueDate, remainingInstallments).joinToString("، ")
-            Column(
-                Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onOpenDetails)
-                    .semantics { contentDescription = summary }
-            ) {
+            Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     Column(Modifier.weight(1f)) {
                         Text(
@@ -116,10 +108,6 @@ fun LoanCard(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            if (onSelectLoan != null) {
-                AppButton(text = selectLoanLabel, onClick = onSelectLoan, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(4.dp))
-            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = editDescription) }
                 IconButton(onClick = onDelete) {
@@ -140,8 +128,8 @@ private fun LoanCardPreview() = MaldarDesignTheme {
         progressDescription = "۳۸ درصد پرداخت شده", nextDueDate = "سررسید بعدی: ۱۵ آبان ۱۴۰۳",
         remainingInstallments = "۱۲ قسط باقی‌مانده", status = "پرداخت نزدیک است",
         statusTone = LoanStatusTone.WARNING, linkedAccount = "حساب پرداخت: حساب جاری",
-        onOpenDetails = {}, onSelectLoan = {}, onEdit = {}, onDelete = {},
-        selectLoanLabel = "مشاهده تراکنش‌های وام", editDescription = "ویرایش",
+        onEdit = {}, onDelete = {},
+        editDescription = "ویرایش",
         deleteDescription = "حذف"
     )
 }
@@ -152,8 +140,8 @@ private fun PaidLoanCardDarkPreview() = MaldarDesignTheme(true) {
     LoanCard(
         title = "وام خودرو", remainingAmount = "۰", remainingLabel = "مانده", progress = 1f,
         progressDescription = "پرداخت کامل", status = "پرداخت شد", statusTone = LoanStatusTone.POSITIVE,
-        paid = true, onOpenDetails = {}, onSelectLoan = null, onEdit = {}, onDelete = {},
-        selectLoanLabel = "مشاهده تراکنش‌های وام", editDescription = "ویرایش",
+        paid = true, onEdit = {}, onDelete = {},
+        editDescription = "ویرایش",
         deleteDescription = "حذف"
     )
 }

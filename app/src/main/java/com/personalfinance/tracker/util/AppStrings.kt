@@ -154,7 +154,6 @@ object AppStrings {
     val loanDueSoon = "پرداخت نزدیک است"
     val overdueLoansAlert = "%d وام سررسید گذشته پرداخت نشده است"
     val loanDetails = "جزئیات وام"
-    val loanViewTransactions = "مشاهده تراکنش‌های وام"
     val loanReminderSettings = "تنظیم یادآوری"
     val deleteLoanConfirmTitle = "حذف وام"
     val deleteLoanConfirmBody = "آیا از حذف این وام مطمئن هستید؟ این عمل قابل بازگشت نیست."
