@@ -79,10 +79,15 @@ private fun FullScreenSheet(title: String, onClose: () -> Unit, content: @Compos
 fun NavGraph(
     viewModel: FinanceViewModel,
     startDestinationOverride: String? = null,
-    importUri: String? = null
+    importUri: String? = null,
+    launchRequestId: Int = 0
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val errorSnackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.errors.collect { errorSnackbar.showSnackbar(it) }
+    }
 
     var menuExpanded by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
@@ -90,7 +95,8 @@ fun NavGraph(
     var showFailed by remember { mutableStateOf(false) }
     var showCrashLog by remember { mutableStateOf(false) }
     var showExport by remember { mutableStateOf(false) }
-    var showImport by remember { mutableStateOf(false) }
+    var showImport by rememberSaveable(importUri, launchRequestId) { mutableStateOf(importUri != null) }
+    var activeImportUri by rememberSaveable(importUri, launchRequestId) { mutableStateOf(importUri) }
     var showSettings by remember { mutableStateOf(false) }
     var showCheckSms by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
@@ -120,7 +126,17 @@ fun NavGraph(
         }
     }
 
+    var handledLaunchRequestId by rememberSaveable { mutableIntStateOf(-1) }
+    LaunchedEffect(startDestinationOverride, launchRequestId) {
+        if (handledLaunchRequestId == launchRequestId) return@LaunchedEffect
+        handledLaunchRequestId = launchRequestId
+        startDestinationOverride?.let { route ->
+            navController.navigate(route) { launchSingleTop = true }
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(errorSnackbar) },
         topBar = {
             TopAppBar(
                 title = {
@@ -143,7 +159,7 @@ fun NavGraph(
                                         DropdownMenuItem(text = { Text(AppStrings.menuUpdates) }, onClick = { menuExpanded = false; runCheck(auto = false) })
                                         DropdownMenuItem(text = { Text(AppStrings.crashLog) }, onClick = { menuExpanded = false; showCrashLog = true })
                                         DropdownMenuItem(text = { Text(AppStrings.exportData) }, onClick = { menuExpanded = false; showExport = true })
-                                        DropdownMenuItem(text = { Text(AppStrings.importData) }, onClick = { menuExpanded = false; showImport = true })
+                                        DropdownMenuItem(text = { Text(AppStrings.importData) }, onClick = { menuExpanded = false; activeImportUri = null; showImport = true })
                                         DropdownMenuItem(text = { Text(AppStrings.checkSms) }, onClick = { menuExpanded = false; showCheckSms = true })
                                         DropdownMenuItem(text = { Text(AppStrings.settings) }, onClick = { menuExpanded = false; showSettings = true })
                                         DropdownMenuItem(text = { Text(AppStrings.about) }, onClick = { menuExpanded = false; showAbout = true })
@@ -206,7 +222,7 @@ fun NavGraph(
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = startDestinationOverride ?: "dashboard",
+            startDestination = "dashboard",
             modifier = Modifier.padding(padding)
         ) {
             composable("dashboard") { DashboardScreen(viewModel, onGoToConfirm = { navController.navigate("confirm_sms_list") }, onGoToReports = { navController.navigate("reports") }) }
@@ -233,7 +249,8 @@ fun NavGraph(
             composable("financial_assets") { FinancialAssetsScreen(viewModel) }
             composable("account_sms/{accountId}") { backStackEntry ->
                 val accountId = backStackEntry.arguments?.getString("accountId")?.toLongOrNull() ?: 0L
-                val account = viewModel.bankAccounts.value.firstOrNull { it.id == accountId }
+                val accounts by viewModel.bankAccounts.collectAsState()
+                val account = accounts.firstOrNull { it.id == accountId }
                 if (account != null) {
                     AccountSmsScreen(
                         account = account,
@@ -252,7 +269,11 @@ fun NavGraph(
     if (showCrashLog) FullScreenSheet(AppStrings.crashLog, { showCrashLog = false }) { CrashLogScreen(onClose = { showCrashLog = false }) }
     if (showExport) FullScreenSheet(AppStrings.exportData, { showExport = false }) { ExportScreen(viewModel, onClose = { showExport = false }) }
     if (showImport) {
-        FullScreenSheet(AppStrings.importData, { showImport = false }) { ImportScreen(viewModel, initialUri = null, onClose = { showImport = false }) }
+        FullScreenSheet(AppStrings.importData, { showImport = false; activeImportUri = null }) {
+            key(launchRequestId) {
+                ImportScreen(viewModel, initialUri = activeImportUri, onClose = { showImport = false; activeImportUri = null })
+            }
+        }
     }
     if (showSettings) {
         FullScreenSheet(AppStrings.settings, { showSettings = false }) { SettingsScreen(onClose = { showSettings = false }) }

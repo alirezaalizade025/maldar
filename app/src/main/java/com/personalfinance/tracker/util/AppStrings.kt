@@ -56,6 +56,7 @@ object AppStrings {
     val toman = "تومان"
     val rial = "ریال"
     val bankAccount = "حساب بانکی"
+    val fromAccount = "از حساب"
     val toAccount = "به حساب"
     val selectDestinationAccount = "انتخاب حساب مقصد"
     val noneCash = "بدون حساب (نقدی)"

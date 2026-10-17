@@ -24,13 +24,13 @@ object DataExport {
         stockAssets: List<StockAssetEntity> = emptyList()
     ): String = buildString {
         appendLine("--- Transactions ---")
-        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms")
+        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms,toAccountId")
         transactions.forEach { t ->
             appendLine(
                 listOf(
                     t.id, t.type, formatNum(t.amount), csvCell(t.category),
                     csvCell(t.note), t.dateMillis, t.bankAccountId ?: "", t.loanId ?: "", t.source,
-                    t.balanceAfter?.let { formatNum(it) } ?: "", csvCell(t.rawSms ?: "")
+                    t.balanceAfter?.let { formatNum(it) } ?: "", csvCell(t.rawSms ?: ""), t.toAccountId ?: ""
                 ).joinToString(",")
             )
         }
@@ -98,6 +98,7 @@ object DataExport {
                 put("id", it.id); put("type", it.type.name); put("amount", it.amount)
                 put("category", it.category); put("note", it.note)
                 put("dateMillis", it.dateMillis); put("bankAccountId", it.bankAccountId); put("loanId", it.loanId)
+                put("toAccountId", it.toAccountId)
                 put("source", it.source.name); put("rawSms", it.rawSms); put("balanceAfter", it.balanceAfter)
             }
         }))
@@ -156,7 +157,13 @@ object DataExport {
     @Throws(Exception::class)
     fun fromJson(json: String): FinanceRepository.ExportBundle {
         val root = JSONObject(json)
-        fun arr(name: String) = root.optJSONArray(name) ?: JSONArray()
+        require(listOf("transactions", "bankAccounts", "loans", "categories").all {
+            root.optJSONArray(it) != null
+        }) { "Not a complete Maldar backup" }
+        fun arr(name: String): JSONArray {
+            if (!root.has(name)) return JSONArray()
+            return root.getJSONArray(name)
+        }
 
         val transactions = (0 until arr("transactions").length()).map { i ->
             val o = arr("transactions").getJSONObject(i)
@@ -168,8 +175,9 @@ object DataExport {
                 note = o.optString("note", ""),
                 dateMillis = o.optLong("dateMillis"),
                 bankAccountId = if (o.isNull("bankAccountId")) null else o.optLong("bankAccountId"),
+                toAccountId = if (o.isNull("toAccountId")) null else o.getLong("toAccountId"),
                 source = enumValueOf<TxSource>(o.optString("source", "MANUAL")),
-                rawSms = if (o.isNull("rawSms")) null else o.optString("rawSms", null),
+                rawSms = if (o.isNull("rawSms")) null else o.getString("rawSms"),
                 balanceAfter = if (o.isNull("balanceAfter")) null else o.optDouble("balanceAfter"),
                 loanId = if (o.isNull("loanId")) null else o.optLong("loanId")
             )
@@ -288,6 +296,15 @@ object DataExport {
             "Stock Assets"
         )
         require(rows.keys.any { it in knownSections }) { "No supported CSV sections were found" }
+        val requiredHeaders = mapOf(
+            "Transactions" to listOf("id", "type", "amount", "category", "note", "dateMillis", "bankAccountId"),
+            "Bank Accounts" to listOf("id", "bankName", "label"),
+            "Loans" to listOf("id", "name", "principal", "remaining", "dueDateMillis", "payDay"),
+            "Categories" to listOf("id", "name", "type")
+        )
+        require(requiredHeaders.all { (section, prefix) ->
+            rows.containsKey(section) && headers[section]?.take(prefix.size) == prefix
+        }) { "Not a complete Maldar CSV backup" }
 
         val transactionWidth = headers["Transactions"]?.size ?: 11
         val transactions = (rows["Transactions"] ?: emptyList()).map { rawFields ->
@@ -305,7 +322,8 @@ object DataExport {
                 source = try { enumValueOf<TxSource>(fields.getOrNull(8) ?: "MANUAL") } catch (e: Exception) { TxSource.MANUAL },
                 balanceAfter = fields.getOrNull(9)?.takeIf { it.isNotEmpty() }
                     ?.removeSurrounding("\"")?.replace(",", "")?.toDoubleOrNull(),
-                rawSms = fields.getOrNull(10)?.takeIf { it.isNotEmpty() }?.removeSurrounding("\"")
+                rawSms = fields.getOrNull(10)?.takeIf { it.isNotEmpty() },
+                toAccountId = fields.getOrNull(11)?.takeIf { it.isNotEmpty() }?.toLong()
             )
         }
 

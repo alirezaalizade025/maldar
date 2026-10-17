@@ -40,6 +40,9 @@ import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import com.personalfinance.tracker.data.loanRemainingThisMonth
 
 @Composable
@@ -105,18 +108,23 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
                             refreshingAll = true
                             scope.launch {
                                 var updated = 0
-                                accounts.forEach { acc ->
-                                    val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
-                                    if (accSenders.isNotEmpty()) {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4, Settings.ignoredSms)
-                                        if (res.amount != null) {
-                                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
+                                try {
+                                    for (acc in accounts) {
+                                        val accSenders = senders.filter { it.bankAccountId == acc.id }.map { it.senderId }
+                                        if (accSenders.isEmpty()) continue
+                                        val res = withContext(Dispatchers.IO) {
+                                            SmsInboxReader.lastSmsForSenders(context, accSenders, acc.accountLast4, Settings.ignoredSms)
+                                        }
+                                        res.amount?.let {
+                                            viewModel.refreshAccountBalance(acc.id, it)
                                             updated++
                                         }
                                     }
-                                }
-                                refreshingAll = false
-                                message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
+                                    message = if (updated > 0) AppStrings.refreshDone else AppStrings.refreshFailed
+                                } catch (e: CancellationException) { throw e
+                                } catch (_: Exception) {
+                                    message = AppStrings.refreshFailed
+                                } finally { refreshingAll = false }
                             }
                         },
                         enabled = accounts.isNotEmpty() && !refreshingAll,
@@ -186,14 +194,18 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
                 } else {
                     refreshingId = acc.id
                     scope.launch {
-                                        val res = SmsInboxReader.lastSmsForSenders(context, accSenders.map { it.senderId }, acc.accountLast4, Settings.ignoredSms)
-                        if (res.amount != null) {
-                            viewModel.updateBankAccount(acc.copy(balance = res.amount))
-                            message = AppStrings.refreshDone
-                        } else {
+                        try {
+                            val res = withContext(Dispatchers.IO) {
+                                SmsInboxReader.lastSmsForSenders(context, accSenders.map { it.senderId }, acc.accountLast4, Settings.ignoredSms)
+                            }
+                            if (res.amount != null) {
+                                viewModel.refreshAccountBalance(acc.id, res.amount)
+                                message = AppStrings.refreshDone
+                            } else message = AppStrings.refreshFailed
+                        } catch (e: CancellationException) { throw e
+                        } catch (_: Exception) {
                             message = AppStrings.refreshFailed
-                        }
-                        refreshingId = null
+                        } finally { refreshingId = null }
                     }
                 }
             }

@@ -16,6 +16,10 @@ import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.DataExport
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import com.personalfinance.tracker.data.FinanceRepository
 import java.io.BufferedReader
 
 @Composable
@@ -28,25 +32,22 @@ fun ImportScreen(
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var pendingBundle by remember { mutableStateOf<FinanceRepository.ExportBundle?>(null) }
 
     fun readUri(uri: Uri) {
         scope.launch {
             busy = true
             message = null
             runCatching {
-                val content = context.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()?.use(BufferedReader::readText)
-                    ?: throw Exception("cannot read file")
-                
-                // Auto-detect format: JSON starts with '{', otherwise treat as CSV
-                val bundle = if (content.trim().startsWith("{")) {
-                    DataExport.fromJson(content)
-                } else {
-                    DataExport.fromCsv(content)
+                pendingBundle = withContext(Dispatchers.IO) {
+                    val content = context.contentResolver.openInputStream(uri)
+                        ?.bufferedReader()?.use(BufferedReader::readText)
+                        ?: throw Exception("cannot read file")
+                    if (content.trimStart().startsWith("{")) DataExport.fromJson(content)
+                    else DataExport.fromCsv(content)
                 }
-                viewModel.importBundle(bundle)
-                message = AppStrings.importSuccess
             }.onFailure {
+                if (it is CancellationException) throw it
                 message = if (it is Exception) AppStrings.importFailed.fa(it.message ?: "")
                 else AppStrings.importInvalid
             }
@@ -55,13 +56,38 @@ fun ImportScreen(
     }
 
     // When opened from a file (e.g. tapping a backup in a file manager), import it
-    // automatically once the screen mounts.
+    // for review once the screen mounts.
     LaunchedEffect(initialUri) {
         if (initialUri != null) readUri(Uri.parse(initialUri))
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) readUri(uri) else message = AppStrings.importFailed.fa("")
+    }
+
+    pendingBundle?.let { bundle ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) pendingBundle = null },
+            title = { Text(AppStrings.importData) },
+            text = { Text(AppStrings.importHint) },
+            confirmButton = {
+                TextButton(enabled = !busy, onClick = {
+                    busy = true
+                    scope.launch {
+                        try {
+                            withContext(Dispatchers.IO) { viewModel.importBundle(bundle) }
+                            pendingBundle = null
+                            message = AppStrings.importSuccess
+                        } catch (e: CancellationException) { throw e
+                        } catch (e: Exception) {
+                            message = AppStrings.importFailed.fa(e.message ?: "")
+                            pendingBundle = null
+                        } finally { busy = false }
+                    }
+                }) { Text(AppStrings.confirm) }
+            },
+            dismissButton = { TextButton(enabled = !busy, onClick = { pendingBundle = null }) { Text(AppStrings.cancel) } }
+        )
     }
 
     Column(

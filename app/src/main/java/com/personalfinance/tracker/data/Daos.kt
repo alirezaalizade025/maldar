@@ -68,6 +68,9 @@ interface SmsSenderDao {
     @Query("SELECT * FROM sms_senders")
     suspend fun getAllOnce(): List<SmsSenderEntity>
 
+    @Query("DELETE FROM sms_senders WHERE bankAccountId = :accountId")
+    suspend fun deleteByAccount(accountId: Long)
+
     @Insert
     suspend fun insert(sender: SmsSenderEntity): Long
 
@@ -85,6 +88,18 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE dateMillis BETWEEN :start AND :end ORDER BY dateMillis DESC")
     fun getBetween(start: Long, end: Long): Flow<List<TransactionEntity>>
+
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun getById(id: Long): TransactionEntity?
+
+    @Query("UPDATE transactions SET bankAccountId = NULL WHERE bankAccountId = :accountId")
+    suspend fun detachSourceAccount(accountId: Long)
+
+    @Query("UPDATE transactions SET toAccountId = NULL WHERE toAccountId = :accountId")
+    suspend fun detachDestinationAccount(accountId: Long)
+
+    @Query("UPDATE transactions SET loanId = NULL WHERE loanId = :loanId")
+    suspend fun detachLoan(loanId: Long)
 
     @Insert
     suspend fun insert(tx: TransactionEntity): Long
@@ -115,7 +130,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC LIMIT 1")
     suspend fun latestBalanceForAccount(accountId: Long): TransactionEntity?
 
-    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId")
+    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND source = 'SMS' AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC")
+    suspend fun getSmsBalancesForAccount(accountId: Long): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId OR toAccountId = :accountId")
     suspend fun getByAccount(accountId: Long): List<TransactionEntity>
 
     @Query("DELETE FROM transactions")
@@ -135,6 +153,15 @@ interface PendingSmsDao {
     @Query("SELECT * FROM pending_sms ORDER BY timestampMillis DESC")
     fun getAll(): Flow<List<PendingSmsEntity>>
 
+    @Query("SELECT * FROM pending_sms WHERE id = :id")
+    suspend fun getById(id: Long): PendingSmsEntity?
+
+    @Query("UPDATE pending_sms SET bankAccountId = NULL WHERE bankAccountId = :accountId")
+    suspend fun detachAccount(accountId: Long)
+
+    @Query("DELETE FROM pending_sms")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(pending: PendingSmsEntity): Long
 
@@ -152,6 +179,12 @@ interface LoanDao {
 
     @Query("SELECT * FROM loans WHERE isPaid = 0")
     suspend fun getActiveLoans(): List<LoanEntity>
+
+    @Query("SELECT * FROM loans WHERE id = :id")
+    suspend fun getById(id: Long): LoanEntity?
+
+    @Query("UPDATE loans SET bankAccountId = NULL WHERE bankAccountId = :accountId")
+    suspend fun detachAccount(accountId: Long)
 
     @Insert
     suspend fun insert(loan: LoanEntity): Long
@@ -195,9 +228,9 @@ interface CategoryDao {
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun count(): Int
 
-    @Query("SELECT COUNT(*) FROM transactions WHERE category = :name")
-    suspend fun countTransactionsWithCategory(name: String): Int
+    @Query("SELECT COUNT(*) FROM transactions WHERE category = :name AND type = :type")
+    suspend fun countTransactionsWithCategory(name: String, type: TxType): Int
 
-    @Query("UPDATE transactions SET category = :target WHERE category = :name")
-    suspend fun reassignTransactionsCategory(name: String, target: String)
+    @Query("UPDATE transactions SET category = :target WHERE category = :name AND type = :type")
+    suspend fun reassignTransactionsCategory(name: String, target: String, type: TxType)
 }

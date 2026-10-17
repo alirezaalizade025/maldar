@@ -16,6 +16,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.ui.navigation.NavGraph
@@ -28,6 +32,9 @@ import java.io.StringWriter
 
 class MainActivity : ComponentActivity() {
 
+    private var launchRequestId by mutableIntStateOf(0)
+    private var currentLaunchIntent by mutableStateOf<android.content.Intent?>(null)
+
     private val viewModel: FinanceViewModel by viewModels {
         FinanceViewModelFactory((application as PersonalFinanceApp).repository)
     }
@@ -38,6 +45,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        launchRequestId = savedInstanceState?.getInt("launch_request_id") ?: 0
 
         // Whole-startup guard: if anything on the startup path throws, log it and
         // show an on-screen error instead of crashing to the launcher, so the
@@ -47,7 +55,7 @@ class MainActivity : ComponentActivity() {
             // super.onCreate(): touching window.decorView earlier materializes the
             // decor view before the framework has initialized the activity/window.
             try {
-                window.decorView.layoutDirection = android.util.LayoutDirection.RTL
+                window.decorView.layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL
             } catch (t: Throwable) {
                 CrashLogger.log("startup: setting RTL layoutDirection failed", t)
             }
@@ -65,11 +73,7 @@ class MainActivity : ComponentActivity() {
                 CrashLogger.log("startup: requesting permissions failed", t)
             }
 
-            val openScreen = intent.getStringExtra("open_screen")
-            // Opening a backup file (e.g. from a file manager) hands us its content URI.
-            val importUri = if (intent.action == android.content.Intent.ACTION_VIEW) {
-                intent.data?.toString()
-            } else null
+            currentLaunchIntent = intent
 
             // If the Application failed to initialize the database/repository, show
             // that real cause rather than a generic uninitialized-property error.
@@ -80,10 +84,15 @@ class MainActivity : ComponentActivity() {
             val vm: FinanceViewModel = viewModel
 
             setContent {
+                val launchIntent = currentLaunchIntent
+                val openScreen = launchIntent?.getStringExtra("open_screen")
+                val importUri = if (launchIntent?.action == android.content.Intent.ACTION_VIEW)
+                    launchIntent.data?.toString() else null
                 PersonalFinanceTheme {
                     Surface(modifier = Modifier.fillMaxSize()) {
                         NavGraph(
                             viewModel = vm,
+                            launchRequestId = launchRequestId,
                             startDestinationOverride = when (openScreen) {
                                 "confirm_sms" -> "confirm_sms_list"
                                 "loans" -> "loans"
@@ -126,22 +135,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("launch_request_id", launchRequestId)
+        super.onSaveInstanceState(outState)
+    }
+
     // Re-deliver a backup file opened while the app was already running.
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        if (intent.action == android.content.Intent.ACTION_VIEW) {
-            intent.data?.let { uri ->
-                val ctx = this
-                // Recreate the UI with the new import URI by relaunching the activity.
-                val relaunch = android.content.Intent(ctx, MainActivity::class.java).apply {
-                    action = android.content.Intent.ACTION_VIEW
-                    data = uri
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-                startActivity(relaunch)
-                finish()
-            }
-        }
+        setIntent(intent)
+        currentLaunchIntent = intent
+        launchRequestId++
     }
 }
 

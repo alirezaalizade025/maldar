@@ -2,20 +2,16 @@ package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -23,7 +19,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxSource
 import com.personalfinance.tracker.data.TxType
@@ -37,15 +32,12 @@ import com.personalfinance.tracker.ui.design.components.MaldarSegmentedControl
 import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.CrashLogger
-import com.personalfinance.tracker.util.Digits
-import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.SmsInboxReader
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 import kotlinx.coroutines.launch
-import java.util.Calendar
 
 @Composable
 fun AddTransactionScreen(
@@ -85,8 +77,6 @@ private fun AddTransactionContent(
     var selectedLoanId by remember { mutableStateOf<Long?>(null) }
     var loanMenuExpanded by remember { mutableStateOf(false) }
     var selectedToAccountId by remember { mutableStateOf<Long?>(null) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
     var remainderText by remember { mutableStateOf("") }
     var transactionDateMillis by remember { mutableStateOf<Long?>(null) }
     var sourceSmsBody by remember { mutableStateOf<String?>(null) }
@@ -136,11 +126,6 @@ private fun AddTransactionContent(
         TxType.CARD_TO_CARD -> emptyList()
     }
     val effectiveDateMillis = transactionDateMillis ?: System.currentTimeMillis()
-    val effectiveTime = remember(effectiveDateMillis) {
-        Calendar.getInstance().apply { timeInMillis = effectiveDateMillis }.let {
-            Digits.toPersian("%02d:%02d".format(java.util.Locale.US, it.get(Calendar.HOUR_OF_DAY), it.get(Calendar.MINUTE)))
-        }
-    }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
@@ -288,22 +273,7 @@ private fun AddTransactionContent(
                     }
                 }
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
-                    OutlinedTextField(
-                        value = JalaliCalendar.formatDate(effectiveDateMillis),
-                        onValueChange = {}, readOnly = true,
-                        label = { Text("تاریخ") },
-                        leadingIcon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
-                        modifier = Modifier.weight(1f).clickable { showDatePicker = true }
-                    )
-                    OutlinedTextField(
-                        value = effectiveTime,
-                        onValueChange = {}, readOnly = true,
-                        label = { Text("زمان") },
-                        leadingIcon = { Icon(Icons.Filled.AccessTime, contentDescription = null) },
-                        modifier = Modifier.widthIn(min = 116.dp).weight(0.65f).clickable { showTimePicker = true }
-                    )
-                }
+                TransactionDateTimeFields(effectiveDateMillis) { transactionDateMillis = it }
 
                 OutlinedTextField(
                     value = note, onValueChange = { note = it },
@@ -360,7 +330,7 @@ private fun AddTransactionContent(
                         note = note,
                         bankAccountId = selectedAccountId,
                         dateMillis = transactionDateMillis ?: System.currentTimeMillis(),
-                        loanId = inferredLoanId,
+                        loanId = inferredLoanId.takeIf { type == TxType.EXPENSE },
                         balanceAfter = remainder,
                         source = if (smsBody != null) TxSource.SMS else TxSource.MANUAL,
                         rawSms = smsBody,
@@ -413,57 +383,6 @@ private fun AddTransactionContent(
             }
         }
 
-        if (showDatePicker) {
-            val datePickerState = rememberDatePickerState(initialSelectedDateMillis = effectiveDateMillis)
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        datePickerState.selectedDateMillis?.let { sel ->
-                            val picked = Calendar.getInstance().apply { timeInMillis = sel }
-                            val cur = Calendar.getInstance().apply { timeInMillis = transactionDateMillis ?: System.currentTimeMillis() }
-                            picked.set(Calendar.HOUR_OF_DAY, cur.get(Calendar.HOUR_OF_DAY))
-                            picked.set(Calendar.MINUTE, cur.get(Calendar.MINUTE))
-                            picked.set(Calendar.SECOND, 0)
-                            picked.set(Calendar.MILLISECOND, 0)
-                            transactionDateMillis = picked.timeInMillis
-                        }
-                        showDatePicker = false
-                    }) { Text(AppStrings.save) }
-                },
-                dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(AppStrings.cancel) } }
-            ) {
-                DatePicker(state = datePickerState)
-            }
-        }
-
-        if (showTimePicker) {
-            val timePickerState = rememberTimePickerState(
-                initialHour = Calendar.getInstance().apply { timeInMillis = effectiveDateMillis }.get(Calendar.HOUR_OF_DAY),
-                initialMinute = Calendar.getInstance().apply { timeInMillis = effectiveDateMillis }.get(Calendar.MINUTE),
-                is24Hour = true
-            )
-            AlertDialog(
-                onDismissRequest = { showTimePicker = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        val cal = Calendar.getInstance().apply { timeInMillis = transactionDateMillis ?: System.currentTimeMillis() }
-                        cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                        cal.set(Calendar.MINUTE, timePickerState.minute)
-                        cal.set(Calendar.SECOND, 0)
-                        cal.set(Calendar.MILLISECOND, 0)
-                        transactionDateMillis = cal.timeInMillis
-                        showTimePicker = false
-                    }) { Text(AppStrings.save) }
-                },
-                dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(AppStrings.cancel) } },
-                text = {
-                    androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                        TimePicker(state = timePickerState)
-                    }
-                }
-            )
-        }
 
     }
 

@@ -85,12 +85,12 @@ object UpdateChecker {
                         val asset = assets.getJSONObject(a)
                         val name = asset.optString("name", "")
                         if (name.endsWith(".apk", ignoreCase = true)) {
-                            apkUrl = asset.optString("browser_download_url", null)
+                            apkUrl = asset.optString("browser_download_url", "").takeIf { it.isNotBlank() }
                             break
                         }
                     }
                 }
-                val htmlUrl = r.optString("html_url", null)
+                val htmlUrl = r.optString("html_url", "").takeIf { it.isNotBlank() }
                 return@withContext UpdateResult.Available(
                     UpdateInfo(
                         tag = tag,

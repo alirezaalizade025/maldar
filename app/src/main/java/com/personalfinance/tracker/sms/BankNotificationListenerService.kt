@@ -55,6 +55,7 @@ class BankNotificationListenerService : NotificationListenerService() {
         val matched = SmsAccountMatcher.match(packageName, body, watchedSenders, accounts)
             ?: return
 
+        if (SmsParser.isPasswordMessage(body)) return
         val parsed = SmsParser.parse(body)
 
         val pending = PendingSmsEntity(

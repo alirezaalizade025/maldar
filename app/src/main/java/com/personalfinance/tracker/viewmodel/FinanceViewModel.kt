@@ -9,9 +9,30 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import com.personalfinance.tracker.util.CrashLogger
+import com.personalfinance.tracker.util.AppStrings
 import java.util.Calendar
 
 class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
+
+    private val mutationErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val errors = mutationErrors.asSharedFlow()
+
+    private fun mutate(block: suspend () -> Unit) = viewModelScope.launch {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            CrashLogger.log("database mutation failed", e)
+            mutationErrors.emit(AppStrings.transactionSaveFailed)
+        }
+    }
+
+    suspend fun refreshAccountBalance(accountId: Long, balance: Double) = repo.refreshAccountBalance(accountId, balance)
 
     val bankAccounts: StateFlow<List<BankAccountEntity>> =
         repo.getBankAccounts().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -38,7 +59,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         repo.getStockAssets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun saveFinancialAsset(type: AssetType, quantityGrams: Double) {
-        viewModelScope.launch {
+        mutate {
             repo.saveFinancialAsset(FinancialAssetEntity(type, quantityGrams.coerceAtLeast(0.0)))
         }
     }
@@ -50,7 +71,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     fun deleteStockAsset(asset: StockAssetEntity) {
-        viewModelScope.launch { repo.deleteStockAsset(asset) }
+        mutate { repo.deleteStockAsset(asset) }
     }
 
     val expenseCategories: StateFlow<List<CategoryEntity>> =
@@ -67,7 +88,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         accountLast4: String = "",
         onCreated: (Long) -> Unit = {}
     ) {
-        viewModelScope.launch {
+        mutate {
             val id = repo.addBankAccount(
                 BankAccountEntity(
                     bankName = bankName,
@@ -79,16 +100,16 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
             onCreated(id)
         }
     }
-    fun deleteBankAccount(account: BankAccountEntity) = viewModelScope.launch { repo.deleteBankAccount(account) }
-    fun updateBankAccount(account: BankAccountEntity) = viewModelScope.launch { repo.updateBankAccount(account) }
+    fun deleteBankAccount(account: BankAccountEntity) = mutate { repo.deleteBankAccount(account) }
+    fun updateBankAccount(account: BankAccountEntity) = mutate { repo.updateBankAccount(account) }
 
     // ---- SMS senders (dynamic add) ----
     fun addSmsSender(senderId: String, bankAccountId: Long, label: String) {
-        viewModelScope.launch {
+        mutate {
             repo.addSmsSender(SmsSenderEntity(senderId = senderId, bankAccountId = bankAccountId, label = label))
         }
     }
-    fun deleteSmsSender(sender: SmsSenderEntity) = viewModelScope.launch { repo.deleteSmsSender(sender) }
+    fun deleteSmsSender(sender: SmsSenderEntity) = mutate { repo.deleteSmsSender(sender) }
 
     // ---- Transactions ----
     suspend fun addTransaction(
@@ -111,7 +132,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 balanceAfter = balanceAfter, rawSms = rawSms, toAccountId = toAccountId
             )
         )
-    fun deleteTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.deleteTransaction(tx) }
+    fun deleteTransaction(tx: TransactionEntity) = mutate { repo.deleteTransaction(tx) }
 
     // Prefer the exact original SMS and timestamp for newly saved SMS transactions.
     // The amount/day comparison remains as a compatibility fallback for older rows.
@@ -137,20 +158,17 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
     }
 
-    fun updateTransaction(tx: TransactionEntity) = viewModelScope.launch { repo.updateTransaction(tx) }
+    fun updateTransaction(tx: TransactionEntity) = mutate { repo.updateTransaction(tx) }
 
     // Records a loan repayment as a transaction linked to the loan, and reduces the
     // loan's remaining balance by the paid amount.
     fun payLoan(loan: LoanEntity, amount: Double, bankAccountId: Long? = null, dateMillis: Long = System.currentTimeMillis()) {
-        viewModelScope.launch {
+        mutate {
             val tx = TransactionEntity(
                 amount = amount, type = TxType.EXPENSE, category = "وام", note = loan.name,
                 dateMillis = dateMillis, bankAccountId = bankAccountId, source = TxSource.MANUAL, loanId = loan.id
             )
             repo.addTransaction(tx)
-            val remaining = (loan.remainingAmount - amount).coerceAtLeast(0.0)
-            val paid = remaining <= 0.0
-            repo.updateLoan(loan.copy(remainingAmount = remaining, isPaid = paid))
         }
     }
 
@@ -172,32 +190,27 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         type: TxType,
         category: String,
         note: String,
-        finalBalanceAfter: Double? = null
+        finalBalanceAfter: Double? = null,
+        toAccountId: Long? = null,
+        dateMillis: Long = pending.timestampMillis
     ) {
-        viewModelScope.launch {
-            val chosenBalanceAfter = finalBalanceAfter ?: pending.parsedBalance
-            repo.addTransaction(
+        mutate {
+            val chosenBalanceAfter = if (type == TxType.CARD_TO_CARD) null else finalBalanceAfter ?: pending.parsedBalance
+            repo.confirmPendingSms(pending,
                 TransactionEntity(
                     amount = finalAmount, type = type, category = category, note = note,
-                    dateMillis = pending.timestampMillis, bankAccountId = pending.bankAccountId,
+                    dateMillis = dateMillis, bankAccountId = pending.bankAccountId,
                     source = TxSource.SMS, rawSms = pending.rawMessage,
-                    balanceAfter = chosenBalanceAfter
+                    balanceAfter = chosenBalanceAfter,
+                    toAccountId = if (type == TxType.CARD_TO_CARD) toAccountId else null
                 )
             )
-            // When the SMS states the remaining balance (مانده), trust it as the
-            // account's balance after this transaction, overriding the recomputed
-            // delta so the account stays in sync with the bank.
-            if (pending.bankAccountId != null && chosenBalanceAfter != null) {
-                val account = repo.getBankAccount(pending.bankAccountId)
-                account?.let { repo.updateBankAccount(it.copy(balance = chosenBalanceAfter)) }
-            }
-            repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED, parsedType = type, parsedAmount = finalAmount))
         }
     }
     fun rejectPendingSms(pending: PendingSmsEntity) {
-        viewModelScope.launch { repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED)) }
+        mutate { repo.updatePendingSms(pending.copy(status = PendingStatus.CHECKED)) }
     }
-    fun deletePendingSms(pending: PendingSmsEntity) = viewModelScope.launch { repo.deletePendingSms(pending) }
+    fun deletePendingSms(pending: PendingSmsEntity) = mutate { repo.deletePendingSms(pending) }
 
     // ---- Loans ----
     fun addLoan(
@@ -210,7 +223,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         reminderDaysBefore: Int,
         notes: String
     ) {
-        viewModelScope.launch {
+        mutate {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
@@ -231,7 +244,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         reminderDaysBefore: Int,
         notes: String
     ) {
-        viewModelScope.launch {
+        mutate {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
@@ -243,9 +256,9 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
             )
         }
     }
-    fun markLoanPaid(loan: LoanEntity) = viewModelScope.launch { repo.updateLoan(loan.copy(isPaid = true, remainingAmount = 0.0)) }
-    fun updateLoan(loan: LoanEntity) = viewModelScope.launch { repo.updateLoan(loan) }
-    fun deleteLoan(loan: LoanEntity) = viewModelScope.launch { repo.deleteLoan(loan) }
+    fun markLoanPaid(loan: LoanEntity) = mutate { repo.updateLoan(loan.copy(isPaid = true, remainingAmount = 0.0)) }
+    fun updateLoan(loan: LoanEntity) = mutate { repo.updateLoan(loan) }
+    fun deleteLoan(loan: LoanEntity) = mutate { repo.deleteLoan(loan) }
 
     // Remaining months until payoff, derived from the installment so it drops
     // automatically with every payment. Defaults to totalMonths when no installment.
@@ -258,10 +271,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     // ---- Categories ----
     fun addCategory(name: String, type: TxType) {
-        viewModelScope.launch { repo.addCategory(name.trim(), type) }
+        mutate { repo.addCategory(name.trim(), type) }
     }
     fun renameCategory(category: CategoryEntity, newName: String) {
-        viewModelScope.launch { repo.renameCategory(category, newName.trim()) }
+        mutate { repo.renameCategory(category, newName.trim()) }
     }
     suspend fun deleteCategorySafe(category: CategoryEntity): FinanceRepository.DeleteCategoryResult {
         return repo.deleteCategorySafe(category)

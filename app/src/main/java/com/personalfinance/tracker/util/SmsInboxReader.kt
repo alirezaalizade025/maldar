@@ -39,10 +39,8 @@ object SmsInboxReader {
                     SmsAccountMatcher.bodyMatchesLast4(body, accountLast4) &&
                     !SmsParser.isPasswordMessage(body) &&
                     smsKey(address, date) !in ignored) {
-                    // Prefer the remaining balance (مانده) for the account balance;
-                    // fall back to the transaction amount if no balance is present.
-                    val parsed = SmsParser.parse(body)
-                    return Result(body, parsed.balanceAfter ?: parsed.amount)
+                    val balance = SmsParser.parse(body).balanceAfter ?: continue
+                    return Result(body, balance)
                 }
             }
         }

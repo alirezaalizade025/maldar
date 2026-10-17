@@ -293,25 +293,11 @@ object SmsParser {
                 val raw = m.group(2) ?: continue
                 if (looksLikeCardNumber(raw)) continue
                 val value = toDouble(raw) ?: continue
-                val scaled = scale(value)
-                if (scaled != null) return scaled
+                if (!value.isFinite()) continue
+                return (if (m.group(1) == "-") -value else value) / 10.0
             }
         }
 
-        // If no balance keyword found, try to extract any number from the last 1-2 lines
-        // that looks like a balance (large number)
-        val lastLines = lines.takeLast(2).joinToString("\n")
-        val m = bareAmount.matcher(lastLines)
-        while (m.find()) {
-            val raw = m.group(2) ?: continue
-            if (looksLikeCardNumber(raw)) continue
-            val value = toDouble(raw) ?: continue
-            // Only consider numbers that are reasonably large (likely a balance)
-            if (value >= 1000.0) {
-                val scaled = scale(value)
-                if (scaled != null) return scaled
-            }
-        }
         return null
     }
 

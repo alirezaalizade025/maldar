@@ -8,7 +8,6 @@ import androidx.room.TypeConverters
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.room.migration.Migration
-import java.io.File
 
 class Converters {
     @TypeConverter
@@ -103,9 +102,6 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DB_NAME
             )
-                // Known schema upgrades use explicit migrations. The destructive
-                // fallback only covers unsupported legacy versions or corrupt data.
-                .fallbackToDestructiveMigration()
                 .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
@@ -140,21 +136,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: run {
-                    val appContext = context.applicationContext
-                    try {
-                        buildDatabase(appContext).also { INSTANCE = it }
-                    } catch (e: Exception) {
-                        // A corrupt or otherwise unopenable database (e.g. from a previous
-                        // install, interrupted write, or schema mismatch the destructive
-                        // fallback can't resolve) would otherwise crash the app on launch.
-                        // Delete the bad file and rebuild from scratch so the app always opens.
-                        try { appContext.deleteDatabase(DB_NAME) } catch (_: Exception) { }
-                        val dbFile = File(appContext.getDatabasePath(DB_NAME).absolutePath)
-                        if (dbFile.exists()) try { dbFile.delete() } catch (_: Exception) { }
-                        buildDatabase(appContext).also { INSTANCE = it }
-                    }
-                }
+                INSTANCE ?: buildDatabase(context.applicationContext).also { INSTANCE = it }
             }
         }
     }

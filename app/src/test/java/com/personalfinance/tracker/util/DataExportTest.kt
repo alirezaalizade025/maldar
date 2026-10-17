@@ -6,6 +6,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DataExportTest {
+    @Test(expected = IllegalArgumentException::class)
+    fun incompleteCsv_isRejectedBeforeReplacement() {
+        DataExport.fromCsv("--- Transactions ---\nid,type,amount,category,note,dateMillis,bankAccountId")
+    }
+
+    @Test
+    fun transfer_roundTrip_preservesDestinationInBothFormats() {
+        val tx = TransactionEntity(id = 1, amount = 50.0, type = TxType.CARD_TO_CARD,
+            category = "transfer", dateMillis = 100, bankAccountId = 2, toAccountId = 3)
+        val csv = DataExport.toCsv(listOf(tx), emptyList(), emptyList(), emptyList())
+        val json = DataExport.toJson(listOf(tx), emptyList(), emptyList(), emptyList())
+        assertEquals(tx, DataExport.fromCsv(csv).transactions.single())
+        assertEquals(tx, DataExport.fromJson(json).transactions.single())
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun unrelatedJson_isRejectedRatherThanRestoringAnEmptyDatabase() {
+        DataExport.fromJson("{\"hello\":\"world\"}")
+    }
+
     @Test
     fun csv_roundTrip_preservesMultilineFieldsAndLoanDetails() {
         val tx = TransactionEntity(
@@ -64,6 +84,12 @@ class DataExportTest {
             --- Transactions ---
             id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter
             1,EXPENSE,1,234,567.00,خرید,یادداشت,1000,2,,MANUAL,9,876,543.00
+            --- Bank Accounts ---
+            id,bankName,label,accountLast4,balance
+            --- Loans ---
+            id,name,principal,remaining,dueDateMillis,payDay,installment,totalMonths,bankAccountId,reminderDays,notes,paid
+            --- Categories ---
+            id,name,type
         """.trimIndent()
 
         val restored = DataExport.fromCsv(csv).transactions.single()

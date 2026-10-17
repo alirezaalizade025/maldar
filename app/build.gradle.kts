@@ -4,6 +4,13 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Resolve Android test runtimes through Gradle, including proxy and offline support.
+val robolectricSdks = configurations.create("robolectricSdks")
+val prepareRobolectricSdks = tasks.register<Copy>("prepareRobolectricSdks") {
+    from(robolectricSdks)
+    into(layout.buildDirectory.dir("robolectric-sdks"))
+}
+
 // Versioning strategy (robust against stray/lower tags):
 //   - versionName: highest semantic tag (by VERSION, not creation date) plus
 //     feat/fix deltas since that tag.
@@ -81,6 +88,19 @@ android {
         versionName = versionNameValue
     }
 
+    // Release signing config populated from environment (set in CI). The keystore
+    // is created from the RELEASE_KEYSTORE_BASE64 secret so it is identical on
+    // every run — this is what makes updates installable.
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("RELEASE_STORE_FILE") ?: "app/keystore/maldar-release.jks")
+            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "maldar123"
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "maldar"
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "maldar123"
+        }
+    }
+
+
     buildTypes {
         release {
             // Strip unused code (R8) and unused resources from the release APK.
@@ -102,18 +122,6 @@ android {
         }
     }
 
-    // Release signing config populated from environment (set in CI). The keystore
-    // is created from the RELEASE_KEYSTORE_BASE64 secret so it is identical on
-    // every run — this is what makes updates installable.
-    signingConfigs {
-        create("release") {
-            storeFile = file(System.getenv("RELEASE_STORE_FILE") ?: "app/keystore/maldar-release.jks")
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD") ?: "maldar123"
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "maldar"
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "maldar123"
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -122,6 +130,15 @@ android {
     kotlinOptions {
         jvmTarget = "17"
         freeCompilerArgs += "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.dependsOn(prepareRobolectricSdks)
+            it.systemProperty("robolectric.offline", "true")
+            it.systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-sdks").get().asFile.absolutePath)
+        }
     }
 
     buildFeatures {
@@ -183,6 +200,9 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.13")
+    add(robolectricSdks.name, "org.robolectric:android-all-instrumented:14-robolectric-10818077-i6")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

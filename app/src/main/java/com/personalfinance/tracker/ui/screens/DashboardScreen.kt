@@ -3,19 +3,17 @@ package com.personalfinance.tracker.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -25,8 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.personalfinance.tracker.data.TxType
 import com.personalfinance.tracker.data.matchesLoanPayment
@@ -41,15 +37,12 @@ import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.ui.design.components.TransactionRow
 import com.personalfinance.tracker.ui.design.components.WarningBanner
 import com.personalfinance.tracker.util.AppStrings
-import com.personalfinance.tracker.util.Digits
 import com.personalfinance.tracker.util.fa
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
 import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
-import java.util.Calendar
-import java.util.Date
 
 @Composable
 fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit = {}) {
@@ -347,7 +340,7 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
     }
 
     editingTxForSms?.let { p ->
-        SmsConfirmDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editingTxForSms = null })
+        SmsTransactionDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editingTxForSms = null })
     }
 }
 
@@ -368,8 +361,6 @@ private fun EditTransactionDialog(
     var toAccountMenuExpanded by remember { mutableStateOf(false) }
     var remainderText by remember { mutableStateOf(tx.balanceAfter?.let(Money::input) ?: "") }
     var transactionDateMillis by remember { mutableStateOf(tx.dateMillis) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
@@ -391,7 +382,7 @@ private fun EditTransactionDialog(
         onDismissRequest = onDismiss,
         title = { Text(AppStrings.editTransaction) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 SingleChoiceSegmented(
                     options = listOf(AppStrings.expense, AppStrings.income, AppStrings.cardToCard),
                     selectedIndex = when (type) { TxType.EXPENSE -> 0; TxType.INCOME -> 1; TxType.CARD_TO_CARD -> 2 },
@@ -438,22 +429,8 @@ private fun EditTransactionDialog(
                         }
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
-                    OutlinedTextField(
-                        value = JalaliCalendar.formatDate(transactionDateMillis),
-                        onValueChange = {}, readOnly = true,
-                        label = { Text("تاریخ") },
-                        leadingIcon = { Icon(Icons.Filled.CalendarMonth, contentDescription = null) },
-                        modifier = Modifier.weight(1f).clickable { showDatePicker = true }
-                    )
-                    OutlinedTextField(
-                        value = Digits.toPersian("%02d:%02d".format(java.util.Locale.US, Calendar.getInstance().apply { timeInMillis = transactionDateMillis }.get(Calendar.HOUR_OF_DAY), Calendar.getInstance().apply { timeInMillis = transactionDateMillis }.get(Calendar.MINUTE))),
-                        onValueChange = {}, readOnly = true,
-                        label = { Text("زمان") },
-                        leadingIcon = { Icon(Icons.Filled.AccessTime, contentDescription = null) },
-                        modifier = Modifier.widthIn(min = 116.dp).weight(0.65f).clickable { showTimePicker = true }
-                    )
-                }
+                TransactionDateTimeFields(transactionDateMillis) { transactionDateMillis = it }
+
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
                 if (selectedAccountId != null) {
                     OutlinedTextField(
@@ -479,6 +456,7 @@ private fun EditTransactionDialog(
                             bankAccountId = selectedAccountId,
                             dateMillis = transactionDateMillis,
                             toAccountId = if (type == TxType.CARD_TO_CARD) selectedToAccountId else null,
+                            loanId = tx.loanId.takeIf { type == TxType.EXPENSE },
                             balanceAfter = if (selectedAccountId != null) remainder else null
                         )
                     )
@@ -492,148 +470,4 @@ private fun EditTransactionDialog(
         }
     )
 
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = transactionDateMillis)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { sel ->
-                        val picked = Calendar.getInstance().apply { timeInMillis = sel }
-                        val cur = Calendar.getInstance().apply { timeInMillis = transactionDateMillis }
-                        picked.set(Calendar.HOUR_OF_DAY, cur.get(Calendar.HOUR_OF_DAY))
-                        picked.set(Calendar.MINUTE, cur.get(Calendar.MINUTE))
-                        picked.set(Calendar.SECOND, 0)
-                        picked.set(Calendar.MILLISECOND, 0)
-                        transactionDateMillis = picked.timeInMillis
-                    }
-                    showDatePicker = false
-                }) { Text(AppStrings.save) }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(AppStrings.cancel) } }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
-
-    if (showTimePicker) {
-        val timePickerState = rememberTimePickerState(
-            initialHour = Calendar.getInstance().apply { timeInMillis = transactionDateMillis }.get(Calendar.HOUR_OF_DAY),
-            initialMinute = Calendar.getInstance().apply { timeInMillis = transactionDateMillis }.get(Calendar.MINUTE),
-            is24Hour = true
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val cal = Calendar.getInstance().apply { timeInMillis = transactionDateMillis }
-                    cal.set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                    cal.set(Calendar.MINUTE, timePickerState.minute)
-                    cal.set(Calendar.SECOND, 0)
-                    cal.set(Calendar.MILLISECOND, 0)
-                    transactionDateMillis = cal.timeInMillis
-                    showTimePicker = false
-                }) { Text(AppStrings.save) }
-            },
-            dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text(AppStrings.cancel) } },
-            text = {
-                androidx.compose.runtime.CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    TimePicker(state = timePickerState)
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun SmsConfirmDialog(
-    pending: com.personalfinance.tracker.data.PendingSmsEntity,
-    accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
-    viewModel: FinanceViewModel,
-    onDismiss: () -> Unit
-) {
-    var amountText by remember { mutableStateOf(pending.parsedAmount?.let(Money::input) ?: "") }
-    var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
-    // Default to a generic category so Save never silently no-ops when the
-    // categories table is empty (e.g. after a DB reset left it un-seeded).
-    val fallbackCategory = "سایر"
-    var category by remember { mutableStateOf(fallbackCategory) }
-    var note by remember { mutableStateOf("") }
-    var selectedAccountId by remember { mutableStateOf(pending.bankAccountId) }
-    var accountMenuExpanded by remember { mutableStateOf(false) }
-    var remainderText by remember { mutableStateOf(pending.parsedBalance?.let(Money::input) ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(AppStrings.confirmTransaction) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(AppStrings.from + " ${pending.sender}", style = MaterialTheme.typography.labelSmall)
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        pending.rawMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = sanitizeNumberInput(it) },
-                    label = { Text(AppStrings.amountLabel) },
-                    visualTransformation = ThousandsSeparatorTransformation()
-                )
-                SingleChoiceSegmented(
-                    options = listOf(AppStrings.expense, AppStrings.income),
-                    selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
-                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME }
-                )
-                CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
-                ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
-                        onValueChange = {}, readOnly = true,
-                        label = { Text(AppStrings.bankAccount) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
-                        accounts.forEach { acc ->
-                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
-                        }
-                    }
-                }
-                OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
-                if (selectedAccountId != null) {
-                    OutlinedTextField(
-                        value = remainderText,
-                        onValueChange = { remainderText = sanitizeNumberInput(it) },
-                        label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
-                        visualTransformation = ThousandsSeparatorTransformation()
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0) {
-                    val remainder = remainderText.toDoubleOrNull()
-                    viewModel.confirmPendingSms(
-                        pending = pending.copy(bankAccountId = selectedAccountId),
-                        finalAmount = amount,
-                        type = type,
-                        category = category.ifBlank { fallbackCategory },
-                        note = note,
-                        finalBalanceAfter = if (selectedAccountId != null) remainder else null
-                    )
-                    onDismiss()
-                }
-            }) { Text(AppStrings.save) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
-    )
 }

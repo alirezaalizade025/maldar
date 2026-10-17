@@ -1,6 +1,7 @@
 package com.personalfinance.tracker.data
 
 import androidx.room.withTransaction
+import com.personalfinance.tracker.sms.SmsParser
 
 class FinanceRepository(private val db: AppDatabase) {
 
@@ -8,8 +9,20 @@ class FinanceRepository(private val db: AppDatabase) {
     fun getBankAccounts() = db.bankAccountDao().getAll()
     suspend fun addBankAccount(account: BankAccountEntity) = db.bankAccountDao().insert(account)
     suspend fun updateBankAccount(account: BankAccountEntity) = db.bankAccountDao().update(account)
-    suspend fun deleteBankAccount(account: BankAccountEntity) = db.bankAccountDao().delete(account)
+    suspend fun deleteBankAccount(account: BankAccountEntity) = db.withTransaction {
+        db.transactionDao().detachSourceAccount(account.id)
+        db.transactionDao().detachDestinationAccount(account.id)
+        db.pendingSmsDao().detachAccount(account.id)
+        db.loanDao().detachAccount(account.id)
+        db.smsSenderDao().deleteByAccount(account.id)
+        db.bankAccountDao().delete(account)
+    }
     suspend fun getBankAccount(id: Long) = db.bankAccountDao().getById(id)
+    suspend fun refreshAccountBalance(id: Long, balance: Double) = db.withTransaction {
+        require(balance.isFinite()) { "Invalid account balance." }
+        val account = requireNotNull(db.bankAccountDao().getById(id)) { "Account no longer exists." }
+        db.bankAccountDao().update(account.copy(balance = balance))
+    }
 
     fun getFinancialAssets() = db.financialAssetDao().getAll()
     suspend fun saveFinancialAsset(asset: FinancialAssetEntity) = db.financialAssetDao().upsert(asset)
@@ -30,77 +43,98 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun getTransactionsByAccount(accountId: Long): List<TransactionEntity> =
         db.transactionDao().getByAccount(accountId)
 
-    // Inserts a transaction and, when it is linked to a bank account, records the
-    // account's remaining balance right after it (balanceAfter) on the transaction
-    // itself, and updates the account's current remained.
-    // For CARD_TO_CARD transactions, the balance is not affected.
-    // If balanceAfter is provided, it is used; otherwise it is calculated.
+    private fun validateTransaction(tx: TransactionEntity) {
+        require(tx.amount.isFinite() && tx.amount > 0.0) { "Transaction amount must be positive and finite." }
+        require(tx.balanceAfter == null || tx.balanceAfter.isFinite()) { "Invalid remaining balance." }
+        if (tx.type == TxType.CARD_TO_CARD) {
+            require(tx.bankAccountId != null && tx.toAccountId != null && tx.bankAccountId != tx.toAccountId) {
+                "Choose two different accounts for a transfer."
+            }
+        } else require(tx.toAccountId == null) { "Only transfers have a destination account." }
+        require(tx.loanId == null || tx.type == TxType.EXPENSE) { "Loan payments must be expenses." }
+    }
+
+    private fun accountEffects(tx: TransactionEntity): Map<Long, Double> = buildMap {
+        tx.bankAccountId?.let { put(it, if (tx.type == TxType.INCOME) tx.amount else -tx.amount) }
+        if (tx.type == TxType.CARD_TO_CARD) tx.toAccountId?.let { put(it, tx.amount) }
+    }
+
+    private suspend fun latestReportedBalance(accountId: Long, excludeId: Long? = null): TransactionEntity? =
+        db.transactionDao().getSmsBalancesForAccount(accountId).firstOrNull { tx ->
+            // Older app versions also stored calculated SMS balances. Check the original message.
+            tx.id != excludeId && (tx.rawSms == null || SmsParser.parse(tx.rawSms).balanceAfter != null)
+        }
+
+    private suspend fun adjustAccounts(old: TransactionEntity?, new: TransactionEntity?) {
+        val before = old?.let(::accountEffects).orEmpty()
+        val after = new?.let(::accountEffects).orEmpty()
+        for (id in before.keys + after.keys) {
+            val snapshot = latestReportedBalance(id, old?.id)
+            fun effect(tx: TransactionEntity?, amounts: Map<Long, Double>): Double =
+                if (tx != null && snapshot != null && snapshot.dateMillis > tx.dateMillis) 0.0
+                else amounts[id] ?: 0.0
+            val delta = effect(new, after) - effect(old, before)
+            val account = requireNotNull(db.bankAccountDao().getById(id)) { "The selected bank account no longer exists." }
+            // Negative balances preserve the ledger and make deletion the exact inverse.
+            db.bankAccountDao().update(account.copy(balance = account.balance + delta))
+        }
+    }
+
+    private suspend fun adjustLoans(old: TransactionEntity?, new: TransactionEntity?) {
+        for (id in listOfNotNull(old?.loanId, new?.loanId).distinct()) {
+            val loan = requireNotNull(db.loanDao().getById(id)) { "The selected loan no longer exists." }
+            val previousPayment = if (old?.loanId == id) old.amount else 0.0
+            val nextPayment = if (new?.loanId == id) new.amount else 0.0
+            val remaining = loan.remainingAmount + previousPayment - nextPayment
+            require(remaining >= 0.0) { "Payment exceeds the remaining loan balance." }
+            db.loanDao().update(loan.copy(remainingAmount = remaining, isPaid = remaining <= 0.0))
+        }
+    }
+
     suspend fun addTransaction(tx: TransactionEntity): Long = db.withTransaction {
-        // CARD_TO_CARD moves money between two accounts: decrease the source and
-        // increase the destination. Both balances are updated; balanceAfter is not
-        // used because a card-to-card has no single "remaining" for one account.
-        if (tx.type == TxType.CARD_TO_CARD) {
-            tx.bankAccountId?.let { fromId ->
-                db.bankAccountDao().getById(fromId)?.let { from ->
-                    db.bankAccountDao().update(from.copy(balance = (from.balance - tx.amount).coerceAtLeast(0.0)))
-                }
-            }
-            tx.toAccountId?.let { toId ->
-                db.bankAccountDao().getById(toId)?.let { to ->
-                    db.bankAccountDao().update(to.copy(balance = to.balance + tx.amount))
-                }
-            }
-            return@withTransaction db.transactionDao().insert(tx)
-        }
-
+        validateTransaction(tx)
+        adjustAccounts(null, tx)
+        adjustLoans(null, tx)
         val accountId = tx.bankAccountId
-        if (accountId == null) {
-            return@withTransaction db.transactionDao().insert(tx)
-        }
-
-        val account = requireNotNull(db.bankAccountDao().getById(accountId)) {
-            "The selected bank account no longer exists."
-        }
-        val remained = tx.balanceAfter ?: run {
-            val delta = if (tx.type == TxType.INCOME) tx.amount else -tx.amount
-            (account.balance + delta).coerceAtLeast(0.0)
-        }
-
-        db.bankAccountDao().update(account.copy(balance = remained))
-        db.transactionDao().insert(tx.copy(balanceAfter = remained))
+        val saved = if (accountId != null && tx.type != TxType.CARD_TO_CARD) {
+            val account = requireNotNull(db.bankAccountDao().getById(accountId))
+            val latest = latestReportedBalance(accountId)
+            if (tx.balanceAfter != null && (latest == null || latest.dateMillis <= tx.dateMillis)) {
+                // A delayed bank snapshot predates later manual entries; replay those entries.
+                val laterEffects = db.transactionDao().getByAccount(accountId)
+                    .filter { it.dateMillis > tx.dateMillis }
+                    .sumOf { accountEffects(it)[accountId] ?: 0.0 }
+                db.bankAccountDao().update(account.copy(balance = tx.balanceAfter + laterEffects))
+            }
+            // Only bank-reported balances can anchor later reconciliation.
+            tx.copy(balanceAfter = tx.balanceAfter ?: account.balance.takeIf { tx.source != TxSource.SMS })
+        } else tx.copy(balanceAfter = null)
+        db.transactionDao().insert(saved)
     }
 
-    suspend fun deleteTransaction(tx: TransactionEntity) {
-        db.transactionDao().delete(tx)
-        // CARD_TO_CARD transactions affect two accounts; revert both sides.
-        if (tx.type == TxType.CARD_TO_CARD) {
-            tx.bankAccountId?.let { fromId ->
-                db.bankAccountDao().getById(fromId)?.let { from ->
-                    db.bankAccountDao().update(from.copy(balance = (from.balance + tx.amount).coerceAtLeast(0.0)))
-                }
-            }
-            tx.toAccountId?.let { toId ->
-                db.bankAccountDao().getById(toId)?.let { to ->
-                    db.bankAccountDao().update(to.copy(balance = (to.balance - tx.amount).coerceAtLeast(0.0)))
-                }
-            }
-            return
-        }
-
-        if (tx.bankAccountId != null) {
-            val account = db.bankAccountDao().getById(tx.bankAccountId)
-            if (account != null) {
-                // Revert the effect of this transaction on the account's remained.
-                val delta = if (tx.type == TxType.INCOME) -tx.amount else tx.amount
-                db.bankAccountDao().update(account.copy(balance = (account.balance + delta).coerceAtLeast(0.0)))
-            }
-        }
+    suspend fun deleteTransaction(tx: TransactionEntity) = db.withTransaction {
+        // Read the persisted row so repeated clicks and stale UI objects cannot reverse it twice.
+        val old = db.transactionDao().getById(tx.id) ?: return@withTransaction
+        adjustAccounts(old, null)
+        adjustLoans(old, null)
+        db.transactionDao().delete(old)
     }
 
-    suspend fun updateTransaction(tx: TransactionEntity) {
-        // balanceAfter is a historical snapshot belonging only to this transaction.
-        // Editing it must never rewrite the account's current live balance.
+    suspend fun updateTransaction(tx: TransactionEntity) = db.withTransaction {
+        val old = requireNotNull(db.transactionDao().getById(tx.id)) { "Transaction no longer exists." }
+        validateTransaction(tx)
+        adjustAccounts(old, tx)
+        adjustLoans(old, tx)
+        // Snapshot edits describe history; only changes to the transaction's effect alter live balances.
         db.transactionDao().update(tx)
+    }
+
+    suspend fun confirmPendingSms(pending: PendingSmsEntity, tx: TransactionEntity) = db.withTransaction {
+        val current = db.pendingSmsDao().getById(pending.id) ?: return@withTransaction
+        if (current.status != PendingStatus.PENDING) return@withTransaction
+        addTransaction(tx)
+        db.pendingSmsDao().update(current.copy(status = PendingStatus.CHECKED,
+            parsedAmount = tx.amount, parsedType = tx.type, bankAccountId = tx.bankAccountId))
     }
 
     suspend fun getLoanPayments(loanId: Long): List<TransactionEntity> =
@@ -140,36 +174,40 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun getActiveLoans() = db.loanDao().getActiveLoans()
     suspend fun addLoan(loan: LoanEntity) = db.loanDao().insert(loan)
     suspend fun updateLoan(loan: LoanEntity) = db.loanDao().update(loan)
-    suspend fun deleteLoan(loan: LoanEntity) = db.loanDao().delete(loan)
+    suspend fun deleteLoan(loan: LoanEntity) = db.withTransaction {
+        db.transactionDao().detachLoan(loan.id)
+        db.loanDao().delete(loan)
+    }
 
     // Categories
     fun getCategoriesByType(type: TxType) = db.categoryDao().getByType(type)
     suspend fun addCategory(name: String, type: TxType) = db.categoryDao().insert(CategoryEntity(name = name, type = type))
-    suspend fun renameCategory(category: CategoryEntity, newName: String) = db.categoryDao().update(category.copy(name = newName))
+    suspend fun renameCategory(category: CategoryEntity, newName: String) = db.withTransaction {
+        require(newName.isNotBlank()) { "Category name is empty." }
+        db.categoryDao().reassignTransactionsCategory(category.name, newName, category.type)
+        db.categoryDao().update(category.copy(name = newName))
+    }
 
     // Deletes a category safely: transactions still using it are reassigned to the
     // "Other" category (سایر) of the same type so no record is orphaned/miscounted.
-    suspend fun deleteCategorySafe(category: CategoryEntity): DeleteCategoryResult {
+    suspend fun deleteCategorySafe(category: CategoryEntity): DeleteCategoryResult = db.withTransaction {
         val dao = db.categoryDao()
-        val count = dao.countTransactionsWithCategory(category.name)
+        val count = dao.countTransactionsWithCategory(category.name, category.type)
         if (count > 0) {
-            val target = defaultOtherFor(category.type)
+            val target = "سایر"
             if (category.name != target) {
-                dao.reassignTransactionsCategory(category.name, target)
+                dao.reassignTransactionsCategory(category.name, target, category.type)
             }
         }
         dao.delete(category)
-        return DeleteCategoryResult(reassignedCount = count)
+        DeleteCategoryResult(reassignedCount = count)
     }
-
-    private fun defaultOtherFor(type: TxType): String =
-        if (type == TxType.EXPENSE) "سایر" else "سایر"
 
     data class DeleteCategoryResult(val reassignedCount: Int)
 
     // Full-data export (used for backup). Fetches everything once.
-    suspend fun exportAll(): ExportBundle {
-        return ExportBundle(
+    suspend fun exportAll(): ExportBundle = db.withTransaction {
+        ExportBundle(
             transactions = db.transactionDao().getAllOnce(),
             accounts = db.bankAccountDao().getAllOnce(),
             loans = db.loanDao().getAllOnce(),
@@ -183,6 +221,7 @@ class FinanceRepository(private val db: AppDatabase) {
     // Replaces all local data with the contents of an imported backup bundle.
     // IDs are preserved so relationships (e.g. loanId, bankAccountId) survive.
     suspend fun importBundle(bundle: ExportBundle) {
+        validateBundle(bundle)
         // Import atomically: a malformed row or database error must not leave the
         // user with an empty or half-restored database.
         db.withTransaction {
@@ -197,8 +236,30 @@ class FinanceRepository(private val db: AppDatabase) {
         }
     }
 
+    private fun validateBundle(bundle: ExportBundle) {
+        fun validIds(ids: List<Long>) = ids.all { it > 0 } && ids.distinct().size == ids.size
+        require(validIds(bundle.transactions.map { it.id }) && validIds(bundle.accounts.map { it.id }) &&
+            validIds(bundle.loans.map { it.id }) && validIds(bundle.categories.map { it.id }) &&
+            validIds(bundle.smsSenders.map { it.id })) { "Backup contains invalid or duplicate IDs." }
+        require(bundle.transactions.all { it.amount.isFinite() && it.amount > 0.0 &&
+            (it.balanceAfter == null || it.balanceAfter.isFinite()) }) { "Invalid transaction in backup." }
+        require(bundle.accounts.all { it.balance.isFinite() }) { "Invalid account balance in backup." }
+        require(bundle.loans.all { it.principal.isFinite() && it.principal >= 0.0 &&
+            it.remainingAmount.isFinite() && it.remainingAmount >= 0.0 &&
+            it.installment.isFinite() && it.installment >= 0.0 }) { "Invalid loan in backup." }
+        require(bundle.financialAssets.all { it.quantityGrams.isFinite() && it.quantityGrams >= 0.0 }) {
+            "Invalid asset in backup."
+        }
+        require(bundle.stockAssets.all { it.quantity.isFinite() && it.quantity > 0.0 &&
+            it.buyPriceToman.isFinite() && it.buyPriceToman > 0.0 &&
+            (it.lastPriceToman == null || it.lastPriceToman.isFinite() && it.lastPriceToman >= 0.0) }) {
+            "Invalid stock in backup."
+        }
+    }
+
     // Wipes every table so an imported backup fully replaces current data.
-    suspend fun clearAllData() {
+    suspend fun clearAllData() = db.withTransaction {
+        db.pendingSmsDao().deleteAll()
         db.transactionDao().deleteAll()
         db.loanDao().deleteAll()
         db.smsSenderDao().deleteAll()

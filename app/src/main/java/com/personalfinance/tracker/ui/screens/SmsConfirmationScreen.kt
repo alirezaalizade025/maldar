@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -23,9 +21,7 @@ import com.personalfinance.tracker.ui.design.components.PendingTransactionCard
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
 import com.personalfinance.tracker.util.Money
-import com.personalfinance.tracker.util.ThousandsSeparatorTransformation
 import com.personalfinance.tracker.util.fa
-import com.personalfinance.tracker.util.sanitizeNumberInput
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
 
 @Composable
@@ -117,85 +113,6 @@ private fun SmsConfirmationContent(viewModel: FinanceViewModel) {
     }
 
     editing?.let { p ->
-        ConfirmDialog(viewModel = viewModel, pending = p, onDismiss = { editing = null }, onConfirm = { amount, type, category, note, remainder ->
-            viewModel.confirmPendingSms(p, amount, type, category, note, remainder)
-            editing = null
-        })
+        SmsTransactionDialog(pending = p, accounts = accounts, viewModel = viewModel, onDismiss = { editing = null })
     }
-}
-
-@Composable
-private fun ConfirmDialog(
-    viewModel: FinanceViewModel,
-    pending: PendingSmsEntity,
-    onDismiss: () -> Unit,
-    onConfirm: (Double, TxType, String, String, Double?) -> Unit
-) {
-    var amountText by remember { mutableStateOf(pending.parsedAmount?.let(Money::input) ?: "") }
-    var type by remember { mutableStateOf(pending.parsedType ?: TxType.EXPENSE) }
-    // Default to the first matching category; if none exist (e.g. the categories
-    // table is empty) fall back to the generic "سایر" so Save never silently no-ops.
-    val fallbackCategory = if (type == TxType.EXPENSE) "سایر" else "سایر"
-    var category by remember { mutableStateOf(fallbackCategory) }
-    var note by remember { mutableStateOf("") }
-    var remainderText by remember { mutableStateOf(pending.parsedBalance?.let(Money::input) ?: "") }
-    var showAmountError by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(AppStrings.confirmTransaction) },
-        text = {
-            Column(
-                Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = {
-                        amountText = it.filter { c -> c.isDigit() || c == '.' }
-                        showAmountError = false
-                    },
-                    label = { Text(AppStrings.amountLabel) },
-                    visualTransformation = ThousandsSeparatorTransformation(),
-                    isError = showAmountError,
-                    supportingText = if (showAmountError) ({ Text(AppStrings.validPositiveAmount) }) else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                SingleChoiceSegmented(
-                    options = listOf(AppStrings.expense, AppStrings.income),
-                    selectedIndex = if (type == TxType.EXPENSE) 0 else 1,
-                    onSelected = { type = if (it == 0) TxType.EXPENSE else TxType.INCOME }
-                )
-                CategoryPicker(
-                    viewModel = viewModel,
-                    type = type,
-                    selected = category,
-                    onSelected = { category = it }
-                )
-                OutlinedTextField(
-                    value = note, onValueChange = { note = it },
-                    label = { Text(AppStrings.noteOptional) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = remainderText,
-                    onValueChange = { remainderText = sanitizeNumberInput(it) },
-                    label = { Text(AppStrings.balanceAfter + " (" + AppStrings.optional + ")") },
-                    visualTransformation = ThousandsSeparatorTransformation(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val amount = amountText.toDoubleOrNull()
-                if (amount != null && amount > 0) {
-                    onConfirm(amount, type, category.ifBlank { fallbackCategory }, note, remainderText.toDoubleOrNull())
-                } else {
-                    showAmountError = true
-                }
-            }) { Text(AppStrings.save) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
-    )
 }

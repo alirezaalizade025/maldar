@@ -5,6 +5,7 @@ import kotlin.math.abs
 
 /** Shared recognition for explicit and legacy loan-payment transactions. */
 fun TransactionEntity.matchesLoanPayment(loan: LoanEntity, loans: List<LoanEntity>): Boolean {
+    if (type != TxType.EXPENSE) return false
     if (loanId != null) return loanId == loan.id
     if (type != TxType.EXPENSE || category.trim() != "وام") return false
     if (note.contains(loan.name, ignoreCase = true)) return true
@@ -27,5 +28,10 @@ fun loanPaidThisMonth(loan: LoanEntity, loans: List<LoanEntity>, transactions: L
         .sumOf { it.amount }
 
 /** Remaining installment still owed this month after payments (never negative). */
-fun loanRemainingThisMonth(loan: LoanEntity, loans: List<LoanEntity>, transactions: List<TransactionEntity>): Double =
-    (loanMonthlyDue(loan) - loanPaidThisMonth(loan, loans, transactions)).coerceAtLeast(0.0)
+fun loanRemainingThisMonth(loan: LoanEntity, loans: List<LoanEntity>, transactions: List<TransactionEntity>): Double {
+    val paid = loanPaidThisMonth(loan, loans, transactions)
+    // Remaining debt already excludes this month's payments; add them back before capping the installment.
+    val due = (if (loan.installment > 0.0) loan.installment else loan.remainingAmount + paid)
+        .coerceAtMost(loan.remainingAmount + paid)
+    return (due - paid).coerceAtLeast(0.0)
+}
