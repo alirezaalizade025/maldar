@@ -65,7 +65,11 @@ data class TransactionEntity(
     val balanceAfter: Double? = null,
     // When this transaction is a loan repayment, links back to the loan so we can
     // show the last payment on the loan and reduce its remaining balance.
-    val loanId: Long? = null
+    val loanId: Long? = null,
+    // Income repayment linked to the original shared expense.
+    val parentTransactionId: Long? = null,
+    // Original device SMS time; editing the displayed transaction date must not move bank history.
+    val smsTimestampMillis: Long? = null
 )
 
 @Entity(tableName = "pending_sms")

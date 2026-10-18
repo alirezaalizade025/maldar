@@ -101,6 +101,9 @@ interface TransactionDao {
     @Query("UPDATE transactions SET loanId = NULL WHERE loanId = :loanId")
     suspend fun detachLoan(loanId: Long)
 
+    @Query("UPDATE transactions SET parentTransactionId = NULL WHERE parentTransactionId = :parentId")
+    suspend fun detachShareParent(parentId: Long)
+
     @Insert
     suspend fun insert(tx: TransactionEntity): Long
 

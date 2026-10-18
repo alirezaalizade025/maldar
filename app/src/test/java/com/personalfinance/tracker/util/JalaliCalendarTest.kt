@@ -102,4 +102,43 @@ class JalaliCalendarTest {
         assertEquals(1, startJ.day)
         assertEquals(startJ.month, endJ.month)
     }
+    @Test
+    fun monthRange_usesBaseCalendarTimezone() {
+        val zone = java.util.TimeZone.getTimeZone("America/Los_Angeles")
+        val base = GregorianCalendar(zone).apply { clear(); set(2026, 9, 17, 12, 0) }
+        val (start, end) = JalaliCalendar.jalaliMonthRange(base, 0)
+        val first = GregorianCalendar(zone).apply { timeInMillis = start }
+        val last = GregorianCalendar(zone).apply { timeInMillis = end }
+        assertEquals(0, first.get(Calendar.HOUR_OF_DAY))
+        assertEquals(1, JalaliCalendar.fromGregorian(first).day)
+        assertEquals(30, JalaliCalendar.fromGregorian(last).day)
+        assertEquals(23, last.get(Calendar.HOUR_OF_DAY))
+    }
+
+    @Test
+    fun monthEnds_matchReferenceAcrossSeasonsAndLeapYears() {
+        // Reference Persian calendar: 1403 Esfand is leap; 1404 Esfand is not.
+        val fixtures = listOf(
+            intArrayOf(2026, 4, 10, 1405, 1, 31),
+            intArrayOf(2026, 10, 17, 1405, 7, 30),
+            intArrayOf(2025, 3, 10, 1403, 12, 30),
+            intArrayOf(2026, 3, 10, 1404, 12, 29)
+        )
+        fixtures.forEach { f ->
+            val base = GregorianCalendar(f[0], f[1] - 1, f[2])
+            val (_, end) = JalaliCalendar.jalaliMonthRange(base, 0)
+            val last = Calendar.getInstance().apply { timeInMillis = end }
+            assertEquals(JalaliCalendar.Jalali(f[3], f[4], f[5]), JalaliCalendar.fromGregorian(last))
+            val next = Calendar.getInstance().apply { timeInMillis = end + 1 }
+            assertEquals(1, JalaliCalendar.fromGregorian(next).day)
+        }
+    }
+
+    @Test fun daysUntil_countsCalendarDaysAcrossHistoricalTehranDst() {
+        val zone = java.util.TimeZone.getTimeZone("Asia/Tehran")
+        val now = GregorianCalendar(zone).apply { clear(); set(2021, 2, 22, 12, 0) }
+        val target = GregorianCalendar(zone).apply { clear(); set(2021, 2, 23, 12, 0) }
+        assertEquals(1L, JalaliCalendar.daysUntil(target.timeInMillis, now))
+    }
+
 }

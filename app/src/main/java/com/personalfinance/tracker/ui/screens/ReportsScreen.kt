@@ -38,6 +38,8 @@ import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.EmptyState
 import com.personalfinance.tracker.ui.design.components.MaldarSegmentedControl
 import com.personalfinance.tracker.ui.design.components.MetricCard
+import com.personalfinance.tracker.ui.design.components.rememberMonthlyBudget
+import com.personalfinance.tracker.ui.design.components.monthlyBudgetItems
 import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.util.AppStrings
 import com.personalfinance.tracker.util.JalaliCalendar
@@ -60,14 +62,19 @@ fun ReportsScreen(viewModel: FinanceViewModel) {
 @Composable
 private fun ReportsContent(viewModel: FinanceViewModel) {
     val accounts by viewModel.bankAccounts.collectAsState()
-    val transactions by viewModel.transactions.collectAsState()
+    val rawTransactions by viewModel.transactions.collectAsState()
+    val transactions = com.personalfinance.tracker.data.reportingTransactions(rawTransactions)
+    val categories by viewModel.expenseCategories.collectAsState()
     var monthOffset by remember { mutableIntStateOf(0) }
     var accountFilter by remember { mutableStateOf<Long?>(null) }
     var showMonthlyChart by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
 
+    val budgetTransactions = if (accountFilter == null) transactions else transactions.filter { it.bankAccountId == accountFilter }
+    val monthlyBudget = rememberMonthlyBudget(budgetTransactions, categories.map { it.name }, monthOffset)
+
     val monthTransactions = transactions.filter { tx ->
-        JalaliCalendar.isInJalaliMonth(tx.dateMillis, monthOffset) &&
+        tx.dateMillis in monthlyBudget.startMillis..monthlyBudget.endMillis &&
             (accountFilter == null || tx.bankAccountId == accountFilter)
     }
     val income = monthTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
@@ -86,8 +93,9 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
             monthTransactionsForTrend.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     }
 
-    val monthLabel = remember(monthOffset) {
-        JalaliCalendar.monthLabel(Calendar.getInstance(), monthOffset)
+    val monthLabel = remember(monthlyBudget.startMillis) {
+        val monthStart = Calendar.getInstance().apply { timeInMillis = monthlyBudget.startMillis }
+        JalaliCalendar.monthLabel(monthStart, 0)
     }
 
     LazyColumn(
@@ -197,6 +205,8 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
                 }
             }
         }
+
+        if (monthOffset <= 0) monthlyBudgetItems(monthlyBudget)
 
         item {
             SectionHeader(AppStrings.spendingByCategory)

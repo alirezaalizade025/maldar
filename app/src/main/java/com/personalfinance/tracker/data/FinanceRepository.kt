@@ -60,10 +60,10 @@ class FinanceRepository(private val db: AppDatabase) {
     }
 
     private suspend fun latestReportedBalance(accountId: Long, excludeId: Long? = null): TransactionEntity? =
-        db.transactionDao().getSmsBalancesForAccount(accountId).firstOrNull { tx ->
+        db.transactionDao().getSmsBalancesForAccount(accountId).filter { tx ->
             // Older app versions also stored calculated SMS balances. Check the original message.
             tx.id != excludeId && (tx.rawSms == null || SmsParser.parse(tx.rawSms).balanceAfter != null)
-        }
+        }.maxWithOrNull(compareBy<TransactionEntity> { it.bankMovementMillis }.thenBy { it.id })
 
     private suspend fun adjustAccounts(old: TransactionEntity?, new: TransactionEntity?) {
         val before = old?.let(::accountEffects).orEmpty()
@@ -71,7 +71,7 @@ class FinanceRepository(private val db: AppDatabase) {
         for (id in before.keys + after.keys) {
             val snapshot = latestReportedBalance(id, old?.id)
             fun effect(tx: TransactionEntity?, amounts: Map<Long, Double>): Double =
-                if (tx != null && snapshot != null && snapshot.dateMillis > tx.dateMillis) 0.0
+                if (tx != null && snapshot != null && snapshot.bankMovementMillis > tx.bankMovementMillis) 0.0
                 else amounts[id] ?: 0.0
             val delta = effect(new, after) - effect(old, before)
             val account = requireNotNull(db.bankAccountDao().getById(id)) { "The selected bank account no longer exists." }
@@ -93,23 +93,25 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun addTransaction(tx: TransactionEntity): Long = db.withTransaction {
         validateTransaction(tx)
+        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != tx.id } + tx)
         adjustAccounts(null, tx)
         adjustLoans(null, tx)
         val accountId = tx.bankAccountId
         val saved = if (accountId != null && tx.type != TxType.CARD_TO_CARD) {
             val account = requireNotNull(db.bankAccountDao().getById(accountId))
             val latest = latestReportedBalance(accountId)
-            if (tx.balanceAfter != null && (latest == null || latest.dateMillis <= tx.dateMillis)) {
+            if (tx.balanceAfter != null && (latest == null || latest.bankMovementMillis <= tx.bankMovementMillis)) {
                 // A delayed bank snapshot predates later manual entries; replay those entries.
                 val laterEffects = db.transactionDao().getByAccount(accountId)
-                    .filter { it.dateMillis > tx.dateMillis }
+                    .filter { it.bankMovementMillis > tx.bankMovementMillis }
                     .sumOf { accountEffects(it)[accountId] ?: 0.0 }
                 db.bankAccountDao().update(account.copy(balance = tx.balanceAfter + laterEffects))
             }
             // Only bank-reported balances can anchor later reconciliation.
             tx.copy(balanceAfter = tx.balanceAfter ?: account.balance.takeIf { tx.source != TxSource.SMS })
         } else tx.copy(balanceAfter = null)
-        db.transactionDao().insert(saved)
+        db.transactionDao().insert(saved.copy(smsTimestampMillis =
+            if (saved.source == TxSource.SMS) saved.smsTimestampMillis ?: saved.dateMillis else null))
     }
 
     suspend fun deleteTransaction(tx: TransactionEntity) = db.withTransaction {
@@ -117,22 +119,33 @@ class FinanceRepository(private val db: AppDatabase) {
         val old = db.transactionDao().getById(tx.id) ?: return@withTransaction
         adjustAccounts(old, null)
         adjustLoans(old, null)
+        db.transactionDao().detachShareParent(old.id)
         db.transactionDao().delete(old)
     }
 
-    suspend fun updateTransaction(tx: TransactionEntity) = db.withTransaction {
-        val old = requireNotNull(db.transactionDao().getById(tx.id)) { "Transaction no longer exists." }
+    suspend fun updateTransaction(updated: TransactionEntity) = db.withTransaction {
+        val old = requireNotNull(db.transactionDao().getById(updated.id)) { "Transaction no longer exists." }
+        val tx = updated.copy(smsTimestampMillis = old.smsTimestampMillis)
         validateTransaction(tx)
+        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != tx.id } + tx)
         adjustAccounts(old, tx)
         adjustLoans(old, tx)
         // Snapshot edits describe history; only changes to the transaction's effect alter live balances.
         db.transactionDao().update(tx)
     }
 
+    suspend fun setShareParent(childId: Long, parentId: Long?) = db.withTransaction {
+        val child = requireNotNull(db.transactionDao().getById(childId)) { "تراکنش پیدا نشد." }
+        val updated = child.copy(parentTransactionId = parentId)
+        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != childId } + updated)
+        // Linking changes reporting only, never account balances or bank snapshots.
+        db.transactionDao().update(updated)
+    }
+
     suspend fun confirmPendingSms(pending: PendingSmsEntity, tx: TransactionEntity) = db.withTransaction {
         val current = db.pendingSmsDao().getById(pending.id) ?: return@withTransaction
         if (current.status != PendingStatus.PENDING) return@withTransaction
-        addTransaction(tx)
+        addTransaction(tx.copy(smsTimestampMillis = current.timestampMillis))
         db.pendingSmsDao().update(current.copy(status = PendingStatus.CHECKED,
             parsedAmount = tx.amount, parsedType = tx.type, bankAccountId = tx.bankAccountId))
     }
@@ -144,11 +157,11 @@ class FinanceRepository(private val db: AppDatabase) {
         db.transactionDao().getPaymentsBetween(start, end)
 
     suspend fun totalByType(type: TxType, start: Long, end: Long): Double =
-        db.transactionDao().sumByTypeBetween(type, start, end) ?: 0.0
+        reportingTransactions(db.transactionDao().getAllOnce()).filter { it.type == type && it.dateMillis in start..end }.sumOf { it.amount }
 
     suspend fun netBetween(start: Long, end: Long): Double {
-        val income = totalByType(TxType.INCOME, start, end)
-        val expense = totalByType(TxType.EXPENSE, start, end)
+        val income = db.transactionDao().sumByTypeBetween(TxType.INCOME, start, end) ?: 0.0
+        val expense = db.transactionDao().sumByTypeBetween(TxType.EXPENSE, start, end) ?: 0.0
         return income - expense
     }
 
@@ -160,7 +173,9 @@ class FinanceRepository(private val db: AppDatabase) {
     }
 
     suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> =
-        db.transactionDao().expenseByCategoryBetween(start, end)
+        reportingTransactions(db.transactionDao().getAllOnce()).filter { it.type == TxType.EXPENSE && it.dateMillis in start..end }
+            .groupBy { it.category }.map { (category, rows) -> CategoryTotal(category, rows.sumOf { it.amount }) }
+            .sortedByDescending { it.total }
 
     // Pending SMS (awaiting user confirmation)
     fun getPendingSms() = db.pendingSmsDao().getPending()
@@ -243,6 +258,7 @@ class FinanceRepository(private val db: AppDatabase) {
             validIds(bundle.smsSenders.map { it.id })) { "Backup contains invalid or duplicate IDs." }
         require(bundle.transactions.all { it.amount.isFinite() && it.amount > 0.0 &&
             (it.balanceAfter == null || it.balanceAfter.isFinite()) }) { "Invalid transaction in backup." }
+        validateShareLinks(bundle.transactions)
         require(bundle.accounts.all { it.balance.isFinite() }) { "Invalid account balance in backup." }
         require(bundle.loans.all { it.principal.isFinite() && it.principal >= 0.0 &&
             it.remainingAmount.isFinite() && it.remainingAmount >= 0.0 &&

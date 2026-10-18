@@ -123,13 +123,14 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         balanceAfter: Double? = null,
         source: TxSource = TxSource.MANUAL,
         rawSms: String? = null,
-        toAccountId: Long? = null
+        toAccountId: Long? = null,
+        smsTimestampMillis: Long? = null
     ): Long =
         repo.addTransaction(
             TransactionEntity(
                 amount = amount, type = type, category = category, note = note,
                 dateMillis = dateMillis, bankAccountId = bankAccountId, source = source, loanId = loanId,
-                balanceAfter = balanceAfter, rawSms = rawSms, toAccountId = toAccountId
+                balanceAfter = balanceAfter, rawSms = rawSms, toAccountId = toAccountId, smsTimestampMillis = smsTimestampMillis
             )
         )
     fun deleteTransaction(tx: TransactionEntity) = mutate { repo.deleteTransaction(tx) }
@@ -143,10 +144,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         rawSms: String
     ): Boolean {
         return repo.getTransactionsByAccount(accountId).any { tx ->
-            (tx.rawSms == rawSms && tx.dateMillis == dateMillis) ||
+            (tx.rawSms == rawSms && (tx.smsTimestampMillis ?: tx.dateMillis) == dateMillis) ||
                 (amount != null &&
                     amount > 0.0 &&
-                    sameDay(tx.dateMillis, dateMillis) &&
+                    sameDay(tx.smsTimestampMillis ?: tx.dateMillis, dateMillis) &&
                     kotlin.math.abs(tx.amount - amount) <= 1.0)
         }
     }
@@ -157,6 +158,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) &&
                 ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
     }
+
+    suspend fun setShareParent(childId: Long, parentId: Long?) = repo.setShareParent(childId, parentId)
 
     fun updateTransaction(tx: TransactionEntity) = mutate { repo.updateTransaction(tx) }
 
@@ -200,7 +203,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 TransactionEntity(
                     amount = finalAmount, type = type, category = category, note = note,
                     dateMillis = dateMillis, bankAccountId = pending.bankAccountId,
-                    source = TxSource.SMS, rawSms = pending.rawMessage,
+                    source = TxSource.SMS, rawSms = pending.rawMessage, smsTimestampMillis = pending.timestampMillis,
                     balanceAfter = chosenBalanceAfter,
                     toAccountId = if (type == TxType.CARD_TO_CARD) toAccountId else null
                 )

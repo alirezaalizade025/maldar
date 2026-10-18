@@ -334,6 +334,7 @@ private fun AddTransactionContent(
                         balanceAfter = remainder,
                         source = if (smsBody != null) TxSource.SMS else TxSource.MANUAL,
                         rawSms = smsBody,
+                        smsTimestampMillis = smsDate.takeIf { smsBody != null },
                         toAccountId = if (type == TxType.CARD_TO_CARD) selectedToAccountId else null
                     )
                         }

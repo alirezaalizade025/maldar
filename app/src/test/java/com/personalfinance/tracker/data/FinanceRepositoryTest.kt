@@ -170,6 +170,16 @@ class FinanceRepositoryTest {
         assertEquals(65.0, balance(a), 0.0)
     }
 
+    @Test fun editingOldSmsDatePastNewerSnapshot_doesNotReplayBankMovement() = runBlocking {
+        val a = account(100.0)
+        val id = repo.addTransaction(expense(a, 20.0).copy(source = TxSource.SMS, dateMillis = 100, balanceAfter = 80.0))
+        repo.addTransaction(expense(a, 10.0).copy(source = TxSource.SMS, dateMillis = 200, balanceAfter = 70.0))
+        val old = repo.exportAll().transactions.single { it.id == id }
+        repo.updateTransaction(old.copy(dateMillis = 300, smsTimestampMillis = null))
+        assertEquals(70.0, balance(a), 0.0)
+        assertEquals(100L, repo.exportAll().transactions.single { it.id == id }.smsTimestampMillis)
+    }
+
     @Test fun editingSmsDate_doesNotReverseItsOwnAmount() = runBlocking {
         val a = account(100.0)
         val tx = expense(a, 20.0).copy(source = TxSource.SMS, dateMillis = 200, balanceAfter = 80.0)
@@ -199,8 +209,77 @@ class FinanceRepositoryTest {
         assertEquals(TxType.CARD_TO_CARD, saved.type)
         assertEquals(b, saved.toAccountId)
         assertEquals(500L, saved.dateMillis)
+        assertEquals(100L, saved.smsTimestampMillis)
         assertEquals(70.0, balance(a), 0.0)
         assertEquals(40.0, balance(b), 0.0)
+    }
+
+    @Test fun shareFractionalRepayments_canExactlyCoverOriginalExpense() = runBlocking {
+        val parent = repo.addTransaction(expense(null, 3.3))
+        val a = repo.addTransaction(expense(null, 1.1).copy(type = TxType.INCOME))
+        val b = repo.addTransaction(expense(null, 2.2).copy(type = TxType.INCOME))
+        repo.setShareParent(a, parent)
+        repo.setShareParent(b, parent)
+        assertEquals(0.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+    }
+
+    @Test fun shareLinkUnlinkAndDelete_preserveBankMovements() = runBlocking {
+        val a = account(2000.0)
+        val parent = repo.addTransaction(expense(a, 1000.0))
+        val child = repo.addTransaction(expense(a, 200.0).copy(type = TxType.INCOME))
+        repo.setShareParent(child, parent)
+        assertEquals(1200.0, balance(a), 0.0)
+        assertEquals(800.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+        assertEquals(0.0, repo.totalByType(TxType.INCOME, 0, 1000), 0.0)
+        repo.setShareParent(child, null)
+        assertEquals(1000.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+        repo.setShareParent(child, parent)
+        repo.deleteTransaction(repo.exportAll().transactions.single { it.id == parent })
+        assertNull(repo.exportAll().transactions.single().parentTransactionId)
+        assertEquals(2200.0, balance(a), 0.0)
+    }
+    @Test fun shareRejectsOverpaymentAndInvalidEditsAtomically() = runBlocking {
+        val a = account(2000.0)
+        val parent = repo.addTransaction(expense(a, 100.0))
+        val child = repo.addTransaction(expense(a, 80.0).copy(type = TxType.INCOME))
+        val other = repo.addTransaction(expense(a, 30.0).copy(type = TxType.INCOME))
+        repo.setShareParent(child, parent)
+        try { repo.setShareParent(other, parent); fail("Overpayment must fail") } catch (_: IllegalArgumentException) {}
+        val old = repo.exportAll().transactions.single { it.id == parent }
+        try { repo.updateTransaction(old.copy(amount = 50.0)); fail("Cannot shrink below repayments") } catch (_: IllegalArgumentException) {}
+        try { repo.setShareParent(parent, child); fail("Invalid types must fail") } catch (_: IllegalArgumentException) {}
+        assertEquals(2010.0, balance(a), 0.0)
+        assertEquals(20.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+    }
+
+    @Test fun shareChildEditsAndDeletion_updateReportingAndActualCashSeparately() = runBlocking {
+        val a = account(1000.0)
+        val parent = repo.addTransaction(expense(a, 500.0))
+        val child = repo.addTransaction(expense(a, 100.0).copy(type = TxType.INCOME))
+        repo.setShareParent(child, parent)
+        val original = repo.exportAll().transactions.single { it.id == child }
+        repo.updateTransaction(original.copy(amount = 200.0))
+        assertEquals(700.0, balance(a), 0.0)
+        assertEquals(300.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+        assertEquals(-300.0, repo.netBetween(0, 1000), 0.0)
+        repo.deleteTransaction(original)
+        assertEquals(500.0, balance(a), 0.0)
+        assertEquals(500.0, repo.totalByType(TxType.EXPENSE, 0, 1000), 0.0)
+    }
+    @Test fun shareBackup_invalidLinkDoesNotEraseData_andValidLinksRestore() = runBlocking {
+        val a = account(1000.0)
+        val parent = repo.addTransaction(expense(a, 500.0))
+        val child = repo.addTransaction(expense(a, 100.0).copy(type = TxType.INCOME))
+        repo.setShareParent(child, parent)
+        val backup = repo.exportAll()
+        try {
+            repo.importBundle(backup.copy(transactions = backup.transactions.filter { it.id == child }))
+            fail("Dangling parent must fail")
+        } catch (_: IllegalArgumentException) {}
+        assertEquals(2, repo.exportAll().transactions.size)
+        repo.importBundle(backup)
+        assertEquals(parent, repo.exportAll().transactions.single { it.id == child }.parentTransactionId)
+        assertEquals(600.0, balance(a), 0.0)
     }
 
 }

@@ -33,5 +33,6 @@ class SmsInboxReaderTest {
         ShadowContentResolver.registerProviderInternal("sms", Inbox())
         val result = SmsInboxReader.lastSmsForSenders(RuntimeEnvironment.getApplication(), listOf("BANK"))
         assertEquals(90000.0, result.amount!!, 0.0)
+        assertEquals(100L, result.timestampMillis)
     }
 }

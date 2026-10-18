@@ -24,13 +24,13 @@ object DataExport {
         stockAssets: List<StockAssetEntity> = emptyList()
     ): String = buildString {
         appendLine("--- Transactions ---")
-        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms,toAccountId")
+        appendLine("id,type,amount,category,note,dateMillis,bankAccountId,loanId,source,balanceAfter,rawSms,toAccountId,parentTransactionId,smsTimestampMillis")
         transactions.forEach { t ->
             appendLine(
                 listOf(
                     t.id, t.type, formatNum(t.amount), csvCell(t.category),
                     csvCell(t.note), t.dateMillis, t.bankAccountId ?: "", t.loanId ?: "", t.source,
-                    t.balanceAfter?.let { formatNum(it) } ?: "", csvCell(t.rawSms ?: ""), t.toAccountId ?: ""
+                    t.balanceAfter?.let { formatNum(it) } ?: "", csvCell(t.rawSms ?: ""), t.toAccountId ?: "", t.parentTransactionId ?: "", t.smsTimestampMillis ?: ""
                 ).joinToString(",")
             )
         }
@@ -98,7 +98,7 @@ object DataExport {
                 put("id", it.id); put("type", it.type.name); put("amount", it.amount)
                 put("category", it.category); put("note", it.note)
                 put("dateMillis", it.dateMillis); put("bankAccountId", it.bankAccountId); put("loanId", it.loanId)
-                put("toAccountId", it.toAccountId)
+                put("toAccountId", it.toAccountId); put("parentTransactionId", it.parentTransactionId); put("smsTimestampMillis", it.smsTimestampMillis)
                 put("source", it.source.name); put("rawSms", it.rawSms); put("balanceAfter", it.balanceAfter)
             }
         }))
@@ -176,6 +176,8 @@ object DataExport {
                 dateMillis = o.optLong("dateMillis"),
                 bankAccountId = if (o.isNull("bankAccountId")) null else o.optLong("bankAccountId"),
                 toAccountId = if (o.isNull("toAccountId")) null else o.getLong("toAccountId"),
+                parentTransactionId = if (o.isNull("parentTransactionId")) null else o.getLong("parentTransactionId"),
+                smsTimestampMillis = if (o.isNull("smsTimestampMillis")) null else o.getLong("smsTimestampMillis"),
                 source = enumValueOf<TxSource>(o.optString("source", "MANUAL")),
                 rawSms = if (o.isNull("rawSms")) null else o.getString("rawSms"),
                 balanceAfter = if (o.isNull("balanceAfter")) null else o.optDouble("balanceAfter"),
@@ -323,7 +325,9 @@ object DataExport {
                 balanceAfter = fields.getOrNull(9)?.takeIf { it.isNotEmpty() }
                     ?.removeSurrounding("\"")?.replace(",", "")?.toDoubleOrNull(),
                 rawSms = fields.getOrNull(10)?.takeIf { it.isNotEmpty() },
-                toAccountId = fields.getOrNull(11)?.takeIf { it.isNotEmpty() }?.toLong()
+                toAccountId = fields.getOrNull(11)?.takeIf { it.isNotEmpty() }?.toLong(),
+                parentTransactionId = fields.getOrNull(12)?.takeIf { it.isNotEmpty() }?.toLong(),
+                smsTimestampMillis = fields.getOrNull(13)?.takeIf { it.isNotEmpty() }?.toLong()
             )
         }
 

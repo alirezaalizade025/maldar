@@ -33,6 +33,8 @@ import com.personalfinance.tracker.ui.design.components.AmountTone
 import com.personalfinance.tracker.ui.design.components.AppCard as DesignAppCard
 import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.MetricCard
+import com.personalfinance.tracker.ui.design.components.rememberMonthlyBudget
+import com.personalfinance.tracker.ui.design.components.monthlyBudgetItems
 import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.ui.design.components.TransactionRow
 import com.personalfinance.tracker.ui.design.components.WarningBanner
@@ -53,9 +55,12 @@ fun DashboardScreen(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGo
 
 @Composable
 private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> Unit, onGoToReports: () -> Unit) {
+    var showSearch by remember { mutableStateOf(false) }
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val loans by viewModel.loans.collectAsState()
+    val categories by viewModel.expenseCategories.collectAsState()
+    val monthlyBudget = rememberMonthlyBudget(transactions, categories.map { it.name })
     val pending by viewModel.pendingSms.collectAsState()
     val reviewed by viewModel.reviewedSms.collectAsState()
 
@@ -64,7 +69,7 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
     var totalBalance by remember { mutableStateOf(0.0) }
-    LaunchedEffect(transactions, accounts) {
+    LaunchedEffect(transactions, accounts, monthlyBudget.startMillis) {
         val (inc, exp) = viewModel.monthlyIncomeExpense(0)
         monthIncome = inc; monthExpense = exp
         totalBalance = viewModel.totalAccountBalance()
@@ -74,8 +79,9 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
         JalaliCalendar.isInJalaliMonth(tx.dateMillis) && loans.any { tx.matchesLoanPayment(it, loans) }
     }.sumOf { it.amount }
 
-    val allIncome = transactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
-    val allExpense = transactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+    val reportTransactions = com.personalfinance.tracker.data.reportingTransactions(transactions)
+    val allIncome = reportTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
+    val allExpense = reportTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
 
     val listState = rememberLazyListState()
     var visibleCount by remember { mutableIntStateOf(15) }
@@ -112,6 +118,8 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
                 )
             }
         }
+
+        item { OutlinedButton(onClick = { showSearch = true }, modifier = Modifier.fillMaxWidth()) { Text("جست‌وجوی تراکنش‌ها") } }
 
         // First-launch onboarding: guide the user when the app is completely empty.
         if (accounts.isEmpty() && transactions.isEmpty()) {
@@ -284,6 +292,8 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
             }
         }
 
+        monthlyBudgetItems(monthlyBudget)
+
         if (transactions.isEmpty()) {
             item {
                 com.personalfinance.tracker.ui.design.components.EmptyState(
@@ -307,9 +317,11 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
             ) {
                 TransactionRow(
                     title = tx.category,
-                    amount = Money.format2(tx.amount),
+                    amount = Money.format2(reportTransactions.firstOrNull { it.id == tx.id }?.amount ?: tx.amount),
                     metadata = buildString {
                         append(JalaliCalendar.formatDateTime(tx.dateMillis))
+                        if (tx.parentTransactionId != null) append(" • بازپرداخت مشترک")
+                        if (transactions.any { it.parentTransactionId == tx.id }) append(" • خالص هزینهٔ مشترک")
                         tx.balanceAfter?.let {
                             append(" • ${AppStrings.remainedAfter}: ${Money.format2(it)} ${AppStrings.moneyUnit}")
                         }
@@ -330,7 +342,9 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
         item { Spacer(Modifier.height(40.dp)) }
     }
 
-    editingTx?.let { tx ->
+    if (showSearch) TransactionSearchDialog(viewModel) { showSearch = false }
+
+    transactions.firstOrNull { it.id == editingTx?.id }?.let { tx ->
         EditTransactionDialog(
             tx = tx,
             accounts = accounts,
@@ -345,12 +359,14 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
 }
 
 @Composable
-private fun EditTransactionDialog(
+internal fun EditTransactionDialog(
     tx: com.personalfinance.tracker.data.TransactionEntity,
     accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
     viewModel: FinanceViewModel,
     onDismiss: () -> Unit
 ) {
+    val allTransactions by viewModel.transactions.collectAsState()
+    var showShare by remember { mutableStateOf(false) }
     var amountText by remember { mutableStateOf(Money.input(tx.amount)) }
     var type by remember { mutableStateOf(tx.type) }
     var category by remember { mutableStateOf(tx.category) }
@@ -432,6 +448,10 @@ private fun EditTransactionDialog(
                 TransactionDateTimeFields(transactionDateMillis) { transactionDateMillis = it }
 
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
+                ShareDescription(tx, allTransactions)
+                if (tx.type != TxType.CARD_TO_CARD && tx.loanId == null) {
+                    OutlinedButton(onClick = { showShare = true }) { Text("هزینهٔ مشترک / بازپرداخت‌ها") }
+                }
                 if (selectedAccountId != null) {
                     OutlinedTextField(
                         value = remainderText,
@@ -469,5 +489,7 @@ private fun EditTransactionDialog(
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
         }
     )
+
+    if (showShare) ShareTransactionDialog(tx.id, viewModel) { showShare = false }
 
 }

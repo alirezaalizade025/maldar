@@ -2,7 +2,9 @@ package com.personalfinance.tracker.util
 
 import java.util.Calendar
 import java.util.Locale
-import java.util.concurrent.TimeUnit
+import java.util.TimeZone
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * Minimal Gregorian <-> Jalali (Persian/Shamsi) conversion. No external dependency.
@@ -60,8 +62,8 @@ object JalaliCalendar {
         val nextAbsoluteMonth = absoluteMonth + 1
         val nextYear = Math.floorDiv(nextAbsoluteMonth, 12)
         val nextMonth = Math.floorMod(nextAbsoluteMonth, 12) + 1
-        val start = toGregorian(year, month, 1).timeInMillis
-        val end = toGregorian(nextYear, nextMonth, 1).timeInMillis - 1
+        val start = toGregorianUnchecked(year, month, 1, base.timeZone).timeInMillis
+        val end = toGregorianUnchecked(nextYear, nextMonth, 1, base.timeZone).timeInMillis - 1
         return start to end
     }
 
@@ -89,24 +91,14 @@ object JalaliCalendar {
     /**
      * Whole-calendar-day distance between now and [targetMillis].
      *
-     * This compares local day-start boundaries (00:00) instead of raw millis,
-     * so the value doesn't look "one day less" because of partial-day truncation.
+     * Uses local dates rather than elapsed milliseconds so daylight-saving changes
+     * and partial days cannot produce an off-by-one result.
      */
-    fun daysUntil(targetMillis: Long): Long {
-        val todayStart = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val targetStart = Calendar.getInstance().apply {
-            timeInMillis = targetMillis
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        return TimeUnit.MILLISECONDS.toDays(targetStart - todayStart)
+    fun daysUntil(targetMillis: Long, now: Calendar = Calendar.getInstance()): Long {
+        val zone = now.timeZone.toZoneId()
+        val today = Instant.ofEpochMilli(now.timeInMillis).atZone(zone).toLocalDate()
+        val target = Instant.ofEpochMilli(targetMillis).atZone(zone).toLocalDate()
+        return ChronoUnit.DAYS.between(today, target)
     }
 
     // e.g. "۱۲ تیر ۱۴۰۳، ۱۴:۳۰"
@@ -150,7 +142,7 @@ object JalaliCalendar {
     private fun toGregorian(jy: Int, jm: Int, jd: Int): Calendar =
         toGregorianUnchecked(jy, jm, jd)
 
-    private fun toGregorianUnchecked(jy: Int, jm: Int, jd: Int): Calendar {
+    private fun toGregorianUnchecked(jy: Int, jm: Int, jd: Int, timeZone: TimeZone = TimeZone.getDefault()): Calendar {
         val jy2 = jy + 1595
         var days = -355668 + 365 * jy2 + (jy2 / 33) * 8 +
             ((jy2 % 33 + 3) / 4) + jd +
@@ -178,7 +170,7 @@ object JalaliCalendar {
             gd -= monthLengths[gm]
             gm++
         }
-        return java.util.GregorianCalendar().apply {
+        return java.util.GregorianCalendar(timeZone).apply {
             clear()
             set(gy, gm - 1, gd, 0, 0, 0)
             set(Calendar.MILLISECOND, 0)

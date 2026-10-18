@@ -12,7 +12,7 @@ import com.personalfinance.tracker.sms.SmsAccountMatcher
  */
 object SmsInboxReader {
 
-    data class Result(val body: String?, val amount: Double?)
+    data class Result(val body: String?, val amount: Double?, val timestampMillis: Long? = null)
 
     /** Stable key identifying a single inbox SMS (used to persist ignored SMS). */
     fun smsKey(address: String, dateMillis: Long): String = "$address|$dateMillis"
@@ -40,7 +40,7 @@ object SmsInboxReader {
                     !SmsParser.isPasswordMessage(body) &&
                     smsKey(address, date) !in ignored) {
                     val balance = SmsParser.parse(body).balanceAfter ?: continue
-                    return Result(body, balance)
+                    return Result(body, balance, date)
                 }
             }
         }

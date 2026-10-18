@@ -6,6 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DataExportTest {
+    @Test fun share_roundTrip_preservesOriginalAmountsAndParentLinks() {
+        val parent = TransactionEntity(id = 1, amount = 1000.0, type = TxType.EXPENSE, category = "food", dateMillis = 100)
+        val child = parent.copy(id = 2, amount = 200.0, type = TxType.INCOME, parentTransactionId = 1, source = TxSource.SMS, smsTimestampMillis = 50)
+        val rows = listOf(parent, child)
+        assertEquals(rows, DataExport.fromCsv(DataExport.toCsv(rows, emptyList(), emptyList(), emptyList())).transactions)
+        assertEquals(rows, DataExport.fromJson(DataExport.toJson(rows, emptyList(), emptyList(), emptyList())).transactions)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun incompleteCsv_isRejectedBeforeReplacement() {
         DataExport.fromCsv("--- Transactions ---\nid,type,amount,category,note,dateMillis,bankAccountId")

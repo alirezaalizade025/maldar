@@ -63,6 +63,8 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var balanceCheckId by remember { mutableStateOf<Long?>(null) }
+    var searchAccountId by remember { mutableStateOf<Long?>(null) }
     var showAddAccount by remember { mutableStateOf(false) }
     var showEditAccount by remember { mutableStateOf<com.personalfinance.tracker.data.BankAccountEntity?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -75,6 +77,11 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
     LaunchedEffect(message) {
         message?.let { snackbarHostState.showSnackbar(it) }
     }
+
+    balanceCheckId?.let { id ->
+        BalanceCheckDialog(id, viewModel, onSearch = { balanceCheckId = null; searchAccountId = id }, onDismiss = { balanceCheckId = null })
+    }
+    searchAccountId?.let { id -> TransactionSearchDialog(viewModel, initialAccountId = id) { searchAccountId = null } }
 
     val sortedAccountList = remember(accounts, transactions, sortOption) {
         when (sortOption) {
@@ -239,6 +246,7 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
                 deleteDescription = AppStrings.delete,
                 modifier = Modifier.fillMaxWidth()
             )
+            TextButton(onClick = { balanceCheckId = acc.id }) { Text("بررسی موجودی") }
         }
 
         if (accounts.isNotEmpty()) {
