@@ -2,7 +2,6 @@ package com.personalfinance.tracker.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -15,6 +14,8 @@ import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -34,7 +35,6 @@ import com.personalfinance.tracker.ui.design.components.AppCard as DesignAppCard
 import com.personalfinance.tracker.ui.design.components.AppCardStyle
 import com.personalfinance.tracker.ui.design.components.MetricCard
 import com.personalfinance.tracker.ui.design.components.rememberMonthlyBudget
-import com.personalfinance.tracker.ui.design.components.monthlyBudgetItems
 import com.personalfinance.tracker.ui.design.components.SectionHeader
 import com.personalfinance.tracker.ui.design.components.TransactionRow
 import com.personalfinance.tracker.ui.design.components.WarningBanner
@@ -118,8 +118,6 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
                 )
             }
         }
-
-        item { OutlinedButton(onClick = { showSearch = true }, modifier = Modifier.fillMaxWidth()) { Text("جست‌وجوی تراکنش‌ها") } }
 
         // First-launch onboarding: guide the user when the app is completely empty.
         if (accounts.isEmpty() && transactions.isEmpty()) {
@@ -242,39 +240,56 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
         }
 
         item {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
-            ) {
-                MetricCard(
-                    label = AppStrings.monthIncome,
-                    value = Money.format2(monthIncome),
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    tone = AmountTone.POSITIVE,
-                    modifier = Modifier.width(148.dp)
-                )
-                MetricCard(
-                    label = AppStrings.monthExpense,
-                    value = Money.format2(monthExpense),
-                    icon = Icons.AutoMirrored.Filled.TrendingDown,
-                    tone = AmountTone.NEGATIVE,
-                    modifier = Modifier.width(148.dp)
-                )
-                MetricCard(
-                    label = AppStrings.loanPaidThisMonth,
-                    value = Money.format2(monthLoanPaid),
-                    icon = Icons.Filled.Payments,
-                    modifier = Modifier.width(148.dp)
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)) {
+                Row(
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
+                ) {
+                    MetricCard(
+                        label = AppStrings.monthIncome,
+                        value = Money.format2(monthIncome),
+                        icon = Icons.AutoMirrored.Filled.TrendingUp,
+                        tone = AmountTone.POSITIVE,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                    MetricCard(
+                        label = AppStrings.monthExpense,
+                        value = Money.format2(monthExpense),
+                        icon = Icons.AutoMirrored.Filled.TrendingDown,
+                        tone = AmountTone.NEGATIVE,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.sm)
+                ) {
+                    MetricCard(
+                        label = AppStrings.loanPaidThisMonth,
+                        value = Money.format2(monthLoanPaid),
+                        icon = Icons.Filled.Payments,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                    MetricCard(
+                        label = AppStrings.monthlyBudget,
+                        value = Money.format2(monthlyBudget.estimated),
+                        icon = Icons.Filled.CalendarMonth,
+                        supportingText = buildString {
+                            append(monthlyBudget.usedPercent?.let { AppStrings.budgetSpent + ": " + "%.1f".fa(it) + "٪" }
+                                ?: AppStrings.budgetNoEstimate)
+                            append("\n")
+                            append(if (monthlyBudget.remaining < 0) AppStrings.budgetOverrun else AppStrings.budgetRemaining)
+                            append(": " + Money.format2(kotlin.math.abs(monthlyBudget.remaining)) + " " + AppStrings.moneyUnit)
+                            append("\n" + AppStrings.budgetUntil.fa(JalaliCalendar.formatDate(monthlyBudget.endMillis)))
+                        },
+                        modifier = Modifier.weight(1f).fillMaxHeight().clickable(
+                            onClick = onGoToReports,
+                            role = androidx.compose.ui.semantics.Role.Button,
+                            onClickLabel = AppStrings.reports
+                        )
+                    )
+                }
             }
-        }
-
-        item {
-            SectionHeader(
-                title = AppStrings.recentTransactions,
-                actionLabel = AppStrings.reports,
-                onAction = onGoToReports
-            )
         }
 
         item {
@@ -292,7 +307,15 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
             }
         }
 
-        monthlyBudgetItems(monthlyBudget)
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(AppStrings.recentTransactions, modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { showSearch = true }) {
+                    Icon(Icons.Filled.Search, contentDescription = "جست‌وجوی تراکنش‌ها")
+                }
+            }
+        }
 
         if (transactions.isEmpty()) {
             item {
