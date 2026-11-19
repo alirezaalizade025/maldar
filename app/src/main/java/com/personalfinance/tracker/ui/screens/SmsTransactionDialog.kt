@@ -29,10 +29,9 @@ internal fun SmsTransactionDialog(
     var note by remember(pending.id) { mutableStateOf("") }
     var sourceId by remember(pending.id) { mutableStateOf(pending.bankAccountId) }
     var destinationId by remember(pending.id) { mutableStateOf<Long?>(null) }
-    var sourceExpanded by remember { mutableStateOf(false) }
-    var destinationExpanded by remember { mutableStateOf(false) }
     var remainderText by remember(pending.id) { mutableStateOf(pending.parsedBalance?.let(Money::input) ?: "") }
     var dateMillis by remember(pending.id) { mutableLongStateOf(pending.timestampMillis) }
+    val saving by viewModel.saving.collectAsState()
     val amount = amountText.toDoubleOrNull()
     val transfer = type == TxType.CARD_TO_CARD
     val validAccounts = if (transfer) {
@@ -40,7 +39,7 @@ internal fun SmsTransactionDialog(
     } else sourceId == null || accounts.any { it.id == sourceId }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.confirmTransaction) },
         text = {
             Column(
@@ -63,44 +62,13 @@ internal fun SmsTransactionDialog(
                     }
                 )
                 if (!transfer) CategoryPicker(viewModel, type, category) { category = it }
-                ExposedDropdownMenuBox(expanded = sourceExpanded, onExpandedChange = { sourceExpanded = it }) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == sourceId }?.accountLabel ?: AppStrings.noneCash,
-                        onValueChange = {}, readOnly = true,
-                        label = { Text(if (transfer) AppStrings.fromAccount else AppStrings.bankAccount) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sourceExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = sourceExpanded, onDismissRequest = { sourceExpanded = false }) {
-                        if (!transfer) DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { sourceId = null; sourceExpanded = false })
-                        accounts.forEach { account ->
-                            DropdownMenuItem(text = { Text(account.accountLabel) }, onClick = {
-                                sourceId = account.id
-                                if (destinationId == sourceId) destinationId = null
-                                sourceExpanded = false
-                            })
-                        }
-                    }
+                BankAccountPicker(accounts, sourceId, if (transfer) AppStrings.fromAccount else AppStrings.bankAccount,
+                    allowCash = !transfer, enabled = !saving) {
+                    sourceId = it
+                    if (destinationId == it) destinationId = null
                 }
-                if (transfer) {
-                    ExposedDropdownMenuBox(expanded = destinationExpanded, onExpandedChange = { destinationExpanded = it }) {
-                        OutlinedTextField(
-                            value = accounts.firstOrNull { it.id == destinationId }?.accountLabel ?: AppStrings.selectDestinationAccount,
-                            onValueChange = {}, readOnly = true,
-                            label = { Text(AppStrings.toAccount) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(destinationExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = destinationExpanded, onDismissRequest = { destinationExpanded = false }) {
-                            accounts.filter { it.id != sourceId }.forEach { account ->
-                                DropdownMenuItem(text = { Text(account.accountLabel) }, onClick = {
-                                    destinationId = account.id
-                                    destinationExpanded = false
-                                })
-                            }
-                        }
-                    }
-                }
+                if (transfer) BankAccountPicker(accounts, destinationId, AppStrings.toAccount,
+                    allowCash = false, excludedId = sourceId, enabled = !saving) { destinationId = it }
                 TransactionDateTimeFields(dateMillis) { dateMillis = it }
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) }, modifier = Modifier.fillMaxWidth())
                 if (!transfer && sourceId != null) {
@@ -115,16 +83,15 @@ internal fun SmsTransactionDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = amount != null && amount.isFinite() && amount > 0.0 && validAccounts, onClick = {
+            TextButton(enabled = !saving && amount != null && amount.isFinite() && amount > 0.0 && validAccounts, onClick = {
                 viewModel.confirmPendingSms(
                     pending = pending.copy(bankAccountId = sourceId), finalAmount = requireNotNull(amount), type = type,
                     category = if (transfer) AppStrings.cardToCard else category.ifBlank { "سایر" }, note = note,
                     finalBalanceAfter = if (!transfer && sourceId != null) remainderText.toDoubleOrNull() else null,
-                    toAccountId = if (transfer) destinationId else null, dateMillis = dateMillis
+                    toAccountId = if (transfer) destinationId else null, dateMillis = dateMillis, onSuccess = onDismiss
                 )
-                onDismiss()
             }) { Text(AppStrings.save) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

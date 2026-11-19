@@ -77,20 +77,21 @@ private fun ReportsContent(viewModel: FinanceViewModel) {
         tx.dateMillis in monthlyBudget.startMillis..monthlyBudget.endMillis &&
             (accountFilter == null || tx.bankAccountId == accountFilter)
     }
-    val income = monthTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
-    val expense = monthTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
-    val transfers = monthTransactions.filter { it.type == TxType.CARD_TO_CARD }.sumOf { it.amount }
-    val breakdown = monthTransactions.filter { it.type == TxType.EXPENSE }
-        .groupingBy { it.category }.fold(0.0) { total, tx -> total + tx.amount }
-        .map { CategoryTotal(it.key, it.value) }.sortedByDescending { it.total }
-    val trend = (5 downTo 0).map { back ->
-        val offset = -back
-        val monthTransactionsForTrend = transactions.filter { tx ->
-            JalaliCalendar.isInJalaliMonth(tx.dateMillis, offset) &&
-                (accountFilter == null || tx.bankAccountId == accountFilter)
+    val report = remember(rawTransactions, monthlyBudget.asOfMillis, accountFilter) {
+        com.personalfinance.tracker.data.transactionReport(rawTransactions, monthlyBudget.startMillis,
+            monthlyBudget.endMillis, accountFilter, monthlyBudget.asOfMillis)
+    }
+    val income = report.income
+    val expense = report.expense
+    val transfers = report.transfers
+    val breakdown = report.categories
+    val trend = remember(rawTransactions, accountFilter, monthOffset, monthlyBudget.asOfMillis) {
+        (5 downTo 0).map { back ->
+            val (start, end) = JalaliCalendar.jalaliMonthRange(Calendar.getInstance(), monthOffset - back)
+            com.personalfinance.tracker.data.transactionReport(rawTransactions, start, end, accountFilter, monthlyBudget.asOfMillis).let {
+                it.income to it.expense
+            }
         }
-        monthTransactionsForTrend.filter { it.type == TxType.INCOME }.sumOf { it.amount } to
-            monthTransactionsForTrend.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
     }
 
     val monthLabel = remember(monthlyBudget.startMillis) {

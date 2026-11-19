@@ -72,11 +72,10 @@ data class AccountBalanceCheck(val movementsAfter: Double, val expectedBalance: 
 fun checkAccountBalance(account: BankAccountEntity, bankBalance: Double, snapshotMillis: Long,
     transactions: List<TransactionEntity>, nowMillis: Long = System.currentTimeMillis()): AccountBalanceCheck {
     require(bankBalance.isFinite())
-    val movements = transactions.filter {
+    val movements = DecimalMoney.sum(transactions.filter {
         val time = it.bankMovementMillis
         time > snapshotMillis && time <= nowMillis
-    }
-        .sumOf { accountMovement(it, account.id) }
-    val expected = bankBalance + movements
-    return AccountBalanceCheck(movements, expected, account.balance - expected)
+    }) { accountMovement(it, account.id) }
+    val expected = DecimalMoney.add(bankBalance, movements)
+    return AccountBalanceCheck(movements, expected, DecimalMoney.subtract(account.balance, expected))
 }

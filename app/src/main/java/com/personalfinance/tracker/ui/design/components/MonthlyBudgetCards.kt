@@ -32,7 +32,7 @@ fun rememberMonthlyBudget(transactions: List<TransactionEntity>, categories: Lis
         }
     }
     return remember(transactions, categories, monthOffset, now) {
-        calculateMonthlyBudget(transactions, categories, Calendar.getInstance(), monthOffset)
+        calculateMonthlyBudget(transactions, categories, Calendar.getInstance().apply { timeInMillis = now }, monthOffset)
     }
 }
 

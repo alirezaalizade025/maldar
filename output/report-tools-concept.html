@@ -1,0 +1,177 @@
+<style>
+#maldar-report-concept{color-scheme:light dark;font-family:Tahoma,Arial,sans-serif}
+#maldar-report-concept .report-stage{min-height:1030px;padding:20px 12px 28px;box-sizing:border-box}
+#maldar-report-concept .report-app{--r-bg:light-dark(#f6f7f9,#101215);--r-surface:light-dark(#fff,#191c20);--r-text:light-dark(#17201d,#eef3f0);--r-secondary:light-dark(#56635d,#adbab2);--r-rule:light-dark(#dce4df,#343d37);--r-green:light-dark(#1b7a5a,#8ad7af);--r-soft:light-dark(#e0f1e8,#183a2c);max-width:440px;margin:auto;direction:rtl;background:var(--r-bg);color:var(--r-text);border:1px solid var(--r-rule);border-radius:24px;overflow:hidden;font-size:14px;line-height:1.7}
+#maldar-report-concept .report-header{display:flex;justify-content:space-between;align-items:center;padding:22px 20px 12px;gap:12px}
+#maldar-report-concept .report-header h2{font-size:22px;font-weight:500;margin:0}
+#maldar-report-concept .report-muted{color:var(--r-secondary);font-size:12px}
+#maldar-report-concept .report-content{padding:0 18px 22px;display:grid;gap:18px}
+#maldar-report-concept .report-select{font:inherit;max-width:100%;background:var(--r-surface);color:var(--r-text);border:1px solid var(--r-rule);border-radius:12px;padding:9px 10px;min-height:44px}
+#maldar-report-concept .report-row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#maldar-report-concept .report-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#maldar-report-concept .report-card{padding:12px 9px;background:var(--r-surface);border:1px solid var(--r-rule);border-radius:16px;min-width:0}
+#maldar-report-concept .report-card strong{display:block;font-size:21px;font-weight:500;font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
+#maldar-report-concept .report-card.report-highlight{background:var(--r-soft)}
+#maldar-report-concept .report-title{font-weight:500;font-size:15px;margin:0}
+#maldar-report-concept .report-chip{display:inline-flex;align-items:center;gap:6px;background:var(--r-soft);color:var(--r-text);padding:4px 9px;border-radius:8px;font-size:12px}
+#maldar-report-concept .report-tabs{display:flex;gap:4px;border-bottom:1px solid var(--r-rule);padding-bottom:8px;flex-wrap:wrap}
+#maldar-report-concept .report-button{font:inherit;font-size:13px;border:1px solid var(--r-rule);color:var(--r-text);background:var(--r-surface);padding:8px 11px;border-radius:10px;min-height:44px}
+#maldar-report-concept .report-button[aria-pressed=true]{background:var(--r-soft);border-color:var(--r-green)}
+#maldar-report-concept .report-category{display:grid;width:100%;text-align:right;gap:6px;background:transparent;border:0;border-bottom:1px solid var(--r-rule);padding:12px 0;color:var(--r-text);font:inherit;min-height:60px}
+#maldar-report-concept .report-category[aria-expanded=true]{color:var(--r-green)}
+#maldar-report-concept .report-track{height:5px;background:var(--r-rule);border-radius:3px;overflow:hidden}
+#maldar-report-concept .report-fill{height:100%;background:var(--r-green);border-radius:3px}
+#maldar-report-concept .report-detail{padding:12px;background:var(--r-surface);border-radius:12px}
+#maldar-report-concept .report-detail p{margin:0}
+#maldar-report-concept .report-chart{direction:ltr;min-height:260px}
+#maldar-report-concept .report-table{width:100%;border-collapse:collapse;font:inherit;font-size:12px}
+#maldar-report-concept .report-table th,#maldar-report-concept .report-table td{text-align:right;border-bottom:1px solid var(--r-rule);padding:10px 4px;overflow-wrap:anywhere}
+#maldar-report-concept .report-table th{font-weight:500;color:var(--r-secondary)}
+#maldar-report-concept .report-table td:last-child{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:left}
+#maldar-report-concept .report-filter{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#maldar-report-concept .report-filter label{display:grid;gap:5px;font-size:12px;color:var(--r-secondary)}
+#maldar-report-concept .report-label{display:flex;gap:8px;align-items:center}
+#maldar-report-concept [hidden]{display:none!important}
+@media(max-width:360px){#maldar-report-concept .report-stage{min-height:1130px;padding:12px 0 24px}#maldar-report-concept .report-content{padding:0 12px 18px}#maldar-report-concept .report-cards{grid-template-columns:repeat(2,minmax(0,1fr))}#maldar-report-concept .report-cards>:last-child{grid-column:1/-1}#maldar-report-concept .report-filter{grid-template-columns:1fr}}
+</style>
+<div id="maldar-report-concept" class="viz-carousel viz-dotted-background" aria-label="Maldar report design alternatives">
+  <section class="report-stage" data-variant="Quick overview" aria-label="Quick report overview">
+    <div class="report-app" aria-label="گزارش خلاصه مال‌دار">
+      <header class="report-header"><div><h2>گزارش‌ها</h2><div class="report-muted">پیشنهاد طراحی · داده‌های نمونه</div></div><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></header>
+      <div class="report-content">
+        <div class="report-row"><label class="report-label" for="quick-period">دوره<select id="quick-period" class="report-select"><option value="aban">آبان ۱۴۰۵</option><option value="mehr">مهر ۱۴۰۵</option></select></label><span class="report-muted">میلیون تومان · دورهٔ کامل نمونه</span></div>
+        <div class="report-cards" aria-live="polite">
+          <div class="report-card"><span class="report-muted">درآمد</span><strong id="quick-income">۳۶</strong></div>
+          <div class="report-card"><span class="report-muted">هزینهٔ خالص</span><strong id="quick-expense">۲۴</strong></div>
+          <div class="report-card report-highlight"><span class="report-muted">مازاد درآمد</span><strong id="quick-net">۱۲</strong></div>
+        </div>
+        <div class="report-row" id="quick-comparison"><span class="report-chip" id="quick-delta">هزینه: ۸٪ کمتر از ماه قبل</span><span class="report-muted" id="quick-rate">مازاد: ۳۳٪ درآمد</span></div>
+        <section aria-label="روند شش ماهه">
+          <div class="report-row"><h3 class="report-title">روند درآمد و هزینه</h3><div class="report-row"><button type="button" class="report-button" id="quick-line" aria-pressed="true">خطی</button><button type="button" class="report-button" id="quick-bar" aria-pressed="false">ستونی</button></div></div>
+          <div class="report-muted">۶ ماه منتهی به دورهٔ انتخابی · میلیون تومان</div>
+          <section id="quick-chart-root" data-viz-composition><div id="quick-chart" class="report-chart" data-viz-container aria-label="نمودار درآمد و هزینه شش ماهه"><span class="report-muted">درآمد: ۲۸، ۳۲، ۳۰، ۳۴، ۳۵، ۳۶ · هزینه: ۲۳، ۲۵، ۲۴، ۲۷، ۲۶، ۲۴</span></div></section>
+        </section>
+        <section aria-label="هزینه‌ها بر اساس دسته">
+          <h3 class="report-title">پول کجا خرج شد؟</h3><div class="report-muted">هر دسته را برای دیدن تراکنش‌ها انتخاب کنید</div>
+          <div id="quick-categories"></div>
+          <div id="quick-detail" class="report-detail" aria-live="polite" hidden></div>
+        </section>
+        <div class="report-muted">کارت‌به‌کارت بین حساب‌ها در درآمد و هزینه حساب نمی‌شود.</div>
+      </div>
+    </div>
+  </section>
+  <section class="report-stage" data-variant="Report explorer" aria-label="Detailed report explorer" hidden>
+    <div class="report-app" aria-label="کاوش گزارش‌های مال‌دار">
+      <header class="report-header"><div><h2>کاوش گزارش</h2><div class="report-muted">پیشنهاد طراحی · داده‌های نمونه</div></div><i data-lucide="sliders-horizontal" aria-hidden="true"></i></header>
+      <div class="report-content">
+        <div class="report-filter"><label for="explorer-account">حساب<select id="explorer-account" class="report-select"><option value="all">همهٔ حساب‌ها</option><option value="main">حساب اصلی</option><option value="other">حساب دوم</option></select></label><label for="explorer-category">دسته<select id="explorer-category" class="report-select"><option value="all">همهٔ دسته‌ها</option><option value="اجاره">اجاره</option><option value="خوراک">خوراک</option><option value="رفت‌وآمد">رفت‌وآمد</option><option value="سایر">سایر</option></select></label></div>
+        <div class="report-row"><span class="report-muted">آبان ۱۴۰۵ · میلیون تومان</span><span id="explorer-count" class="report-chip">۷ تراکنش هزینه</span></div>
+        <div class="report-cards" aria-live="polite"><div class="report-card report-highlight"><span class="report-muted">جمع انتخاب‌شده</span><strong id="explorer-total">۲۴</strong></div><div class="report-card"><span class="report-muted">بزرگ‌ترین هزینه</span><strong id="explorer-largest">۱۰</strong></div><div class="report-card"><span class="report-muted">میانگین هزینه</span><strong id="explorer-average">۳٫۴۳</strong></div></div>
+        <section id="explorer-chart-root" data-viz-composition aria-label="مقایسه دسته‌های هزینه"><h3 class="report-title">مقایسهٔ دسته‌ها</h3><div class="report-muted">بر اساس حساب انتخاب‌شده</div><div id="explorer-chart" class="report-chart" data-viz-container><span class="report-muted">اجاره ۱۰ · خوراک ۸ · رفت‌وآمد ۴ · سایر ۲</span></div></section>
+        <section aria-label="تراکنش‌های گزارش"><h3 class="report-title">پشت این عددها چه تراکنش‌هایی است؟</h3><table class="report-table"><thead><tr><th scope="col">شرح / حساب</th><th scope="col">روز آبان</th><th scope="col">میلیون تومان</th></tr></thead><tbody id="explorer-rows"></tbody></table></section>
+        <div class="report-muted">همان فیلترها روی جمع، نمودار و ریزتراکنش‌ها اعمال می‌شوند. برای خواندن مقدارها به رنگ وابسته نیستید.</div>
+      </div>
+    </div>
+  </section>
+</div>
+<script type="application/json" data-viz-chart id="chart-aban-line">
+{"id":"quick-monthly","title":"روند شش ماهه درآمد و هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"line","x":"ماه","y":["درآمد","هزینه"],"yLabel":"میلیون تومان","showLegend":true,"yDomain":[0,40]},"columns":["ماه","درآمد","هزینه"],"rows":[["خرداد",28,23],["تیر",32,25],["مرداد",30,24],["شهریور",34,27],["مهر",35,26],["آبان",36,24]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-aban-bar">
+{"id":"quick-monthly","title":"روند شش ماهه درآمد و هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"bar","x":"ماه","y":["درآمد","هزینه"],"yLabel":"میلیون تومان","showLegend":true,"yDomain":[0,40]},"columns":["ماه","درآمد","هزینه"],"rows":[["خرداد",28,23],["تیر",32,25],["مرداد",30,24],["شهریور",34,27],["مهر",35,26],["آبان",36,24]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-mehr-line">
+{"id":"quick-monthly","title":"روند شش ماهه درآمد و هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"line","x":"ماه","y":["درآمد","هزینه"],"yLabel":"میلیون تومان","showLegend":true,"yDomain":[0,40]},"columns":["ماه","درآمد","هزینه"],"rows":[["اردیبهشت",27,22],["خرداد",28,23],["تیر",32,25],["مرداد",30,24],["شهریور",34,27],["مهر",35,26]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-mehr-bar">
+{"id":"quick-monthly","title":"روند شش ماهه درآمد و هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"bar","x":"ماه","y":["درآمد","هزینه"],"yLabel":"میلیون تومان","showLegend":true,"yDomain":[0,40]},"columns":["ماه","درآمد","هزینه"],"rows":[["اردیبهشت",27,22],["خرداد",28,23],["تیر",32,25],["مرداد",30,24],["شهریور",34,27],["مهر",35,26]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-explorer-all">
+{"id":"explorer-categories","title":"دسته‌های هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"horizontalBar","y":"دسته","x":"هزینه","xLabel":"میلیون تومان","xDomain":[0,10],"showValues":true},"columns":["دسته","هزینه"],"rows":[["اجاره",10],["خوراک",8],["رفت‌وآمد",4],["سایر",2]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-explorer-main">
+{"id":"explorer-categories","title":"دسته‌های هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"horizontalBar","y":"دسته","x":"هزینه","xLabel":"میلیون تومان","xDomain":[0,10],"showValues":true},"columns":["دسته","هزینه"],"rows":[["اجاره",10],["خوراک",5],["رفت‌وآمد",2.5],["سایر",1.3]]}
+</script>
+<script type="application/json" data-viz-chart id="chart-explorer-other">
+{"id":"explorer-categories","title":"دسته‌های هزینه؛ میلیون تومان","showHeader":false,"height":260,"spec":{"type":"horizontalBar","y":"دسته","x":"هزینه","xLabel":"میلیون تومان","xDomain":[0,10],"showValues":true},"columns":["دسته","هزینه"],"rows":[["اجاره",0],["خوراک",3],["رفت‌وآمد",1.5],["سایر",0.7]]}
+</script>
+<script>
+(() => {
+ const root=document.getElementById('maldar-report-concept');
+ const $=id=>document.getElementById(id);
+ const number=new Intl.NumberFormat('fa-IR',{maximumFractionDigits:2});
+ const format=value=>number.format(value);
+ const categories=['اجاره','خوراک','رفت‌وآمد','سایر'];
+ const records=[
+  {label:'اجارهٔ خانه',category:'اجاره',account:'main',day:1,amount:10},
+  {label:'خرید مواد غذایی',category:'خوراک',account:'main',day:7,amount:5},
+  {label:'رستوران',category:'خوراک',account:'other',day:12,amount:3},
+  {label:'تاکسی',category:'رفت‌وآمد',account:'main',day:11,amount:2.5},
+  {label:'سوخت',category:'رفت‌وآمد',account:'other',day:16,amount:1.5},
+  {label:'درمان',category:'سایر',account:'main',day:18,amount:1.3},
+  {label:'سینما',category:'سایر',account:'other',day:23,amount:0.7}
+ ];
+ let period='aban',style='line',selectedCategory=null,mountChart=null,quickChart=null,explorerChart=null;
+ const design={showComparison:true};
+ const config=id=>JSON.parse($(id).textContent);
+ function quickRender(){
+  const values=period==='aban'?{income:36,expense:24,previous:26,categories:[10,8,4,2]}:{income:35,expense:26,previous:27,categories:[10,9,4,3]};
+  $('quick-income').textContent=format(values.income);$('quick-expense').textContent=format(values.expense);
+  $('quick-net').textContent=format(values.income-values.expense);
+  $('quick-delta').textContent='هزینه: '+format(Math.round((values.previous-values.expense)/values.previous*100))+'٪ کمتر از ماه قبل';
+  $('quick-rate').textContent='مازاد: '+format(Math.round((values.income-values.expense)/values.income*100))+'٪ درآمد';
+  $('quick-comparison').hidden=!design.showComparison;
+  $('quick-line').setAttribute('aria-pressed',style==='line');$('quick-bar').setAttribute('aria-pressed',style==='bar');
+  $('quick-categories').replaceChildren();
+  categories.forEach((category,index)=>{
+   const button=document.createElement('button');button.type='button';button.className='report-category';
+   button.setAttribute('aria-expanded',selectedCategory===category);
+   const line=document.createElement('span');line.className='report-row';
+   const name=document.createElement('span');name.textContent=category;
+   const value=document.createElement('span');value.textContent=format(values.categories[index])+' · '+format(Math.round(values.categories[index]/values.expense*100))+'٪';
+   line.append(name,value);
+   const track=document.createElement('div');track.className='report-track';track.setAttribute('aria-hidden','true');
+   const fill=document.createElement('div');fill.className='report-fill';fill.style.width=values.categories[index]/values.expense*100+'%';track.append(fill);
+   button.append(line,track);button.addEventListener('click',()=>{selectedCategory=selectedCategory===category?null:category;quickRender()});
+   $('quick-categories').append(button);
+  });
+  $('quick-detail').hidden=selectedCategory===null;
+  if(selectedCategory){
+   const title=document.createElement('strong');title.textContent=selectedCategory;
+   const detail=document.createElement('p');
+   detail.textContent=period==='aban'?records.filter(row=>row.category===selectedCategory).map(row=>row.label+' '+format(row.amount)+' میلیون').join(' · '):'جمع دورهٔ نمونه: '+format(values.categories[categories.indexOf(selectedCategory)])+' میلیون تومان';
+   $('quick-detail').replaceChildren(title,detail);
+  }
+  if(mountChart){const data=config('chart-'+period+'-'+style);if(quickChart)quickChart.config=data;else quickChart=mountChart($('quick-chart'),data)}
+ }
+ function explorerRender(){
+  const account=$('explorer-account').value,category=$('explorer-category').value;
+  const accountRows=records.filter(row=>account==='all'||row.account===account);
+  const visible=accountRows.filter(row=>category==='all'||row.category===category);
+  const total=visible.reduce((sum,row)=>sum+row.amount,0);
+  $('explorer-total').textContent=format(total);
+  $('explorer-largest').textContent=visible.length?format(Math.max(...visible.map(row=>row.amount))):'—';
+  $('explorer-average').textContent=visible.length?format(total/visible.length):'—';
+  $('explorer-count').textContent=format(visible.length)+' تراکنش هزینه';
+  $('explorer-rows').replaceChildren();
+  visible.forEach(row=>{const tr=document.createElement('tr');
+   [row.label+' / '+(row.account==='main'?'اصلی':'دوم'),format(row.day),format(row.amount)].forEach(value=>{const cell=document.createElement('td');cell.textContent=value;tr.append(cell)});
+   $('explorer-rows').append(tr);
+  });
+  if(!visible.length){const tr=document.createElement('tr'),cell=document.createElement('td');cell.colSpan=3;cell.textContent='تراکنشی در این انتخاب نیست';tr.append(cell);$('explorer-rows').append(tr)}
+  if(mountChart&&!root.querySelector('[data-variant="Report explorer"]').hidden){
+   const data=config('chart-explorer-'+account);
+   if(category!=='all')data.rows=data.rows.filter(row=>row[0]===category);
+   if(explorerChart)explorerChart.config=data;else explorerChart=mountChart($('explorer-chart'),data);
+  }
+ }
+ $('quick-period').addEventListener('change',event=>{period=event.target.value;selectedCategory=null;quickRender()});
+ $('quick-line').addEventListener('click',()=>{style='line';quickRender()});
+ $('quick-bar').addEventListener('click',()=>{style='bar';quickRender()});
+ $('explorer-account').addEventListener('change',explorerRender);$('explorer-category').addEventListener('change',explorerRender);
+ quickRender();explorerRender();
+ new MutationObserver(()=>{if(!root.querySelector('[data-variant="Report explorer"]').hidden)explorerRender()}).observe(root.querySelector('[data-variant="Report explorer"]'),{attributes:true,attributeFilter:['hidden']});
+ if(globalThis.Tweak){const tweak=new Tweak({container:root.querySelector('[aria-label="گزارش خلاصه مال‌دار"]'),onChange:quickRender});tweak.addToggle(design,'showComparison',{label:'مقایسه با ماه قبل'})}
+ import('https://persistent.oaistatic.com/plugins/visualize/charts/1.2.3/element.js').then(module=>{mountChart=module.mountChart;quickRender();explorerRender()}).catch(()=>{});
+})();
+</script>

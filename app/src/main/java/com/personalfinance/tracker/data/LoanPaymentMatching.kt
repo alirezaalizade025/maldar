@@ -24,14 +24,13 @@ fun loanMonthlyDue(loan: LoanEntity): Double =
 
 /** Sum of payments matched to [loan] within the current (Jalali) month. */
 fun loanPaidThisMonth(loan: LoanEntity, loans: List<LoanEntity>, transactions: List<TransactionEntity>): Double =
-    transactions.filter { it.matchesLoanPayment(loan, loans) && JalaliCalendar.isInJalaliMonth(it.dateMillis) }
-        .sumOf { it.amount }
+    DecimalMoney.sum(transactions.filter { it.matchesLoanPayment(loan, loans) && JalaliCalendar.isInJalaliMonth(it.dateMillis) }) { it.amount }
 
 /** Remaining installment still owed this month after payments (never negative). */
 fun loanRemainingThisMonth(loan: LoanEntity, loans: List<LoanEntity>, transactions: List<TransactionEntity>): Double {
     val paid = loanPaidThisMonth(loan, loans, transactions)
     // Remaining debt already excludes this month's payments; add them back before capping the installment.
-    val due = (if (loan.installment > 0.0) loan.installment else loan.remainingAmount + paid)
-        .coerceAtMost(loan.remainingAmount + paid)
-    return (due - paid).coerceAtLeast(0.0)
+    val due = (if (loan.installment > 0.0) loan.installment else DecimalMoney.add(loan.remainingAmount, paid))
+        .coerceAtMost(DecimalMoney.add(loan.remainingAmount, paid))
+    return DecimalMoney.subtract(due, paid).coerceAtLeast(0.0)
 }

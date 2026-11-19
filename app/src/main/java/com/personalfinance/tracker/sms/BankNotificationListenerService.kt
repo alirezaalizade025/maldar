@@ -1,16 +1,15 @@
 package com.personalfinance.tracker.sms
 
-import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import com.personalfinance.tracker.data.AppDatabase
-import com.personalfinance.tracker.data.PendingSmsEntity
-import com.personalfinance.tracker.data.PendingStatus
-import com.personalfinance.tracker.notification.NotificationHelper
 import com.personalfinance.tracker.util.Settings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CancellationException
+import com.personalfinance.tracker.util.CrashLogger
 
 /**
  * Play-Store-compatible alternative to the restricted [SmsReceiver].
@@ -23,6 +22,8 @@ import kotlinx.coroutines.launch
  */
 class BankNotificationListenerService : NotificationListenerService() {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         if (!Settings.readSmsFromNotificationsEnabled) return
@@ -33,44 +34,27 @@ class BankNotificationListenerService : NotificationListenerService() {
         val title = extras.getCharSequence("android.title")?.toString().orEmpty()
         val text = extras.getCharSequence("android.text")?.toString().orEmpty()
         val bigText = extras.getCharSequence("android.bigText")?.toString().orEmpty()
-        val body = "$title\n$text\n$bigText".trim()
+        val message = bigText.ifBlank { text }
+        val body = listOf(title, message).filter { it.isNotBlank() }.distinct().joinToString("\n")
 
         if (body.isBlank()) return
         val postedAt = sbn.postTime.takeIf { it > 0L } ?: System.currentTimeMillis()
 
-        CoroutineScope(Dispatchers.IO).launch {
-            runCatching { handleNotification(this@BankNotificationListenerService, sbn.packageName, body, postedAt) }
+        scope.launch {
+            try {
+                BankMessageProcessor.receive(this@BankNotificationListenerService, sbn.packageName, body, postedAt)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                CrashLogger.log("Bank notification capture failed", e)
+            }
         }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) = Unit
 
-    private suspend fun handleNotification(context: Context, packageName: String, body: String, timestampMillis: Long) {
-        val db = AppDatabase.getInstance(context)
-        val watchedSenders = db.smsSenderDao().getAllOnce()
-        val accounts = db.bankAccountDao().getAllOnce()
-
-        // Match either by configured sender id appearing in the text, or by the
-        // originating app package if the user added a sender for that bank.
-        val matched = SmsAccountMatcher.match(packageName, body, watchedSenders, accounts)
-            ?: return
-
-        if (SmsParser.isPasswordMessage(body)) return
-        val parsed = SmsParser.parse(body)
-
-        val pending = PendingSmsEntity(
-            rawMessage = body,
-            sender = matched.senderId,
-            parsedAmount = parsed.amount,
-            parsedType = parsed.type,
-            parsedBalance = parsed.balanceAfter,
-            timestampMillis = timestampMillis,
-            bankAccountId = matched.bankAccountId,
-            status = PendingStatus.PENDING
-        )
-        val id = db.pendingSmsDao().insert(pending)
-
-        NotificationHelper.ensureChannels(context)
-        NotificationHelper.notifyPendingTransaction(context, id, parsed.amount, parsed.type?.name)
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
     }
 }

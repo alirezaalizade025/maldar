@@ -268,18 +268,14 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
     }
 
     if (showAddAccount) {
-        AddAccountDialog(onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senderIds ->
-            viewModel.addBankAccount(bank, label, bal, last4) { accountId ->
-                senderIds.filter { it.isNotBlank() }.forEach { viewModel.addSmsSender(it.trim(), accountId, "") }
-            }
-            showAddAccount = false
+        AddAccountDialog(viewModel = viewModel, onDismiss = { showAddAccount = false }, onAdd = { bank, label, last4, bal, senderIds ->
+            viewModel.addBankAccount(bank, label, bal, last4, senderIds) { showAddAccount = false }
         })
     }
 
     showEditAccount?.let { acc ->
         EditAccountDialog(account = acc, allSenders = senders, context = context, viewModel = viewModel, onDismiss = { showEditAccount = null }, onSave = { bank, label, last4, bal ->
-            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, accountLast4 = last4, balance = bal))
-            showEditAccount = null
+            viewModel.updateBankAccount(acc.copy(bankName = bank, accountLabel = label, accountLast4 = last4, balance = bal)) { showEditAccount = null }
         })
     }
 
@@ -291,8 +287,7 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteBankAccount(acc)
-                        showDeleteAccount = null
+                        viewModel.deleteBankAccount(acc) { showDeleteAccount = null }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text(AppStrings.delete) }
@@ -304,9 +299,11 @@ private fun BankAccountsContent(viewModel: FinanceViewModel, navController: NavC
 
 @Composable
 private fun AddAccountDialog(
+    viewModel: FinanceViewModel,
     onDismiss: () -> Unit,
     onAdd: (String, String, String, Double, List<String>) -> Unit
 ) {
+    val saving by viewModel.saving.collectAsState()
     var bankName by remember { mutableStateOf("") }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf("") }
@@ -315,8 +312,8 @@ private fun AddAccountDialog(
     var last4Error by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val detectedSenders = remember {
-        SmsInboxReader.recentSenders(context)
+    val detectedSenders by produceState<List<SmsInboxReader.DetectedSender>>(emptyList(), context) {
+        value = withContext(Dispatchers.IO) { SmsInboxReader.recentSenders(context) }
     }
     var addedSenders by remember { mutableStateOf<List<SmsInboxReader.DetectedSender>>(emptyList()) }
     var senderQuery by remember { mutableStateOf("") }
@@ -331,7 +328,7 @@ private fun AddAccountDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.addAccount) },
         text = {
             Column(
@@ -431,7 +428,7 @@ private fun AddAccountDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 if (bankName.isBlank()) {
                     bankNameError = true
                 } else if (accountLast4.isNotEmpty() && accountLast4.length != 4) {
@@ -442,7 +439,7 @@ private fun AddAccountDialog(
                 }
             }) { Text(AppStrings.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }
 
@@ -455,6 +452,7 @@ private fun EditAccountDialog(
     onDismiss: () -> Unit,
     onSave: (String, String, String, Double) -> Unit
 ) {
+    val saving by viewModel.saving.collectAsState()
     var bankName by remember { mutableStateOf(account.bankName) }
     var bankNameError by remember { mutableStateOf(false) }
     var label by remember { mutableStateOf(account.accountLabel) }
@@ -465,8 +463,8 @@ private fun EditAccountDialog(
     val accountSenders = allSenders.filter { it.bankAccountId == account.id }
     var senderQuery by remember { mutableStateOf("") }
     var senderMenuExpanded by remember { mutableStateOf(false) }
-    val detectedSenders = remember {
-        SmsInboxReader.recentSenders(context)
+    val detectedSenders by produceState<List<SmsInboxReader.DetectedSender>>(emptyList(), context) {
+        value = withContext(Dispatchers.IO) { SmsInboxReader.recentSenders(context) }
     }
     val filteredSenders = remember(senderQuery, detectedSenders, accountSenders) {
         detectedSenders.filter { ds ->
@@ -477,7 +475,7 @@ private fun EditAccountDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.edit) },
         text = {
             Column(
@@ -573,7 +571,7 @@ private fun EditAccountDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 if (bankName.isBlank()) {
                     bankNameError = true
                 } else if (accountLast4.isNotEmpty() && accountLast4.length != 4) {
@@ -584,6 +582,6 @@ private fun EditAccountDialog(
                 }
             }) { Text(AppStrings.save) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }

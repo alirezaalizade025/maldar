@@ -81,6 +81,7 @@ private fun ManageCategoriesDialog(
     scope: kotlinx.coroutines.CoroutineScope,
     onDismiss: () -> Unit
 ) {
+    val saving by viewModel.saving.collectAsState()
     var newName by remember { mutableStateOf("") }
     var renaming by remember { mutableStateOf<CategoryEntity?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -108,9 +109,8 @@ private fun ManageCategoriesDialog(
                                     value = renameText, onValueChange = { renameText = it },
                                     modifier = Modifier.weight(1f), singleLine = true
                                 )
-                                TextButton(onClick = {
-                                    if (renameText.isNotBlank()) viewModel.renameCategory(cat, renameText)
-                                    renaming = null
+                                TextButton(enabled = !saving, onClick = {
+                                    if (renameText.isNotBlank()) viewModel.renameCategory(cat, renameText) { renaming = null }
                                 }) { Text(AppStrings.save) }
                             } else {
                                 Text(cat.name, modifier = Modifier.weight(1f).padding(top = 12.dp))
@@ -119,11 +119,16 @@ private fun ManageCategoriesDialog(
                                 }
                                 IconButton(onClick = {
                                     scope.launch {
-                                        val res = viewModel.deleteCategorySafe(cat)
-                                        resultMessage = if (res.reassignedCount > 0)
-                                            AppStrings.categoryDeletedReassigned.fa(res.reassignedCount)
-                                        else
-                                            AppStrings.categoryDeleted
+                                        try {
+                                            val res = viewModel.deleteCategorySafe(cat)
+                                            resultMessage = if (res.reassignedCount > 0)
+                                                AppStrings.categoryDeletedReassigned.fa(res.reassignedCount)
+                                            else AppStrings.categoryDeleted
+                                        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+                                        } catch (e: Exception) {
+                                            com.personalfinance.tracker.util.CrashLogger.log("Category deletion failed", e)
+                                            resultMessage = AppStrings.operationFailed
+                                        }
                                     }
                                 }) {
                                     Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
@@ -140,10 +145,9 @@ private fun ManageCategoriesDialog(
                         label = { Text(AppStrings.newCategory) },
                         modifier = Modifier.weight(1f), singleLine = true
                     )
-                    TextButton(onClick = {
+                    TextButton(enabled = !saving, onClick = {
                         if (newName.isNotBlank()) {
-                            viewModel.addCategory(newName, type)
-                            newName = ""
+                            viewModel.addCategory(newName, type) { newName = "" }
                         }
                     }) { Text(AppStrings.add) }
                 }

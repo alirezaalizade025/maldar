@@ -2,13 +2,25 @@ package com.personalfinance.tracker.data
 
 import androidx.room.withTransaction
 import com.personalfinance.tracker.sms.SmsParser
+import com.personalfinance.tracker.util.BackupSettings
+import com.personalfinance.tracker.util.Settings
 
 class FinanceRepository(private val db: AppDatabase) {
 
     // Bank accounts
     fun getBankAccounts() = db.bankAccountDao().getAll()
-    suspend fun addBankAccount(account: BankAccountEntity) = db.bankAccountDao().insert(account)
-    suspend fun updateBankAccount(account: BankAccountEntity) = db.bankAccountDao().update(account)
+    suspend fun addBankAccount(account: BankAccountEntity, senderIds: List<String> = emptyList()) = db.withTransaction {
+        require(account.balance.isFinite()) { "Invalid account balance." }
+        val id = db.bankAccountDao().insert(account)
+        senderIds.map { it.trim() }.filter { it.isNotEmpty() }.distinct().forEach {
+            db.smsSenderDao().insert(SmsSenderEntity(senderId = it, bankAccountId = id))
+        }
+        id
+    }
+    suspend fun updateBankAccount(account: BankAccountEntity) {
+        require(account.balance.isFinite()) { "Invalid account balance." }
+        db.bankAccountDao().update(account)
+    }
     suspend fun deleteBankAccount(account: BankAccountEntity) = db.withTransaction {
         db.transactionDao().detachSourceAccount(account.id)
         db.transactionDao().detachDestinationAccount(account.id)
@@ -25,9 +37,21 @@ class FinanceRepository(private val db: AppDatabase) {
     }
 
     fun getFinancialAssets() = db.financialAssetDao().getAll()
-    suspend fun saveFinancialAsset(asset: FinancialAssetEntity) = db.financialAssetDao().upsert(asset)
     fun getStockAssets() = db.stockAssetDao().getAll()
-    suspend fun saveStockAsset(asset: StockAssetEntity) = db.stockAssetDao().upsert(asset)
+    suspend fun saveStockAsset(asset: StockAssetEntity) {
+        require(asset.quantity.isFinite() && asset.quantity > 0 && asset.buyPriceToman.isFinite() && asset.buyPriceToman > 0 &&
+            (asset.lastPriceToman == null || asset.lastPriceToman.isFinite() && asset.lastPriceToman >= 0)) { "Invalid stock asset." }
+        db.stockAssetDao().upsert(asset)
+    }
+    suspend fun updateStockQuote(code: String, price: Double, timestamp: Long) {
+        require(price.isFinite() && price >= 0) { "Invalid stock quote." }
+        db.stockAssetDao().updateQuote(code, price, timestamp)
+    }
+    suspend fun saveMetalAssets(gold: Double, silver: Double) = db.withTransaction {
+        require(gold.isFinite() && gold >= 0 && silver.isFinite() && silver >= 0) { "Invalid asset quantity." }
+        db.financialAssetDao().upsert(FinancialAssetEntity(AssetType.GOLD_18K, gold))
+        db.financialAssetDao().upsert(FinancialAssetEntity(AssetType.SILVER_999, silver))
+    }
     suspend fun deleteStockAsset(asset: StockAssetEntity) = db.stockAssetDao().delete(asset)
 
     // SMS senders (dynamic list of numbers/ids to watch)
@@ -73,10 +97,10 @@ class FinanceRepository(private val db: AppDatabase) {
             fun effect(tx: TransactionEntity?, amounts: Map<Long, Double>): Double =
                 if (tx != null && snapshot != null && snapshot.bankMovementMillis > tx.bankMovementMillis) 0.0
                 else amounts[id] ?: 0.0
-            val delta = effect(new, after) - effect(old, before)
+            val delta = DecimalMoney.subtract(effect(new, after), effect(old, before))
             val account = requireNotNull(db.bankAccountDao().getById(id)) { "The selected bank account no longer exists." }
             // Negative balances preserve the ledger and make deletion the exact inverse.
-            db.bankAccountDao().update(account.copy(balance = account.balance + delta))
+            db.bankAccountDao().update(account.copy(balance = DecimalMoney.add(account.balance, delta)))
         }
     }
 
@@ -85,7 +109,7 @@ class FinanceRepository(private val db: AppDatabase) {
             val loan = requireNotNull(db.loanDao().getById(id)) { "The selected loan no longer exists." }
             val previousPayment = if (old?.loanId == id) old.amount else 0.0
             val nextPayment = if (new?.loanId == id) new.amount else 0.0
-            val remaining = loan.remainingAmount + previousPayment - nextPayment
+            val remaining = DecimalMoney.subtract(DecimalMoney.add(loan.remainingAmount, previousPayment), nextPayment)
             require(remaining >= 0.0) { "Payment exceeds the remaining loan balance." }
             db.loanDao().update(loan.copy(remainingAmount = remaining, isPaid = remaining <= 0.0))
         }
@@ -93,7 +117,7 @@ class FinanceRepository(private val db: AppDatabase) {
 
     suspend fun addTransaction(tx: TransactionEntity): Long = db.withTransaction {
         validateTransaction(tx)
-        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != tx.id } + tx)
+        validateShareLinks(db.transactionDao().getShareFamily(tx.id, tx.parentTransactionId).filter { it.id != tx.id } + tx)
         adjustAccounts(null, tx)
         adjustLoans(null, tx)
         val accountId = tx.bankAccountId
@@ -102,10 +126,10 @@ class FinanceRepository(private val db: AppDatabase) {
             val latest = latestReportedBalance(accountId)
             if (tx.balanceAfter != null && (latest == null || latest.bankMovementMillis <= tx.bankMovementMillis)) {
                 // A delayed bank snapshot predates later manual entries; replay those entries.
-                val laterEffects = db.transactionDao().getByAccount(accountId)
-                    .filter { it.bankMovementMillis > tx.bankMovementMillis }
-                    .sumOf { accountEffects(it)[accountId] ?: 0.0 }
-                db.bankAccountDao().update(account.copy(balance = tx.balanceAfter + laterEffects))
+                val laterEffects = DecimalMoney.sum(db.transactionDao().getAccountMovementsAfter(accountId, tx.bankMovementMillis)) {
+                    accountEffects(it)[accountId] ?: 0.0
+                }
+                db.bankAccountDao().update(account.copy(balance = DecimalMoney.add(tx.balanceAfter, laterEffects)))
             }
             // Only bank-reported balances can anchor later reconciliation.
             tx.copy(balanceAfter = tx.balanceAfter ?: account.balance.takeIf { tx.source != TxSource.SMS })
@@ -127,7 +151,7 @@ class FinanceRepository(private val db: AppDatabase) {
         val old = requireNotNull(db.transactionDao().getById(updated.id)) { "Transaction no longer exists." }
         val tx = updated.copy(smsTimestampMillis = old.smsTimestampMillis)
         validateTransaction(tx)
-        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != tx.id } + tx)
+        validateShareLinks(db.transactionDao().getShareFamily(tx.id, tx.parentTransactionId).filter { it.id != tx.id } + tx)
         adjustAccounts(old, tx)
         adjustLoans(old, tx)
         // Snapshot edits describe history; only changes to the transaction's effect alter live balances.
@@ -137,7 +161,7 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun setShareParent(childId: Long, parentId: Long?) = db.withTransaction {
         val child = requireNotNull(db.transactionDao().getById(childId)) { "تراکنش پیدا نشد." }
         val updated = child.copy(parentTransactionId = parentId)
-        validateShareLinks(db.transactionDao().getAllOnce().filter { it.id != childId } + updated)
+        validateShareLinks(db.transactionDao().getShareFamily(childId, parentId).filter { it.id != childId } + updated)
         // Linking changes reporting only, never account balances or bank snapshots.
         db.transactionDao().update(updated)
     }
@@ -156,26 +180,26 @@ class FinanceRepository(private val db: AppDatabase) {
     suspend fun getLoanPaymentsBetween(start: Long, end: Long): List<TransactionEntity> =
         db.transactionDao().getPaymentsBetween(start, end)
 
-    suspend fun totalByType(type: TxType, start: Long, end: Long): Double =
-        reportingTransactions(db.transactionDao().getAllOnce()).filter { it.type == type && it.dateMillis in start..end }.sumOf { it.amount }
+    suspend fun reportBetween(start: Long, end: Long): TransactionReport {
+        val now = System.currentTimeMillis()
+        return transactionReport(db.transactionDao().getReportRows(start, end, now), start, end, asOfMillis = now)
+    }
 
+    suspend fun totalByType(type: TxType, start: Long, end: Long): Double = reportBetween(start, end).let {
+        when (type) { TxType.INCOME -> it.income; TxType.EXPENSE -> it.expense; TxType.CARD_TO_CARD -> it.transfers }
+    }
+
+    // Cash flow uses actual movements; share repayments belong to their payment date.
     suspend fun netBetween(start: Long, end: Long): Double {
-        val income = db.transactionDao().sumByTypeBetween(TxType.INCOME, start, end) ?: 0.0
-        val expense = db.transactionDao().sumByTypeBetween(TxType.EXPENSE, start, end) ?: 0.0
-        return income - expense
+        val rows = db.transactionDao().getReportRows(start, end, end).filter { it.dateMillis in start..end }
+        return DecimalMoney.sum(rows) {
+            when (it.type) { TxType.INCOME -> it.amount; TxType.EXPENSE -> -it.amount; TxType.CARD_TO_CARD -> 0.0 }
+        }
     }
 
-    // Total remained = sum of each account's current stored balance. The stored
-    // balance is kept in sync by transactions (add/delete) and by direct edits /
-    // SMS refreshes, so it is the single source of truth for the main-page total.
-    suspend fun totalAccountBalance(): Double {
-        return db.bankAccountDao().getAllOnce().sumOf { it.balance }
-    }
+    suspend fun totalAccountBalance(): Double = DecimalMoney.sum(db.bankAccountDao().getAllOnce()) { it.balance }
 
-    suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> =
-        reportingTransactions(db.transactionDao().getAllOnce()).filter { it.type == TxType.EXPENSE && it.dateMillis in start..end }
-            .groupBy { it.category }.map { (category, rows) -> CategoryTotal(category, rows.sumOf { it.amount }) }
-            .sortedByDescending { it.total }
+    suspend fun expenseByCategory(start: Long, end: Long): List<CategoryTotal> = reportBetween(start, end).categories
 
     // Pending SMS (awaiting user confirmation)
     fun getPendingSms() = db.pendingSmsDao().getPending()
@@ -229,7 +253,9 @@ class FinanceRepository(private val db: AppDatabase) {
             categories = db.categoryDao().getAllOnce(),
             smsSenders = db.smsSenderDao().getAllOnce(),
             financialAssets = db.financialAssetDao().getAllOnce(),
-            stockAssets = db.stockAssetDao().getAllOnce()
+            stockAssets = db.stockAssetDao().getAllOnce(),
+            pendingSms = db.pendingSmsDao().getAllOnce(),
+            settings = Settings.snapshot()
         )
     }
 
@@ -237,9 +263,10 @@ class FinanceRepository(private val db: AppDatabase) {
     // IDs are preserved so relationships (e.g. loanId, bankAccountId) survive.
     suspend fun importBundle(bundle: ExportBundle) {
         validateBundle(bundle)
+        val previousSettings = Settings.snapshot()
         // Import atomically: a malformed row or database error must not leave the
         // user with an empty or half-restored database.
-        db.withTransaction {
+        try { db.withTransaction {
             clearAllData()
             bundle.accounts.forEach { db.bankAccountDao().insert(it) }
             bundle.smsSenders.forEach { db.smsSenderDao().insert(it) }
@@ -248,6 +275,11 @@ class FinanceRepository(private val db: AppDatabase) {
             bundle.transactions.forEach { db.transactionDao().insert(it) }
             bundle.financialAssets.forEach { db.financialAssetDao().upsert(it) }
             bundle.stockAssets.forEach { db.stockAssetDao().upsert(it) }
+            bundle.pendingSms.forEach { db.pendingSmsDao().insert(it) }
+            Settings.restore(bundle.settings ?: previousSettings.copy(lastSmsCheckMillis = 0, ignoredSms = emptySet()))
+        } } catch (error: Exception) {
+            try { Settings.restore(previousSettings) } catch (restoreError: Exception) { error.addSuppressed(restoreError) }
+            throw error
         }
     }
 
@@ -256,6 +288,28 @@ class FinanceRepository(private val db: AppDatabase) {
         require(validIds(bundle.transactions.map { it.id }) && validIds(bundle.accounts.map { it.id }) &&
             validIds(bundle.loans.map { it.id }) && validIds(bundle.categories.map { it.id }) &&
             validIds(bundle.smsSenders.map { it.id })) { "Backup contains invalid or duplicate IDs." }
+        require(validIds(bundle.pendingSms.map { it.id })) { "Backup contains invalid pending message IDs." }
+        bundle.settings?.validate()
+        val accounts = bundle.accounts.map { it.id }.toSet()
+        val loans = bundle.loans.map { it.id }.toSet()
+        fun accountExists(id: Long?) = id == null || id in accounts
+        require(bundle.transactions.all { accountExists(it.bankAccountId) && accountExists(it.toAccountId) &&
+            (it.loanId == null || it.loanId in loans) } &&
+            bundle.loans.all { accountExists(it.bankAccountId) } &&
+            bundle.smsSenders.all { it.bankAccountId in accounts } &&
+            bundle.pendingSms.all { accountExists(it.bankAccountId) }) { "Backup contains missing account or loan references." }
+        bundle.transactions.forEach {
+            // Deleted accounts leave historical transfers detached; validate remaining links.
+            require(it.toAccountId == null || it.type == TxType.CARD_TO_CARD) { "Invalid transfer in backup." }
+            require(it.type != TxType.CARD_TO_CARD || it.bankAccountId == null || it.toAccountId == null || it.bankAccountId != it.toAccountId) { "Invalid transfer in backup." }
+            require(it.loanId == null || it.type == TxType.EXPENSE) { "Invalid loan payment in backup." }
+        }
+        require(bundle.pendingSms.all { row ->
+            listOfNotNull(row.parsedAmount, row.parsedBalance).all { it.isFinite() } &&
+                (row.parsedAmount == null || row.parsedAmount > 0)
+        }) { "Invalid pending message in backup." }
+        require(bundle.financialAssets.map { it.type }.distinct().size == bundle.financialAssets.size &&
+            bundle.stockAssets.map { it.instrumentCode }.distinct().size == bundle.stockAssets.size) { "Duplicate assets in backup." }
         require(bundle.transactions.all { it.amount.isFinite() && it.amount > 0.0 &&
             (it.balanceAfter == null || it.balanceAfter.isFinite()) }) { "Invalid transaction in backup." }
         validateShareLinks(bundle.transactions)
@@ -292,6 +346,8 @@ class FinanceRepository(private val db: AppDatabase) {
         val categories: List<CategoryEntity>,
         val smsSenders: List<SmsSenderEntity> = emptyList(),
         val financialAssets: List<FinancialAssetEntity> = emptyList(),
-        val stockAssets: List<StockAssetEntity> = emptyList()
+        val stockAssets: List<StockAssetEntity> = emptyList(),
+        val pendingSms: List<PendingSmsEntity> = emptyList(),
+        val settings: BackupSettings? = null
     )
 }

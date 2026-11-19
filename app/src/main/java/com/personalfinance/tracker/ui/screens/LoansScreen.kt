@@ -55,6 +55,7 @@ fun LoansScreen(viewModel: FinanceViewModel) {
 @Composable
 private fun LoansContent(viewModel: FinanceViewModel) {
     val loans by viewModel.loans.collectAsState()
+    val saving by viewModel.saving.collectAsState()
     val accounts by viewModel.bankAccounts.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
@@ -266,18 +267,17 @@ private fun LoansContent(viewModel: FinanceViewModel) {
         EditLoanDialog(
             loan = editingLoan!!,
             accounts = accounts,
+            saving = saving,
             onDismiss = { editingLoan = null },
             onSave = { updated ->
-                viewModel.updateLoan(updated)
-                editingLoan = null
+                viewModel.updateLoan(updated) { editingLoan = null }
             }
         )
     }
 
     if (showAdd) {
-        AddLoanDialog(accounts = accounts, onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes ->
-            viewModel.addLoan(name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes)
-            showAdd = false
+        AddLoanDialog(accounts = accounts, saving = saving, onDismiss = { showAdd = false }, onAdd = { name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes ->
+            viewModel.addLoan(name, principal, payDay, installment, totalMonths, accountId, reminderDays, notes) { showAdd = false }
         })
     }
 
@@ -289,8 +289,7 @@ private fun LoansContent(viewModel: FinanceViewModel) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.deleteLoan(loan)
-                        deletingLoan = null
+                        viewModel.deleteLoan(loan) { deletingLoan = null }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text(AppStrings.delete) }
@@ -305,7 +304,8 @@ private fun EditLoanDialog(
     loan: LoanEntity,
     accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
     onDismiss: () -> Unit,
-    onSave: (LoanEntity) -> Unit
+    onSave: (LoanEntity) -> Unit,
+    saving: Boolean
 ) {
     var name by remember(loan.id) { mutableStateOf(loan.name) }
     var remainingText by remember(loan.id) { mutableStateOf(Money.input(loan.remainingAmount)) }
@@ -319,7 +319,7 @@ private fun EditLoanDialog(
     val reminderOptions = listOf(7, 3, 1)
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.edit + " " + AppStrings.loans) },
         text = {
             Column(
@@ -378,7 +378,7 @@ private fun EditLoanDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 val remaining = remainingText.toDoubleOrNull()
                 val payDay = payDayText.toIntOrNull()
                 val installment = installmentText.toDoubleOrNull() ?: 0.0
@@ -404,7 +404,7 @@ private fun EditLoanDialog(
                 }
             }) { Text(AppStrings.save) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }
 
@@ -484,7 +484,8 @@ private fun LoanProjectionChart(projection: List<Double>) {
 private fun AddLoanDialog(
     accounts: List<com.personalfinance.tracker.data.BankAccountEntity>,
     onDismiss: () -> Unit,
-    onAdd: (String, Double, Int, Double, Int, Long?, Int, String) -> Unit
+    onAdd: (String, Double, Int, Double, Int, Long?, Int, String) -> Unit,
+    saving: Boolean
 ) {
     var name by remember { mutableStateOf("") }
     var principal by remember { mutableStateOf("") }
@@ -499,7 +500,7 @@ private fun AddLoanDialog(
     var accountMenuExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.addLoan) },
         text = {
             Column(
@@ -550,7 +551,7 @@ private fun AddLoanDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 val amount = principal.toDoubleOrNull()
                 val day = payDay.toIntOrNull()
                 val inst = installment.toDoubleOrNull() ?: 0.0
@@ -560,7 +561,7 @@ private fun AddLoanDialog(
                 }
             }) { Text(AppStrings.add) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(AppStrings.cancel) } }
+        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text(AppStrings.cancel) } }
     )
 }
 

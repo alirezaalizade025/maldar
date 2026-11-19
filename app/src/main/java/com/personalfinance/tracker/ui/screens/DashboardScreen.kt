@@ -64,24 +64,21 @@ private fun DashboardContent(viewModel: FinanceViewModel, onGoToConfirm: () -> U
     val pending by viewModel.pendingSms.collectAsState()
     val reviewed by viewModel.reviewedSms.collectAsState()
 
-    var monthIncome by remember { mutableStateOf(0.0) }
-    var monthExpense by remember { mutableStateOf(0.0) }
     var editingTx by remember { mutableStateOf<com.personalfinance.tracker.data.TransactionEntity?>(null) }
     var editingTxForSms by remember { mutableStateOf<com.personalfinance.tracker.data.PendingSmsEntity?>(null) }
-    var totalBalance by remember { mutableStateOf(0.0) }
-    LaunchedEffect(transactions, accounts, monthlyBudget.startMillis) {
-        val (inc, exp) = viewModel.monthlyIncomeExpense(0)
-        monthIncome = inc; monthExpense = exp
-        totalBalance = viewModel.totalAccountBalance()
+    val monthReport = remember(transactions, monthlyBudget.asOfMillis) {
+        com.personalfinance.tracker.data.transactionReport(transactions, monthlyBudget.startMillis, monthlyBudget.endMillis, asOfMillis = monthlyBudget.asOfMillis)
     }
-
-    val monthLoanPaid = transactions.filter { tx ->
+    val monthIncome = monthReport.income
+    val monthExpense = monthReport.expense
+    val totalBalance = com.personalfinance.tracker.data.DecimalMoney.sum(accounts) { it.balance }
+    val monthLoanPaid = com.personalfinance.tracker.data.DecimalMoney.sum(transactions.filter { tx ->
         JalaliCalendar.isInJalaliMonth(tx.dateMillis) && loans.any { tx.matchesLoanPayment(it, loans) }
-    }.sumOf { it.amount }
-
-    val reportTransactions = com.personalfinance.tracker.data.reportingTransactions(transactions)
-    val allIncome = reportTransactions.filter { it.type == TxType.INCOME }.sumOf { it.amount }
-    val allExpense = reportTransactions.filter { it.type == TxType.EXPENSE }.sumOf { it.amount }
+    }) { it.amount }
+    val allReport = remember(transactions, monthlyBudget.asOfMillis) { com.personalfinance.tracker.data.transactionReport(transactions, Long.MIN_VALUE, Long.MAX_VALUE, asOfMillis = monthlyBudget.asOfMillis) }
+    val reportTransactions = remember(transactions, monthlyBudget.asOfMillis) { com.personalfinance.tracker.data.reportingTransactions(transactions, monthlyBudget.asOfMillis) }
+    val allIncome = allReport.income
+    val allExpense = allReport.expense
 
     val listState = rememberLazyListState()
     var visibleCount by remember { mutableIntStateOf(15) }
@@ -389,15 +386,14 @@ internal fun EditTransactionDialog(
     onDismiss: () -> Unit
 ) {
     val allTransactions by viewModel.transactions.collectAsState()
+    val saving by viewModel.saving.collectAsState()
     var showShare by remember { mutableStateOf(false) }
     var amountText by remember { mutableStateOf(Money.input(tx.amount)) }
     var type by remember { mutableStateOf(tx.type) }
     var category by remember { mutableStateOf(tx.category) }
     var note by remember { mutableStateOf(tx.note) }
     var selectedAccountId by remember { mutableStateOf(tx.bankAccountId) }
-    var accountMenuExpanded by remember { mutableStateOf(false) }
     var selectedToAccountId by remember { mutableStateOf(tx.toAccountId) }
-    var toAccountMenuExpanded by remember { mutableStateOf(false) }
     var remainderText by remember { mutableStateOf(tx.balanceAfter?.let(Money::input) ?: "") }
     var transactionDateMillis by remember { mutableStateOf(tx.dateMillis) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -409,7 +405,7 @@ internal fun EditTransactionDialog(
             text = { Text(AppStrings.deleteTransactionConfirmBody) },
             confirmButton = {
                 TextButton(
-                    onClick = { viewModel.deleteTransaction(tx); onDismiss() },
+                    enabled = !saving, onClick = { viewModel.deleteTransaction(tx, onDismiss) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text(AppStrings.delete) }
             },
@@ -418,7 +414,7 @@ internal fun EditTransactionDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!saving) onDismiss() },
         title = { Text(AppStrings.editTransaction) },
         text = {
             Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -439,35 +435,14 @@ internal fun EditTransactionDialog(
                 if (type != TxType.CARD_TO_CARD) {
                     CategoryPicker(viewModel = viewModel, type = type, selected = category, onSelected = { category = it })
                 }
-                ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
-                        onValueChange = {}, readOnly = true,
-                        label = { Text(AppStrings.bankAccount) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
-                        accounts.forEach { acc ->
-                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
-                        }
-                    }
+                BankAccountPicker(accounts, selectedAccountId, AppStrings.bankAccount,
+                    allowCash = type != TxType.CARD_TO_CARD, enabled = !saving) {
+                    selectedAccountId = it
+                    if (selectedToAccountId == it) selectedToAccountId = null
                 }
-                if (type == TxType.CARD_TO_CARD) {
-                    ExposedDropdownMenuBox(expanded = toAccountMenuExpanded, onExpandedChange = { toAccountMenuExpanded = it }) {
-                        OutlinedTextField(
-                            value = accounts.firstOrNull { it.id == selectedToAccountId }?.accountLabel ?: AppStrings.selectDestinationAccount,
-                            onValueChange = {}, readOnly = true,
-                            label = { Text(AppStrings.toAccount) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = toAccountMenuExpanded, onDismissRequest = { toAccountMenuExpanded = false }) {
-                            accounts.filter { it.id != selectedAccountId }.forEach { acc ->
-                                DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedToAccountId = acc.id; toAccountMenuExpanded = false })
-                            }
-                        }
-                    }
-                }
+                if (type == TxType.CARD_TO_CARD) BankAccountPicker(accounts, selectedToAccountId, AppStrings.toAccount,
+                    allowCash = false, excludedId = selectedAccountId, enabled = !saving) { selectedToAccountId = it }
+
                 TransactionDateTimeFields(transactionDateMillis) { transactionDateMillis = it }
 
                 OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text(AppStrings.noteOptional) })
@@ -486,7 +461,7 @@ internal fun EditTransactionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(enabled = !saving, onClick = {
                 val amount = amountText.toDoubleOrNull()
                 val remainder = remainderText.toDoubleOrNull()
                 if (amount != null && amount > 0 && category.isNotBlank()) {
@@ -501,14 +476,13 @@ internal fun EditTransactionDialog(
                             toAccountId = if (type == TxType.CARD_TO_CARD) selectedToAccountId else null,
                             loanId = tx.loanId.takeIf { type == TxType.EXPENSE },
                             balanceAfter = if (selectedAccountId != null) remainder else null
-                        )
+                        ), onSuccess = onDismiss
                     )
-                    onDismiss()
                 }
             }) { Text(AppStrings.save) }
         },
         dismissButton = {
-            TextButton(onClick = { showDeleteConfirm = true },
+            TextButton(enabled = !saving, onClick = { showDeleteConfirm = true },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(AppStrings.delete) }
         }
     )

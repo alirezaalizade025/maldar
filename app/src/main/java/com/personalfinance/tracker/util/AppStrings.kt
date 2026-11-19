@@ -8,6 +8,10 @@ import java.math.BigDecimal
  * whole UI stays consistent and translatable.
  */
 object AppStrings {
+    val operationFailed = "عملیات انجام نشد. دوباره تلاش کنید."
+    val accountSaveFailed = "حساب ذخیره نشد. اطلاعات را بررسی و دوباره تلاش کنید."
+    val loanSaveFailed = "وام ذخیره نشد. اطلاعات را بررسی و دوباره تلاش کنید."
+
     val appName = "مال‌دار"
     val moneyUnit = "تومان"
 

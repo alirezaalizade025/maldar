@@ -41,8 +41,8 @@ class Converters {
         FinancialAssetEntity::class,
         StockAssetEntity::class
     ],
-    version = 12,
-    exportSchema = false
+    version = 13,
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -100,6 +100,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        internal val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_dateMillis ON transactions(dateMillis)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_parentTransactionId ON transactions(parentTransactionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_bankAccountId_source ON transactions(bankAccountId, source)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_toAccountId ON transactions(toAccountId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_loanId ON transactions(loanId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_pending_sms_bankAccountId_timestampMillis ON pending_sms(bankAccountId, timestampMillis)")
+            }
+        }
+
         private val defaultExpenseCategories = listOf("غذا", "حمل‌ونقل", "قبوض", "خرید", "سلامت", "تفریح", "سایر")
         private val defaultIncomeCategories = listOf("حقوق", "آزادکار", "هدیه", "سود", "سایر")
 
@@ -109,7 +120,7 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DB_NAME
             )
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

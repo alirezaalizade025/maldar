@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.personalfinance.tracker.util.CrashLogger
@@ -17,18 +19,35 @@ import com.personalfinance.tracker.util.AppStrings
 import java.util.Calendar
 
 class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
+    val assetViewModelFactory: ViewModelProvider.Factory = FinanceViewModelFactory(repo)
 
     private val mutationErrors = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val errors = mutationErrors.asSharedFlow()
 
-    private fun mutate(block: suspend () -> Unit) = viewModelScope.launch {
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            CrashLogger.log("database mutation failed", e)
-            mutationErrors.emit(AppStrings.transactionSaveFailed)
+    private val mutationInProgress = MutableStateFlow(false)
+    val saving = mutationInProgress.asStateFlow()
+    private var pendingMutations = 0
+
+    private fun mutate(
+        failureMessage: String = AppStrings.operationFailed,
+        onSuccess: () -> Unit = {},
+        block: suspend () -> Unit
+    ) {
+        pendingMutations++
+        mutationInProgress.value = true
+        viewModelScope.launch {
+            try {
+                block()
+                onSuccess()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                CrashLogger.log("database mutation failed", e)
+                mutationErrors.emit(failureMessage)
+            } finally {
+                pendingMutations--
+                mutationInProgress.value = pendingMutations > 0
+            }
         }
     }
 
@@ -58,22 +77,6 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     val stockAssets: StateFlow<List<StockAssetEntity>> =
         repo.getStockAssets().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun saveFinancialAsset(type: AssetType, quantityGrams: Double) {
-        mutate {
-            repo.saveFinancialAsset(FinancialAssetEntity(type, quantityGrams.coerceAtLeast(0.0)))
-        }
-    }
-
-    suspend fun saveStockAsset(asset: StockAssetEntity) {
-        require(asset.quantity > 0.0) { "Stock quantity must be positive." }
-        require(asset.buyPriceToman > 0.0) { "Stock buy price must be positive." }
-        repo.saveStockAsset(asset)
-    }
-
-    fun deleteStockAsset(asset: StockAssetEntity) {
-        mutate { repo.deleteStockAsset(asset) }
-    }
-
     val expenseCategories: StateFlow<List<CategoryEntity>> =
         repo.getCategoriesByType(TxType.EXPENSE).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -86,22 +89,23 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         label: String,
         openingBalance: Double,
         accountLast4: String = "",
+        senderIds: List<String> = emptyList(),
         onCreated: (Long) -> Unit = {}
     ) {
-        mutate {
+        mutate(AppStrings.accountSaveFailed) {
             val id = repo.addBankAccount(
                 BankAccountEntity(
                     bankName = bankName,
                     accountLabel = label,
                     accountLast4 = accountLast4,
                     balance = openingBalance
-                )
+                ), senderIds
             )
             onCreated(id)
         }
     }
-    fun deleteBankAccount(account: BankAccountEntity) = mutate { repo.deleteBankAccount(account) }
-    fun updateBankAccount(account: BankAccountEntity) = mutate { repo.updateBankAccount(account) }
+    fun deleteBankAccount(account: BankAccountEntity, onSuccess: () -> Unit = {}) = mutate(onSuccess = onSuccess) { repo.deleteBankAccount(account) }
+    fun updateBankAccount(account: BankAccountEntity, onSuccess: () -> Unit = {}) = mutate(AppStrings.accountSaveFailed, onSuccess) { repo.updateBankAccount(account) }
 
     // ---- SMS senders (dynamic add) ----
     fun addSmsSender(senderId: String, bankAccountId: Long, label: String) {
@@ -133,7 +137,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
                 balanceAfter = balanceAfter, rawSms = rawSms, toAccountId = toAccountId, smsTimestampMillis = smsTimestampMillis
             )
         )
-    fun deleteTransaction(tx: TransactionEntity) = mutate { repo.deleteTransaction(tx) }
+    fun deleteTransaction(tx: TransactionEntity, onSuccess: () -> Unit = {}) = mutate(onSuccess = onSuccess) { repo.deleteTransaction(tx) }
 
     // Prefer the exact original SMS and timestamp for newly saved SMS transactions.
     // The amount/day comparison remains as a compatibility fallback for older rows.
@@ -161,7 +165,7 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     suspend fun setShareParent(childId: Long, parentId: Long?) = repo.setShareParent(childId, parentId)
 
-    fun updateTransaction(tx: TransactionEntity) = mutate { repo.updateTransaction(tx) }
+    fun updateTransaction(tx: TransactionEntity, onSuccess: () -> Unit = {}) = mutate(AppStrings.transactionSaveFailed, onSuccess) { repo.updateTransaction(tx) }
 
     // Records a loan repayment as a transaction linked to the loan, and reduces the
     // loan's remaining balance by the paid amount.
@@ -195,9 +199,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         note: String,
         finalBalanceAfter: Double? = null,
         toAccountId: Long? = null,
-        dateMillis: Long = pending.timestampMillis
+        dateMillis: Long = pending.timestampMillis,
+        onSuccess: () -> Unit = {}
     ) {
-        mutate {
+        mutate(AppStrings.transactionSaveFailed, onSuccess) {
             val chosenBalanceAfter = if (type == TxType.CARD_TO_CARD) null else finalBalanceAfter ?: pending.parsedBalance
             repo.confirmPendingSms(pending,
                 TransactionEntity(
@@ -224,9 +229,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         totalMonths: Int,
         bankAccountId: Long?,
         reminderDaysBefore: Int,
-        notes: String
+        notes: String,
+        onSuccess: () -> Unit = {}
     ) {
-        mutate {
+        mutate(AppStrings.loanSaveFailed, onSuccess) {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
@@ -245,9 +251,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         totalMonths: Int,
         bankAccountId: Long?,
         reminderDaysBefore: Int,
-        notes: String
+        notes: String,
+        onSuccess: () -> Unit = {}
     ) {
-        mutate {
+        mutate(AppStrings.loanSaveFailed, onSuccess) {
             repo.addLoan(
                 LoanEntity(
                     name = name, principal = principal, remainingAmount = principal,
@@ -260,8 +267,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         }
     }
     fun markLoanPaid(loan: LoanEntity) = mutate { repo.updateLoan(loan.copy(isPaid = true, remainingAmount = 0.0)) }
-    fun updateLoan(loan: LoanEntity) = mutate { repo.updateLoan(loan) }
-    fun deleteLoan(loan: LoanEntity) = mutate { repo.deleteLoan(loan) }
+    fun updateLoan(loan: LoanEntity, onSuccess: () -> Unit = {}) = mutate(AppStrings.loanSaveFailed, onSuccess) { repo.updateLoan(loan) }
+    fun deleteLoan(loan: LoanEntity, onSuccess: () -> Unit = {}) = mutate(onSuccess = onSuccess) { repo.deleteLoan(loan) }
 
     // Remaining months until payoff, derived from the installment so it drops
     // automatically with every payment. Defaults to totalMonths when no installment.
@@ -273,11 +280,11 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     }
 
     // ---- Categories ----
-    fun addCategory(name: String, type: TxType) {
-        mutate { repo.addCategory(name.trim(), type) }
+    fun addCategory(name: String, type: TxType, onSuccess: () -> Unit = {}) {
+        mutate(onSuccess = onSuccess) { repo.addCategory(name.trim(), type) }
     }
-    fun renameCategory(category: CategoryEntity, newName: String) {
-        mutate { repo.renameCategory(category, newName.trim()) }
+    fun renameCategory(category: CategoryEntity, newName: String, onSuccess: () -> Unit = {}) {
+        mutate(onSuccess = onSuccess) { repo.renameCategory(category, newName.trim()) }
     }
     suspend fun deleteCategorySafe(category: CategoryEntity): FinanceRepository.DeleteCategoryResult {
         return repo.deleteCategorySafe(category)
@@ -285,14 +292,19 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 
     // ---- Export / backup ----
     suspend fun exportAll(): FinanceRepository.ExportBundle = repo.exportAll()
-    suspend fun importBundle(bundle: FinanceRepository.ExportBundle) = repo.importBundle(bundle)
+    suspend fun importBundle(bundle: FinanceRepository.ExportBundle) {
+        repo.importBundle(bundle)
+        com.personalfinance.tracker.util.AppContextProvider.appContext?.let { context ->
+            try { com.personalfinance.tracker.worker.DailyReminderScheduler.scheduleNext(context) }
+            catch (e: Exception) { CrashLogger.log("Reminder reschedule after restore failed", e) }
+        }
+    }
 
     // ---- Reports ----
     suspend fun monthlyIncomeExpense(monthOffset: Int = 0): Pair<Double, Double> {
         val (start, end) = monthRange(monthOffset)
-        val income = repo.totalByType(TxType.INCOME, start, end)
-        val expense = repo.totalByType(TxType.EXPENSE, start, end)
-        return income to expense
+        val report = repo.reportBetween(start, end)
+        return report.income to report.expense
     }
 
     suspend fun categoryBreakdown(monthOffset: Int = 0): List<CategoryTotal> {
@@ -305,9 +317,8 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
     suspend fun monthlyHistory(count: Int = 6): List<Pair<Double, Double>> {
         return (count - 1 downTo 0).map { offset ->
             val (start, end) = monthRange(-offset)
-            val income = repo.totalByType(TxType.INCOME, start, end)
-            val expense = repo.totalByType(TxType.EXPENSE, start, end)
-            income to expense
+            val report = repo.reportBetween(start, end)
+            report.income to report.expense
         }
     }
 
@@ -317,12 +328,12 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
         // point matches the live total account balance.
         val ranges = (count - 1 downTo 0).map { offset -> monthRange(-offset) }
         val nets = ranges.map { (start, end) -> repo.netBetween(start, end) }
-        val windowNet = nets.sum()
-        val seed = repo.totalAccountBalance() - windowNet
+        val windowNet = DecimalMoney.sum(nets) { it }
+        val seed = DecimalMoney.subtract(repo.totalAccountBalance(), windowNet)
         val out = mutableListOf<Double>()
         var running = seed
         for (n in nets) {
-            running += n
+            running = DecimalMoney.add(running, n)
             out.add(running)
         }
         return out
@@ -338,6 +349,10 @@ class FinanceViewModel(private val repo: FinanceRepository) : ViewModel() {
 class FinanceViewModelFactory(private val repo: FinanceRepository) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return FinanceViewModel(repo) as T
+        return when {
+            modelClass.isAssignableFrom(FinanceViewModel::class.java) -> FinanceViewModel(repo)
+            modelClass.isAssignableFrom(AssetsViewModel::class.java) -> AssetsViewModel(repo)
+            else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
+        } as T
     }
 }

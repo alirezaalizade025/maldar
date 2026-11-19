@@ -20,6 +20,9 @@ interface FinancialAssetDao {
 
 @Dao
 interface StockAssetDao {
+    @Query("UPDATE stock_assets SET lastPriceToman = :price, lastPriceUpdatedAt = :timestamp WHERE instrumentCode = :code")
+    suspend fun updateQuote(code: String, price: Double, timestamp: Long)
+
     @Query("SELECT * FROM stock_assets ORDER BY symbol")
     fun getAll(): Flow<List<StockAssetEntity>>
 
@@ -83,6 +86,17 @@ interface SmsSenderDao {
 
 @Dao
 interface TransactionDao {
+    @Query("SELECT * FROM transactions WHERE id = :id OR parentTransactionId = :id OR id = :parentId OR parentTransactionId = :parentId")
+    suspend fun getShareFamily(id: Long, parentId: Long?): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE dateMillis BETWEEN :start AND :end OR (dateMillis <= :asOf AND parentTransactionId IN (SELECT id FROM transactions WHERE dateMillis BETWEEN :start AND :end))")
+    suspend fun getReportRows(start: Long, end: Long, asOf: Long): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE (bankAccountId = :accountId OR toAccountId = :accountId) AND CASE WHEN source = 'SMS' THEN COALESCE(smsTimestampMillis, dateMillis) ELSE dateMillis END > :after")
+    suspend fun getAccountMovementsAfter(accountId: Long, after: Long): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND source = 'SMS' AND COALESCE(smsTimestampMillis, dateMillis) BETWEEN :start AND :end")
+    suspend fun getSmsInWindow(accountId: Long, start: Long, end: Long): List<TransactionEntity>
     @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
     fun getAll(): Flow<List<TransactionEntity>>
 
@@ -113,12 +127,6 @@ interface TransactionDao {
     @Delete
     suspend fun delete(tx: TransactionEntity)
 
-    @Query("SELECT SUM(amount) FROM transactions WHERE type = :type AND dateMillis BETWEEN :start AND :end")
-    suspend fun sumByTypeBetween(type: TxType, start: Long, end: Long): Double?
-
-    @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'EXPENSE' AND dateMillis BETWEEN :start AND :end GROUP BY category ORDER BY total DESC")
-    suspend fun expenseByCategoryBetween(start: Long, end: Long): List<CategoryTotal>
-
     @Query("SELECT * FROM transactions ORDER BY dateMillis DESC")
     suspend fun getAllOnce(): List<TransactionEntity>
 
@@ -127,11 +135,6 @@ interface TransactionDao {
 
     @Query("SELECT * FROM transactions WHERE loanId = :loanId ORDER BY dateMillis DESC")
     suspend fun getPaymentsForLoan(loanId: Long): List<TransactionEntity>
-
-    // Most recent transaction (by time) for a given account that carries a
-    // non-null balanceAfter snapshot. Used to read that account's latest remained.
-    @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC LIMIT 1")
-    suspend fun latestBalanceForAccount(accountId: Long): TransactionEntity?
 
     @Query("SELECT * FROM transactions WHERE bankAccountId = :accountId AND source = 'SMS' AND balanceAfter IS NOT NULL ORDER BY dateMillis DESC, id DESC")
     suspend fun getSmsBalancesForAccount(accountId: Long): List<TransactionEntity>
@@ -147,6 +150,11 @@ data class CategoryTotal(val category: String, val total: Double)
 
 @Dao
 interface PendingSmsDao {
+    @Query("SELECT * FROM pending_sms")
+    suspend fun getAllOnce(): List<PendingSmsEntity>
+
+    @Query("SELECT * FROM pending_sms WHERE bankAccountId = :accountId AND timestampMillis BETWEEN :start AND :end")
+    suspend fun getInWindow(accountId: Long, start: Long, end: Long): List<PendingSmsEntity>
     @Query("SELECT * FROM pending_sms WHERE status = 'PENDING' ORDER BY timestampMillis DESC")
     fun getPending(): Flow<List<PendingSmsEntity>>
 

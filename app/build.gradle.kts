@@ -4,6 +4,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+ksp { arg("room.schemaLocation", "$projectDir/schemas") }
+
 // Resolve Android test runtimes through Gradle, including proxy and offline support.
 val robolectricSdks = configurations.create("robolectricSdks")
 val prepareRobolectricSdks = tasks.register<Copy>("prepareRobolectricSdks") {
@@ -77,6 +79,7 @@ val totalCommits = git("rev-list", "--count", "HEAD").trim().toIntOrNull() ?: 0
 val versionCodeValue = (BASE_OFFSET + totalCommits).coerceAtLeast(1)
 
 android {
+    sourceSets["test"].resources.srcDir("schemas")
     namespace = "com.personalfinance.tracker"
     compileSdk = 34
 

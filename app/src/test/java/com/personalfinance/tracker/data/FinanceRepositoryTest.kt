@@ -36,6 +36,36 @@ class FinanceRepositoryTest {
         assertEquals(100.0, balance(a), 0.0)
         assertEquals(150.0, balance(b), 0.0)
     }
+
+    @Test fun fractionalPayments_doNotLeaveRoundingDebt() = runBlocking {
+        val a = account(0.3)
+        repo.addTransaction(expense(a, 0.1))
+        repo.addTransaction(expense(a, 0.2))
+        assertEquals(0.0, balance(a), 0.0)
+        val loan = LoanEntity(name = "fractional", principal = 0.3, remainingAmount = 0.3, dueDateMillis = 100)
+        val id = repo.addLoan(loan)
+        repo.addTransaction(expense(null, 0.1).copy(loanId = id))
+        repo.addTransaction(expense(null, 0.2).copy(loanId = id))
+        assertTrue(repo.exportAll().loans.single().isPaid)
+    }
+
+    @Test fun danglingBackupAccount_doesNotEraseExistingData() = runBlocking {
+        val a = account(100.0)
+        val backup = repo.exportAll().copy(transactions = listOf(expense(999).copy(id = 1)))
+        try { repo.importBundle(backup); fail("Dangling account must fail") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals(100.0, balance(a), 0.0)
+    }
+
+    @Test fun reportsKeepCrossPeriodRepaymentsSeparateFromCashFlow() = runBlocking {
+        val parent = repo.addTransaction(expense(null, 100.0).copy(dateMillis = 100))
+        val child = repo.addTransaction(expense(null, 20.0).copy(type = TxType.INCOME, dateMillis = 200))
+        repo.setShareParent(child, parent)
+        assertEquals(80.0, repo.totalByType(TxType.EXPENSE, 0, 150), 0.0)
+        assertEquals(0.0, repo.totalByType(TxType.INCOME, 151, 300), 0.0)
+        assertEquals(-100.0, repo.netBetween(0, 150), 0.0)
+        assertEquals(20.0, repo.netBetween(151, 300), 0.0)
+    }
     @Test fun snapshotOnlyEdit_doesNotOverwriteLiveBalance() = runBlocking {
         val a = account(100.0)
         val id = repo.addTransaction(expense(a))

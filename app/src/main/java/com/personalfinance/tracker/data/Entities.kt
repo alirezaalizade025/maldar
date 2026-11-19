@@ -2,6 +2,7 @@ package com.personalfinance.tracker.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 
 enum class TxType { INCOME, EXPENSE, CARD_TO_CARD }
 enum class TxSource { MANUAL, SMS }
@@ -44,7 +45,8 @@ data class SmsSenderEntity(
     val label: String = ""
 )
 
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions", indices = [Index("dateMillis"), Index("parentTransactionId"),
+    Index(value = ["bankAccountId", "source"]), Index("toAccountId"), Index("loanId")])
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amount: Double,
@@ -72,7 +74,7 @@ data class TransactionEntity(
     val smsTimestampMillis: Long? = null
 )
 
-@Entity(tableName = "pending_sms")
+@Entity(tableName = "pending_sms", indices = [Index(value = ["bankAccountId", "timestampMillis"])])
 data class PendingSmsEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val rawMessage: String,

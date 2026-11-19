@@ -21,9 +21,6 @@ import com.personalfinance.tracker.data.StockAssetEntity
 import com.personalfinance.tracker.ui.theme.AppCard
 import com.personalfinance.tracker.util.*
 import com.personalfinance.tracker.viewmodel.FinanceViewModel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @Composable
 fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
@@ -35,128 +32,16 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
     var silverAmount by remember(metals) {
         mutableStateOf(metals.firstOrNull { it.type == AssetType.SILVER_999 }?.quantityGrams?.let(Money::input) ?: "")
     }
-    var metalPrices by remember { mutableStateOf<MetalPrices?>(null) }
-    var metalLoading by remember { mutableStateOf(false) }
-    var metalError by remember { mutableStateOf<String?>(null) }
-
-    var searchText by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<StockSearchResult>>(emptyList()) }
-    var searchLoading by remember { mutableStateOf(false) }
-    var searchError by remember { mutableStateOf<String?>(null) }
-    var selectedStock by remember { mutableStateOf<StockSearchResult?>(null) }
-    var selectedQuote by remember { mutableStateOf<StockQuote?>(null) }
-    var quantityText by remember { mutableStateOf("") }
-    var buyPriceText by remember { mutableStateOf("") }
-    var stockSaving by remember { mutableStateOf(false) }
-    var stockRefreshing by remember { mutableStateOf(false) }
-    var stockMessage by remember { mutableStateOf<String?>(null) }
-    var stockError by remember { mutableStateOf<String?>(null) }
+    val state: com.personalfinance.tracker.viewmodel.AssetsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = viewModel.assetViewModelFactory
+    )
     var stockToDelete by remember { mutableStateOf<StockAssetEntity?>(null) }
-    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { state.refreshMetals() }
+    LaunchedEffect(stocks.map { it.instrumentCode }) { state.refreshStocks(stocks) }
+    LaunchedEffect(state.searchText, state.selectedStock?.instrumentCode) { state.searchStocks(state.searchText) }
 
-    fun refreshMetals() {
-        metalLoading = true
-        metalError = null
-        scope.launch {
-            runCatching { MetalPriceService.fetch() }
-                .onSuccess { metalPrices = it }
-                .onFailure { metalError = it.message ?: AppStrings.assetPriceFailed }
-            metalLoading = false
-        }
-    }
-
-    fun refreshStocks(snapshot: List<StockAssetEntity> = stocks) {
-        if (snapshot.isEmpty() || stockRefreshing) return
-        stockRefreshing = true
-        stockError = null
-        scope.launch {
-            var firstFailure: Throwable? = null
-            snapshot.forEach { stock ->
-                runCatching { TsetmcStockService.quote(stock.instrumentCode) }
-                    .onSuccess { quote ->
-                        viewModel.saveStockAsset(
-                            stock.copy(
-                                lastPriceToman = quote.lastPriceToman,
-                                lastPriceUpdatedAt = quote.fetchedAtMillis
-                            )
-                        )
-                    }
-                    .onFailure {
-                        if (it is CancellationException) throw it
-                        if (firstFailure == null) firstFailure = it
-                    }
-            }
-            firstFailure?.let {
-                CrashLogger.log("assets: TSETMC stock refresh failed", it)
-                stockError = it.message ?: AppStrings.assetPriceFailed
-            }
-            stockRefreshing = false
-        }
-    }
-
-    fun selectStock(result: StockSearchResult, existing: StockAssetEntity? = null) {
-        selectedStock = result
-        searchText = result.symbol
-        searchResults = emptyList()
-        searchError = null
-        stockMessage = null
-        stockError = null
-        quantityText = existing?.quantity?.let(Money::input) ?: ""
-        buyPriceText = existing?.buyPriceToman?.let(Money::input) ?: ""
-        selectedQuote = existing?.lastPriceToman?.let {
-            StockQuote(
-                instrumentCode = existing.instrumentCode,
-                lastPriceToman = it,
-                closingPriceToman = null,
-                fetchedAtMillis = existing.lastPriceUpdatedAt ?: 0L
-            )
-        }
-        scope.launch {
-            val requestedCode = result.instrumentCode
-            runCatching { TsetmcStockService.quote(result.instrumentCode) }
-                .onSuccess {
-                    if (selectedStock?.instrumentCode == requestedCode) selectedQuote = it
-                }
-                .onFailure {
-                    if (it is CancellationException) throw it
-                    if (selectedStock?.instrumentCode == requestedCode) {
-                        CrashLogger.log("assets: selected TSETMC quote failed", it)
-                        stockError = it.message ?: AppStrings.priceUnavailable
-                    }
-                }
-        }
-    }
-
-    LaunchedEffect(Unit) { refreshMetals() }
-    val stockCodes = stocks.map { it.instrumentCode }
-    LaunchedEffect(stockCodes) {
-        if (stockCodes.isNotEmpty()) refreshStocks(stocks)
-    }
-
-    LaunchedEffect(searchText, selectedStock?.instrumentCode) {
-        val query = searchText.trim()
-        if (query.length < 2 || selectedStock?.symbol == query) {
-            searchResults = emptyList()
-            searchLoading = false
-            return@LaunchedEffect
-        }
-        searchLoading = true
-        searchError = null
-        try {
-            delay(450)
-            searchResults = TsetmcStockService.search(query)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (error: Throwable) {
-            searchResults = emptyList()
-            searchError = error.message ?: AppStrings.stockSearchFailed
-        } finally {
-            searchLoading = false
-        }
-    }
-
-    val goldValue = (goldAmount.toDoubleOrNull() ?: 0.0) * (metalPrices?.gold18TomanPerGram ?: 0.0)
-    val silverValue = (silverAmount.toDoubleOrNull() ?: 0.0) * (metalPrices?.silver999TomanPerGram ?: 0.0)
+    val goldValue = (goldAmount.toDoubleOrNull() ?: 0.0) * (state.metalPrices?.gold18TomanPerGram ?: 0.0)
+    val silverValue = (silverAmount.toDoubleOrNull() ?: 0.0) * (state.metalPrices?.silver999TomanPerGram ?: 0.0)
     val stockValue = stocks.sumOf { it.quantity * (it.lastPriceToman ?: 0.0) }
     val pricedStocks = stocks.filter { it.lastPriceToman != null }
     val stockProfit = pricedStocks.sumOf { stock ->
@@ -172,7 +57,7 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
         item { Text(AppStrings.financialAssets, style = MaterialTheme.typography.headlineMedium) }
         item { Text(AppStrings.assetsHint, style = MaterialTheme.typography.bodySmall) }
 
-        if (metalPrices != null || stocks.any { it.lastPriceToman != null }) {
+        if (state.metalPrices != null || stocks.any { it.lastPriceToman != null }) {
             item {
                 AppCard(
                     filled = MaterialTheme.colorScheme.primaryContainer,
@@ -191,31 +76,29 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
         }
 
         item {
-            AssetEditor(AppStrings.gold18, goldAmount, metalPrices?.gold18TomanPerGram) { goldAmount = it }
+            AssetEditor(AppStrings.gold18, goldAmount, state.metalPrices?.gold18TomanPerGram) { goldAmount = it }
         }
         item {
-            AssetEditor(AppStrings.silver999, silverAmount, metalPrices?.silver999TomanPerGram) { silverAmount = it }
+            AssetEditor(AppStrings.silver999, silverAmount, state.metalPrices?.silver999TomanPerGram) { silverAmount = it }
         }
         item {
             Button(
                 onClick = {
-                    viewModel.saveFinancialAsset(AssetType.GOLD_18K, goldAmount.toDoubleOrNull() ?: 0.0)
-                    viewModel.saveFinancialAsset(AssetType.SILVER_999, silverAmount.toDoubleOrNull() ?: 0.0)
-                    refreshMetals()
+                    state.refreshMetals(goldAmount.toDoubleOrNull() ?: 0.0, silverAmount.toDoubleOrNull() ?: 0.0)
                 },
-                enabled = !metalLoading,
+                enabled = !state.metalLoading,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (metalLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                if (state.metalLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else Icon(Icons.Filled.Refresh, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text(AppStrings.saveAndRefresh)
             }
         }
-        metalError?.let { message ->
+        state.metalError?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.error) }
         }
-        metalPrices?.let { current ->
+        state.metalPrices?.let { current ->
             item {
                 Text(
                     "${AppStrings.lastPriceUpdate}: ${current.updatedAt}",
@@ -229,36 +112,37 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
         item { Text(AppStrings.stockSearchHint, style = MaterialTheme.typography.bodySmall) }
         item {
             OutlinedTextField(
-                value = searchText,
+                enabled = !state.stockSaving,
+                value = state.searchText,
                 onValueChange = {
-                    searchText = it
-                    selectedStock = null
-                    selectedQuote = null
-                    stockMessage = null
+                    state.searchText = it
+                    state.selectedStock = null
+                    state.selectedQuote = null
+                    state.stockMessage = null
                 },
                 label = { Text(AppStrings.stockSearch) },
                 trailingIcon = {
-                    if (searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    if (state.searchLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        searchError?.let { message ->
+        state.searchError?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
         }
-        if (!searchLoading && searchText.trim().length >= 2 && selectedStock == null && searchResults.isEmpty() && searchError == null) {
+        if (!state.searchLoading && state.searchText.trim().length >= 2 && state.selectedStock == null && state.searchResults.isEmpty() && state.searchError == null) {
             item { Text(AppStrings.stockNoResults, style = MaterialTheme.typography.bodySmall) }
         }
-        if (searchResults.isNotEmpty()) {
+        if (state.searchResults.isNotEmpty()) {
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
-                        searchResults.take(8).forEachIndexed { index, result ->
+                        state.searchResults.take(8).forEachIndexed { index, result ->
                             Column(
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable { selectStock(result) }
+                                    .clickable(enabled = !state.stockSaving) { state.selectStock(result) }
                                     .padding(12.dp)
                             ) {
                                 Text(result.symbol, fontWeight = FontWeight.Bold)
@@ -271,34 +155,36 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
                                     )
                                 }
                             }
-                            if (index != searchResults.take(8).lastIndex) HorizontalDivider()
+                            if (index != state.searchResults.take(8).lastIndex) HorizontalDivider()
                         }
                     }
                 }
             }
         }
 
-        selectedStock?.let { selected ->
+        state.selectedStock?.let { selected ->
             item {
                 AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("${selected.symbol} • ${selected.name}", fontWeight = FontWeight.Bold)
-                        selectedQuote?.let {
+                        state.selectedQuote?.let {
                             Text(
                                 "${AppStrings.stockCurrentPrice}: ${Money.format2(it.lastPriceToman)} ${AppStrings.moneyUnit}",
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                         OutlinedTextField(
-                            value = quantityText,
-                            onValueChange = { quantityText = sanitizeNumberInput(it) },
+                            enabled = !state.stockSaving,
+                            value = state.quantityText,
+                            onValueChange = { state.quantityText = sanitizeNumberInput(it) },
                             label = { Text(AppStrings.stockQuantity) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
                         OutlinedTextField(
-                            value = buyPriceText,
-                            onValueChange = { buyPriceText = sanitizeNumberInput(it) },
+                            enabled = !state.stockSaving,
+                            value = state.buyPriceText,
+                            onValueChange = { state.buyPriceText = sanitizeNumberInput(it) },
                             label = { Text(AppStrings.stockBuyPrice) },
                             visualTransformation = ThousandsSeparatorTransformation(),
                             singleLine = true,
@@ -306,52 +192,11 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
                         )
                         val isExisting = stocks.any { it.instrumentCode == selected.instrumentCode }
                         Button(
-                            onClick = {
-                                val quantity = quantityText.toDoubleOrNull()
-                                val buyPrice = buyPriceText.toDoubleOrNull()
-                                if (quantity == null || quantity <= 0.0 || buyPrice == null || buyPrice <= 0.0) {
-                                    stockError = AppStrings.stockInvalidInput
-                                    return@Button
-                                }
-                                stockSaving = true
-                                stockError = null
-                                stockMessage = null
-                                scope.launch {
-                                    val existing = stocks.firstOrNull { it.instrumentCode == selected.instrumentCode }
-                                    val latestQuote = selectedQuote?.takeIf { it.instrumentCode == selected.instrumentCode }
-                                        ?: runCatching { TsetmcStockService.quote(selected.instrumentCode) }
-                                            .onFailure { CrashLogger.log("assets: TSETMC quote before save failed", it) }
-                                            .getOrNull()
-                                    runCatching {
-                                        viewModel.saveStockAsset(
-                                            StockAssetEntity(
-                                                instrumentCode = selected.instrumentCode,
-                                                symbol = selected.symbol,
-                                                name = selected.name,
-                                                quantity = quantity,
-                                                buyPriceToman = buyPrice,
-                                                lastPriceToman = latestQuote?.lastPriceToman ?: existing?.lastPriceToman,
-                                                lastPriceUpdatedAt = latestQuote?.fetchedAtMillis ?: existing?.lastPriceUpdatedAt
-                                            )
-                                        )
-                                    }.onSuccess {
-                                        stockMessage = AppStrings.stockSaved
-                                        selectedStock = null
-                                        selectedQuote = null
-                                        searchText = ""
-                                        quantityText = ""
-                                        buyPriceText = ""
-                                    }.onFailure {
-                                        CrashLogger.log("assets: stock database save failed", it)
-                                        stockError = it.message ?: AppStrings.stockInvalidInput
-                                    }
-                                    stockSaving = false
-                                }
-                            },
-                            enabled = !stockSaving && !stockRefreshing,
+                            onClick = { state.saveStock(stocks) },
+                            enabled = !state.stockSaving && !state.stockRefreshing,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            if (stockSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            if (state.stockSaving) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             else Text(if (isExisting) AppStrings.updateStock else AppStrings.addStock)
                         }
                     }
@@ -359,10 +204,10 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
             }
         }
 
-        stockMessage?.let { message ->
+        state.stockMessage?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.primary) }
         }
-        stockError?.let { message ->
+        state.stockError?.let { message ->
             item { Text(message, color = MaterialTheme.colorScheme.error) }
         }
 
@@ -404,11 +249,11 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
             }
             item {
                 OutlinedButton(
-                    onClick = { refreshStocks() },
-                    enabled = !stockRefreshing,
+                    onClick = { state.refreshStocks(stocks) },
+                    enabled = !state.stockRefreshing,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (stockRefreshing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    if (state.stockRefreshing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Icon(Icons.Filled.Refresh, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(AppStrings.refreshStockPrices)
@@ -420,9 +265,9 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
             item {
                 StockAssetsTable(
                     stocks = stocks,
-                    deleteEnabled = !stockRefreshing,
+                    deleteEnabled = !state.stockRefreshing && !state.stockSaving,
                     onEdit = { stock ->
-                        selectStock(
+                        state.selectStock(
                             StockSearchResult(
                                 instrumentCode = stock.instrumentCode,
                                 symbol = stock.symbol,
@@ -442,14 +287,14 @@ fun FinancialAssetsScreen(viewModel: FinanceViewModel) {
     if (stockToDelete != null) {
         val stock = stockToDelete!!
         AlertDialog(
-            onDismissRequest = { stockToDelete = null },
+            onDismissRequest = { if (!state.stockSaving) stockToDelete = null },
             title = { Text(AppStrings.deleteStockConfirmTitle) },
             text = { Text(AppStrings.deleteStockConfirmBody.fa(stock.symbol)) },
             confirmButton = {
                 TextButton(
+                    enabled = !state.stockSaving,
                     onClick = {
-                        viewModel.deleteStockAsset(stock)
-                        stockToDelete = null
+                        state.deleteStock(stock) { stockToDelete = null }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text(AppStrings.delete) }
@@ -515,7 +360,7 @@ private fun StockAssetsTable(
                     StockTableCell(currentPrice?.let(Money::format2) ?: "—", 132.dp)
                     StockTableCell(currentValue?.let(Money::format2) ?: "—", 140.dp)
                     StockTableCell(profit?.let(Money::format2) ?: "—", 124.dp, FontWeight.Bold, profit?.let(::profitColor))
-                    IconButton(onClick = { onEdit(stock) }) { Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit) }
+                    IconButton(onClick = { onEdit(stock) }, enabled = deleteEnabled) { Icon(Icons.Filled.Edit, contentDescription = AppStrings.edit) }
                     IconButton(onClick = { onDelete(stock) }, enabled = deleteEnabled) {
                         Icon(Icons.Filled.Delete, contentDescription = AppStrings.delete, tint = MaterialTheme.colorScheme.error)
                     }

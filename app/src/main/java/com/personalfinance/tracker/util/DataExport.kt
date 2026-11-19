@@ -84,6 +84,12 @@ object DataExport {
         }
     }
 
+    const val FORMAT_VERSION = 2
+
+    fun toJson(bundle: FinanceRepository.ExportBundle): String = toJson(bundle.transactions, bundle.accounts,
+        bundle.loans, bundle.categories, bundle.smsSenders, bundle.financialAssets, bundle.stockAssets,
+        bundle.pendingSms, bundle.settings)
+
     fun toJson(
         transactions: List<TransactionEntity>,
         accounts: List<BankAccountEntity>,
@@ -91,8 +97,11 @@ object DataExport {
         categories: List<CategoryEntity>,
         smsSenders: List<SmsSenderEntity> = emptyList(),
         financialAssets: List<FinancialAssetEntity> = emptyList(),
-        stockAssets: List<StockAssetEntity> = emptyList()
+        stockAssets: List<StockAssetEntity> = emptyList(),
+        pendingSms: List<PendingSmsEntity> = emptyList(),
+        settings: BackupSettings? = null
     ): String = JSONObject().apply {
+        put("formatVersion", FORMAT_VERSION)
         put("transactions", JSONArray(transactions.map {
             JSONObject().apply {
                 put("id", it.id); put("type", it.type.name); put("amount", it.amount)
@@ -147,6 +156,19 @@ object DataExport {
                 put("lastPriceUpdatedAt", it.lastPriceUpdatedAt)
             }
         }))
+        put("pendingSms", JSONArray(pendingSms.map { row -> JSONObject().apply {
+            put("id", row.id); put("rawMessage", row.rawMessage); put("sender", row.sender)
+            put("parsedAmount", row.parsedAmount); put("parsedType", row.parsedType?.name)
+            put("parsedBalance", row.parsedBalance); put("timestampMillis", row.timestampMillis)
+            put("bankAccountId", row.bankAccountId); put("status", row.status.name)
+        } }))
+        settings?.let { value -> put("settings", JSONObject().apply {
+            put("dailyReminderEnabled", value.dailyReminderEnabled)
+            put("dailyReminderHour", value.dailyReminderHour); put("dailyReminderMinute", value.dailyReminderMinute)
+            put("readSmsFromNotificationsEnabled", value.readSmsFromNotificationsEnabled)
+            put("lastSmsCheckMillis", value.lastSmsCheckMillis)
+            put("ignoredSms", JSONArray(value.ignoredSms.sorted()))
+        }) }
     }.toString(2)
 
     /**
@@ -157,6 +179,7 @@ object DataExport {
     @Throws(Exception::class)
     fun fromJson(json: String): FinanceRepository.ExportBundle {
         val root = JSONObject(json)
+        require(root.optInt("formatVersion", 1) in 1..FORMAT_VERSION) { "Unsupported backup format version." }
         require(listOf("transactions", "bankAccounts", "loans", "categories").all {
             root.optJSONArray(it) != null
         }) { "Not a complete Maldar backup" }
@@ -247,6 +270,23 @@ object DataExport {
                 lastPriceUpdatedAt = if (o.isNull("lastPriceUpdatedAt")) null else o.optLong("lastPriceUpdatedAt")
             )
         }
+        val pendingSms = (0 until arr("pendingSms").length()).map { i ->
+            val o = arr("pendingSms").getJSONObject(i)
+            PendingSmsEntity(id = o.getLong("id"), rawMessage = o.getString("rawMessage"), sender = o.getString("sender"),
+                parsedAmount = if (o.isNull("parsedAmount")) null else o.getDouble("parsedAmount"),
+                parsedType = if (o.isNull("parsedType")) null else enumValueOf<TxType>(o.getString("parsedType")),
+                parsedBalance = if (o.isNull("parsedBalance")) null else o.getDouble("parsedBalance"),
+                timestampMillis = o.getLong("timestampMillis"),
+                bankAccountId = if (o.isNull("bankAccountId")) null else o.getLong("bankAccountId"),
+                status = enumValueOf<PendingStatus>(o.getString("status")))
+        }
+        val settings = if (root.isNull("settings")) null else root.getJSONObject("settings").let { o ->
+            val ignored = o.getJSONArray("ignoredSms")
+            BackupSettings(o.getBoolean("dailyReminderEnabled"), o.getInt("dailyReminderHour"),
+                o.getInt("dailyReminderMinute"), o.getBoolean("readSmsFromNotificationsEnabled"),
+                o.getLong("lastSmsCheckMillis"), (0 until ignored.length()).map { ignored.getString(it) }.toSet())
+                .also { it.validate() }
+        }
         return FinanceRepository.ExportBundle(
             transactions = transactions,
             accounts = accounts,
@@ -254,7 +294,7 @@ object DataExport {
             categories = categories,
             smsSenders = smsSenders,
             financialAssets = financialAssets,
-            stockAssets = stockAssets
+            stockAssets = stockAssets, pendingSms = pendingSms, settings = settings
         )
     }
 

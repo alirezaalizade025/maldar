@@ -70,7 +70,6 @@ private fun AddTransactionContent(
     var category by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var selectedAccountId by remember { mutableStateOf<Long?>(null) }
-    var accountMenuExpanded by remember { mutableStateOf(false) }
     var confirmationMessage by remember { mutableStateOf<String?>(null) }
     // false = Toman (stored unit), true = Rial (entered value / 10 to convert)
     var rialMode by remember { mutableStateOf(false) }
@@ -223,40 +222,13 @@ private fun AddTransactionContent(
 
         AppCard(style = AppCardStyle.FLAT, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(MaldarDesign.spacing.md)) {
-                ExposedDropdownMenuBox(expanded = accountMenuExpanded, onExpandedChange = { accountMenuExpanded = it }) {
-                    OutlinedTextField(
-                        value = accounts.firstOrNull { it.id == selectedAccountId }?.accountLabel ?: AppStrings.noneCash,
-                        onValueChange = {}, readOnly = true,
-                        label = { Text(AppStrings.bankAccount) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text(AppStrings.noneCash) }, onClick = { selectedAccountId = null; accountMenuExpanded = false })
-                        accounts.forEach { acc ->
-                            DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = { selectedAccountId = acc.id; accountMenuExpanded = false })
-                        }
-                    }
+                BankAccountPicker(accounts, selectedAccountId, AppStrings.bankAccount,
+                    allowCash = type != TxType.CARD_TO_CARD, enabled = !isSaving) {
+                    selectedAccountId = it
+                    if (selectedToAccountId == it) selectedToAccountId = null
                 }
-
-                if (type == TxType.CARD_TO_CARD) {
-                    var toAccountMenuExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(expanded = toAccountMenuExpanded, onExpandedChange = { toAccountMenuExpanded = it }) {
-                        OutlinedTextField(
-                            value = accounts.firstOrNull { it.id == selectedToAccountId }?.accountLabel ?: AppStrings.selectDestinationAccount,
-                            onValueChange = {}, readOnly = true,
-                            label = { Text(AppStrings.toAccount) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = toAccountMenuExpanded, onDismissRequest = { toAccountMenuExpanded = false }) {
-                            accounts.filter { it.id != selectedAccountId }.forEach { acc ->
-                                DropdownMenuItem(text = { Text(acc.accountLabel) }, onClick = {
-                                    selectedToAccountId = acc.id
-                                    toAccountMenuExpanded = false
-                                })
-                            }
-                        }
-                    }
-                }
+                if (type == TxType.CARD_TO_CARD) BankAccountPicker(accounts, selectedToAccountId, AppStrings.toAccount,
+                    allowCash = false, excludedId = selectedAccountId, enabled = !isSaving) { selectedToAccountId = it }
 
                 if (type == TxType.EXPENSE) ExposedDropdownMenuBox(expanded = loanMenuExpanded, onExpandedChange = { loanMenuExpanded = it }) {
                     OutlinedTextField(

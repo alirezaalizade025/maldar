@@ -3,11 +3,40 @@ package com.personalfinance.tracker.util
 import android.content.Context
 import android.content.SharedPreferences
 
+data class BackupSettings(
+    val dailyReminderEnabled: Boolean = false,
+    val dailyReminderHour: Int = 21,
+    val dailyReminderMinute: Int = 0,
+    val readSmsFromNotificationsEnabled: Boolean = true,
+    val lastSmsCheckMillis: Long = 0L,
+    val ignoredSms: Set<String> = emptySet()
+) {
+    fun validate() {
+        require(dailyReminderHour in 0..23 && dailyReminderMinute in 0..59 && lastSmsCheckMillis >= 0) {
+            "Invalid settings in backup."
+        }
+    }
+}
+
 /**
- * Simple app-wide settings backed by SharedPreferences. Currently holds the
- * daily reminder configuration (enabled + the hour of day it should fire).
+ * App preferences and SMS review metadata, included in versioned JSON backups.
  */
 object Settings {
+    fun snapshot() = BackupSettings(dailyReminderEnabled, dailyReminderHour, dailyReminderMinute,
+        readSmsFromNotificationsEnabled, lastSmsCheckMillis, ignoredSms.toSet())
+
+    fun restore(settings: BackupSettings) {
+        settings.validate()
+        val preferences = prefs ?: return
+        check(preferences.edit()
+            .putBoolean(KEY_DAILY_ENABLED, settings.dailyReminderEnabled)
+            .putInt(KEY_DAILY_HOUR, settings.dailyReminderHour)
+            .putInt(KEY_DAILY_MINUTE, settings.dailyReminderMinute)
+            .putBoolean(KEY_READ_SMS_FROM_NOTIFICATIONS, settings.readSmsFromNotificationsEnabled)
+            .putLong(KEY_LAST_SMS_CHECK, settings.lastSmsCheckMillis)
+            .putStringSet(KEY_IGNORED_SMS, settings.ignoredSms.toSet())
+            .commit()) { "Could not restore app settings." }
+    }
 
     private const val PREFS = "app_settings"
     private const val KEY_DAILY_ENABLED = "daily_reminder_enabled"
